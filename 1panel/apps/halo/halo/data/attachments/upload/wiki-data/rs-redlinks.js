@@ -14,6 +14,117 @@
   var slugSet = null;
   var slugSetLoadedAt = 0;
   var CACHE_MS = cfg.cacheMs || 15 * 60 * 1000;
+  var REDLINK_TARGET_ANN = "rs.wiki/redlink-target-slug";
+  var SESSION_MAP_KEY = "rsWikiRedlinkMap";
+  var redlinkTargetMap = null;
+  var redlinkTargetLoadPromise = null;
+
+  function mergeRedlinkTargetsIntoSet(set, targets) {
+    if (!targets || !targets.length) return;
+    for (var i = 0; i < targets.length; i++) {
+      if (targets[i]) set.add(targets[i]);
+    }
+  }
+
+  function hydrateRedlinkMapFromSession() {
+    try {
+      var raw = sessionStorage.getItem(SESSION_MAP_KEY);
+      if (!raw) return;
+      var o = JSON.parse(raw);
+      if (!redlinkTargetMap) redlinkTargetMap = {};
+      Object.keys(o).forEach(function (k) {
+        if (o[k]) redlinkTargetMap[k] = o[k];
+        if (slugSet) slugSet.add(k);
+      });
+    } catch (e) {
+      /* ignore */
+    }
+  }
+
+  function registerRedlinkTarget(linkTarget, postSlug) {
+    if (!linkTarget || !postSlug) return;
+    if (!redlinkTargetMap) redlinkTargetMap = {};
+    redlinkTargetMap[linkTarget] = postSlug;
+    if (slugSet) slugSet.add(linkTarget);
+    try {
+      var raw = sessionStorage.getItem(SESSION_MAP_KEY);
+      var o = raw ? JSON.parse(raw) : {};
+      o[linkTarget] = postSlug;
+      sessionStorage.setItem(SESSION_MAP_KEY, JSON.stringify(o));
+    } catch (e2) {
+      /* ignore */
+    }
+  }
+
+  function loadRedlinkTargetMap(force) {
+    if (!force && redlinkTargetMap) return Promise.resolve(redlinkTargetMap);
+    if (!force && redlinkTargetLoadPromise) return redlinkTargetLoadPromise;
+    redlinkTargetLoadPromise = fetchAllPublishedRedlinkTargets()
+      .then(function (map) {
+        redlinkTargetMap = map;
+        Object.keys(map).forEach(function (t) {
+          if (slugSet) slugSet.add(t);
+        });
+        return map;
+      })
+      .catch(function (err) {
+        console.warn("[rs-redlinks] 红链目标映射加载失败", err);
+        redlinkTargetMap = redlinkTargetMap || {};
+        return redlinkTargetMap;
+      });
+    return redlinkTargetLoadPromise;
+  }
+
+  function fetchAllPublishedRedlinkTargets() {
+    var map = {};
+    var page = 1;
+    function nextPage() {
+      return fetch(
+        "/apis/api.content.halo.run/v1alpha1/posts?page=" + page + "&size=100",
+        { credentials: "same-origin" }
+      )
+        .then(function (r) {
+          return r.json();
+        })
+        .then(function (data) {
+          (data.items || []).forEach(function (post) {
+            if (!isPostPublished(post)) return;
+            var ann = post.metadata && post.metadata.annotations;
+            var target = ann && ann[REDLINK_TARGET_ANN];
+            var ps = post.spec && post.spec.slug;
+            if (target && ps) map[target] = ps;
+          });
+          if (data.hasNext) {
+            page += 1;
+            return nextPage();
+          }
+          return map;
+        });
+    }
+    return nextPage();
+  }
+
+  function checkLinkTarget(linkTarget) {
+    return slugPublishedViaApi(linkTarget).then(function (direct) {
+      if (direct) return { linkTarget: linkTarget, ready: true, postSlug: linkTarget };
+      return loadRedlinkTargetMap().then(function (map) {
+        if (map[linkTarget]) {
+          return { linkTarget: linkTarget, ready: true, postSlug: map[linkTarget] };
+        }
+        return { linkTarget: linkTarget, ready: false, postSlug: null };
+      });
+    });
+  }
+
+  function applyPublishedLink(anchor, linkTarget, postSlug) {
+    if (slugSet) slugSet.add(linkTarget);
+    anchor.setAttribute("data-rs-wiki-slug", linkTarget);
+    if (postSlug) anchor.setAttribute("data-rs-wiki-post-slug", postSlug);
+    anchor.setAttribute("href", PATH_PREFIX + (postSlug || linkTarget));
+    anchor.classList.remove("rs-wiki-redlink");
+    anchor.classList.remove("rs-wiki-redlink--pending");
+    anchor.removeAttribute("title");
+  }
 
   function getCookie(name) {
     var m = document.cookie.match(new RegExp("(?:^|; )" + name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "=([^;]*)"));
@@ -71,6 +182,7 @@
       })
       .then(function (data) {
         slugSet = new Set(data.slugs || data.publishedSlugs || []);
+        mergeRedlinkTargetsIntoSet(slugSet, data.redlinkTargets);
         slugSetLoadedAt = now;
         return slugSet;
       })
@@ -393,15 +505,6 @@
     window.location.href = PATH_PREFIX + slug;
   }
 
-  function markLinkPublished(anchor, slug) {
-    if (slugSet) slugSet.add(slug);
-    anchor.setAttribute("href", PATH_PREFIX + slug);
-    anchor.setAttribute("data-rs-wiki-slug", slug);
-    anchor.classList.remove("rs-wiki-redlink");
-    anchor.classList.remove("rs-wiki-redlink--pending");
-    anchor.removeAttribute("title");
-  }
-
   function onRedlinkClick(e) {
     var a = e.currentTarget;
     var slug = a.getAttribute("data-rs-wiki-slug");
@@ -411,6 +514,17 @@
       window.location.href = PATH_PREFIX + slug;
       return;
     }
+
+    checkLinkTarget(slug).then(function (st) {
+      if (st.ready && st.postSlug) {
+        window.location.href = PATH_PREFIX + st.postSlug;
+        return;
+      }
+      startRedlinkCreate(a, slug);
+    });
+  }
+
+  function startRedlinkCreate(a, slug) {
     var title = linkTitle(a);
     var sourceSlug = parseArchivesSlug(location.pathname);
     var postName = crypto.randomUUID();
@@ -447,7 +561,9 @@
           alert("发布失败：" + (result.error || "未知错误"));
           return;
         }
-        markLinkPublished(a, result.slug);
+        var linkTarget = result.linkTarget || slug;
+        registerRedlinkTarget(linkTarget, result.slug);
+        applyPublishedLink(a, linkTarget, result.slug);
         navigateToPublishedArticle(result.slug);
       })
       .catch(function (err) {
@@ -465,7 +581,14 @@
   function run() {
     injectStyles();
     var root = contentRoot();
-    loadSlugSet(false).then(function (set) {
+    loadSlugSet(false)
+      .then(function (set) {
+        hydrateRedlinkMapFromSession();
+        return loadRedlinkTargetMap().then(function () {
+          return set;
+        });
+      })
+      .then(function (set) {
       markLinks(root, set);
       var slugs = [];
       root.querySelectorAll("[data-rs-wiki-slug]").forEach(function (a) {
@@ -478,17 +601,13 @@
       }
       Promise.all(
         slugs.map(function (slug) {
-          return slugPublishedViaApi(slug).then(function (published) {
-            return { slug: slug, published: published };
-          });
+          return checkLinkTarget(slug);
         })
       ).then(function (results) {
         results.forEach(function (r) {
-          root.querySelectorAll('a[data-rs-wiki-slug="' + r.slug + '"]').forEach(function (a) {
-            if (r.published) {
-              if (slugSet) slugSet.add(r.slug);
-              a.classList.remove("rs-wiki-redlink");
-              a.removeAttribute("title");
+          root.querySelectorAll('a[data-rs-wiki-slug="' + r.linkTarget + '"]').forEach(function (a) {
+            if (r.ready && r.postSlug) {
+              applyPublishedLink(a, r.linkTarget, r.postSlug);
             } else {
               a.classList.add("rs-wiki-redlink");
               a.setAttribute("title", "尚未发布 · 点击将先发布并打开该页");

@@ -68,6 +68,43 @@ def fetch_halo_slugs(base_url: str) -> set[str]:
     return slugs
 
 
+def is_halo_post_published(item: dict) -> bool:
+    labels = (item.get("metadata") or {}).get("labels") or {}
+    if labels.get("content.halo.run/published") == "true":
+        return True
+    spec = item.get("spec") or {}
+    status = item.get("status") or {}
+    return spec.get("publish") is True and status.get("phase") == "PUBLISHED"
+
+
+def fetch_halo_redlink_targets(base_url: str) -> set[str]:
+    """已发布且带 rs.wiki/redlink-target-slug 的文章：链接目标视为已「占位」发布。"""
+    targets: set[str] = set()
+    page = 1
+    size = 100
+    ann_key = "rs.wiki/redlink-target-slug"
+    while True:
+        url = (
+            f"{base_url.rstrip('/')}/apis/api.content.halo.run/v1alpha1/posts"
+            f"?page={page}&size={size}"
+        )
+        req = urllib.request.Request(url, headers={"Accept": "application/json"})
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+        for item in data.get("items") or []:
+            if not is_halo_post_published(item):
+                continue
+            meta = item.get("metadata") or {}
+            ann = meta.get("annotations") or {}
+            t = ann.get(ann_key)
+            if t and isinstance(t, str):
+                targets.add(t.strip())
+        if not data.get("hasNext"):
+            break
+        page += 1
+    return targets
+
+
 def main() -> int:
     p = argparse.ArgumentParser(description="Export wiki slug index for red links")
     p.add_argument(
@@ -97,9 +134,11 @@ def main() -> int:
     wiki_root = args.wiki_root.resolve()
     git_slugs = collect_wiki_slugs(wiki_root)
     halo_slugs: set[str] = set()
+    redlink_targets: set[str] = set()
     if not args.no_halo:
         try:
             halo_slugs = fetch_halo_slugs(args.halo_url)
+            redlink_targets = fetch_halo_redlink_targets(args.halo_url)
         except Exception as e:
             print(f"warn: Halo API 未合并 ({e})，slugs 将为空（前台靠 API 逐条校验）")
     if args.include_git:
@@ -113,6 +152,7 @@ def main() -> int:
             "halo": len(halo_slugs),
         },
         "slugs": published,
+        "redlinkTargets": sorted(redlink_targets),
         "gitSlugs": sorted(git_slugs),
     }
     args.output.parent.mkdir(parents=True, exist_ok=True)
