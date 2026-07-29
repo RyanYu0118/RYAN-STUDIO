@@ -19,23 +19,9 @@
   var redlinkTargetMap = null;
   var redlinkTargetLoadPromise = null;
 
-  function mergeRedlinkTargetsIntoSet(set, targets) {
-    if (!targets || !targets.length) return;
-    for (var i = 0; i < targets.length; i++) {
-      if (targets[i]) set.add(targets[i]);
-    }
-  }
-
-  function hydrateRedlinkMapFromSession() {
+  function syncSessionRedlinkMap(map) {
     try {
-      var raw = sessionStorage.getItem(SESSION_MAP_KEY);
-      if (!raw) return;
-      var o = JSON.parse(raw);
-      if (!redlinkTargetMap) redlinkTargetMap = {};
-      Object.keys(o).forEach(function (k) {
-        if (o[k]) redlinkTargetMap[k] = o[k];
-        if (slugSet) slugSet.add(k);
-      });
+      sessionStorage.setItem(SESSION_MAP_KEY, JSON.stringify(map || {}));
     } catch (e) {
       /* ignore */
     }
@@ -45,11 +31,11 @@
     if (!linkTarget || !postSlug) return;
     if (!redlinkTargetMap) redlinkTargetMap = {};
     redlinkTargetMap[linkTarget] = postSlug;
-    if (slugSet) slugSet.add(linkTarget);
     try {
-      var raw = sessionStorage.getItem(SESSION_MAP_KEY);
-      var o = raw ? JSON.parse(raw) : {};
-      o[linkTarget] = postSlug;
+      var o = {};
+      Object.keys(redlinkTargetMap).forEach(function (k) {
+        o[k] = redlinkTargetMap[k];
+      });
       sessionStorage.setItem(SESSION_MAP_KEY, JSON.stringify(o));
     } catch (e2) {
       /* ignore */
@@ -57,14 +43,15 @@
   }
 
   function loadRedlinkTargetMap(force) {
-    if (!force && redlinkTargetMap) return Promise.resolve(redlinkTargetMap);
-    if (!force && redlinkTargetLoadPromise) return redlinkTargetLoadPromise;
+    if (force) {
+      redlinkTargetLoadPromise = null;
+      redlinkTargetMap = null;
+    }
+    if (redlinkTargetLoadPromise) return redlinkTargetLoadPromise;
     redlinkTargetLoadPromise = fetchAllPublishedRedlinkTargets()
       .then(function (map) {
         redlinkTargetMap = map;
-        Object.keys(map).forEach(function (t) {
-          if (slugSet) slugSet.add(t);
-        });
+        syncSessionRedlinkMap(map);
         return map;
       })
       .catch(function (err) {
@@ -104,20 +91,34 @@
     return nextPage();
   }
 
+  function removeStaleRedlinkTarget(linkTarget) {
+    if (redlinkTargetMap && redlinkTargetMap[linkTarget]) {
+      delete redlinkTargetMap[linkTarget];
+      syncSessionRedlinkMap(redlinkTargetMap);
+    }
+  }
+
   function checkLinkTarget(linkTarget) {
     return slugPublishedViaApi(linkTarget).then(function (direct) {
       if (direct) return { linkTarget: linkTarget, ready: true, postSlug: linkTarget };
       return loadRedlinkTargetMap().then(function (map) {
-        if (map[linkTarget]) {
-          return { linkTarget: linkTarget, ready: true, postSlug: map[linkTarget] };
+        var postSlug = map[linkTarget];
+        if (!postSlug) {
+          removeStaleRedlinkTarget(linkTarget);
+          return { linkTarget: linkTarget, ready: false, postSlug: null };
         }
-        return { linkTarget: linkTarget, ready: false, postSlug: null };
+        return slugPublishedViaApi(postSlug).then(function (ok) {
+          if (!ok) {
+            removeStaleRedlinkTarget(linkTarget);
+            return { linkTarget: linkTarget, ready: false, postSlug: null };
+          }
+          return { linkTarget: linkTarget, ready: true, postSlug: postSlug };
+        });
       });
     });
   }
 
   function applyPublishedLink(anchor, linkTarget, postSlug) {
-    if (slugSet) slugSet.add(linkTarget);
     anchor.setAttribute("data-rs-wiki-slug", linkTarget);
     if (postSlug) anchor.setAttribute("data-rs-wiki-post-slug", postSlug);
     anchor.setAttribute("href", PATH_PREFIX + (postSlug || linkTarget));
@@ -182,7 +183,6 @@
       })
       .then(function (data) {
         slugSet = new Set(data.slugs || data.publishedSlugs || []);
-        mergeRedlinkTargetsIntoSet(slugSet, data.redlinkTargets);
         slugSetLoadedAt = now;
         return slugSet;
       })
@@ -197,8 +197,10 @@
   function isPostPublished(post) {
     if (!post) return false;
     var labels = (post.metadata && post.metadata.labels) || {};
+    if (labels["content.halo.run/deleted"] === "true") return false;
     if (labels["content.halo.run/published"] === "true") return true;
     var spec = post.spec || {};
+    if (spec.deleted === true) return false;
     var status = post.status || {};
     return spec.publish === true && status.phase === "PUBLISHED";
   }
@@ -240,11 +242,6 @@
       var slug = parseArchivesSlug(a.getAttribute("href"));
       if (!slug) return;
       a.setAttribute("data-rs-wiki-slug", slug);
-      if (set.has(slug)) {
-        a.classList.remove("rs-wiki-redlink");
-        a.removeAttribute("title");
-        return;
-      }
       a.classList.add("rs-wiki-redlink");
       a.setAttribute("title", "尚未发布 · 点击将先发布并打开该页");
       a.setAttribute("href", PATH_PREFIX + slug);
@@ -318,10 +315,7 @@
       '<div class="html-edited"><div id="halo-manual-id" style="display:none;">' +
       postName +
       "</div></div>";
-    var bodyBlock =
-      '<div class="html-edited"><h1>' +
-      escapeHtml(title) +
-      "</h1><p>（由 Wiki 红链创建，待完善。）</p></div>";
+    var bodyBlock = '<div class="html-edited"></div>';
     var html = manualBlock + bodyBlock;
     return { raw: html, content: html, rawType: "html" };
   }
@@ -583,7 +577,6 @@
     var root = contentRoot();
     loadSlugSet(false)
       .then(function (set) {
-        hydrateRedlinkMapFromSession();
         return loadRedlinkTargetMap().then(function () {
           return set;
         });
@@ -608,8 +601,11 @@
           root.querySelectorAll('a[data-rs-wiki-slug="' + r.linkTarget + '"]').forEach(function (a) {
             if (r.ready && r.postSlug) {
               applyPublishedLink(a, r.linkTarget, r.postSlug);
+              if (slugSet) slugSet.add(r.linkTarget);
             } else {
+              a.setAttribute("href", PATH_PREFIX + r.linkTarget);
               a.classList.add("rs-wiki-redlink");
+              a.removeAttribute("data-rs-wiki-post-slug");
               a.setAttribute("title", "尚未发布 · 点击将先发布并打开该页");
             }
           });
