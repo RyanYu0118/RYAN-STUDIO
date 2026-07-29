@@ -1,8 +1,8 @@
-# 流浪世界 Wiki（仓库内 Markdown）
+# 流浪世界 Wiki（RYAN-STUDIO / `wiki/`）
 
-## 唯一真相源：Git
+## 唯一真相源：本仓库（RYAN-STUDIO）
 
-**以本仓库 `wiki/` 为准**编辑、评审与版本历史；Halo / RYAN STUDIO 是**发布目标**（渲染 + 附件 `/upload/`），不要在后台改完再反向覆盖 Git（除非刻意做一次性导出备份到 `demo/`）。
+**以 [RYAN-STUDIO](https://github.com/RyanYu0118/RYAN-STUDIO) 根目录下的 `wiki/` 为准**编辑、评审与版本历史；Minecraft `1.21.11` 服务器目录**不再**存放 Wiki 源文件（见该仓 `WIKI.md`）。Halo 为**发布目标**（渲染 + 附件 `/upload/`），不要在后台改完再反向覆盖 Git（除非刻意做一次性导出备份到 `demo/`）。
 
 | 步骤 | 命令 / 位置 |
 |------|-------------|

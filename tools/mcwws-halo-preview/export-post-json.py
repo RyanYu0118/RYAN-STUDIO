@@ -63,10 +63,46 @@ def md_to_html(text: str) -> str:
     try:
         import markdown  # type: ignore
 
-        return markdown.markdown(text, extensions=["tables", "nl2br"])
-    except ImportError:
-        escaped = text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
-        return f'<div class="mcwws-md-fallback"><pre>{escaped}</pre></div>'
+        return markdown.markdown(
+            text,
+            extensions=["tables", "nl2br", "fenced_code", "sane_lists"],
+        )
+    except ImportError as e:
+        raise RuntimeError(
+            "发布 Wiki 需要 Python 包 markdown：pip install markdown"
+        ) from e
+
+
+def is_mixed_halo_page(body: str) -> bool:
+    """含 UUID 分段、MCWWS 嵌入或内联 HTML/脚本 → 走 HTML 编辑块；否则整篇 Markdown。"""
+    if "{{MCWWS_" in body or "{{WANDER_" in body:
+        return True
+    for line in body.splitlines():
+        if UUID_RE.match(line.strip()):
+            return True
+    lower = body.lower()
+    for token in (
+        "<style",
+        "<script",
+        "wd-smart-card",
+        "wander-smart",
+        "wws-wb-",
+        "nav-quote-box",
+        "<video",
+    ):
+        if token in lower:
+            return True
+    return False
+
+
+def compile_for_halo_publish(body: str, post_name: str) -> tuple[str, str, str]:
+    """返回 (rawType, raw, content) 供 Halo draft / content-json。"""
+    body = body.strip()
+    if is_mixed_halo_page(body):
+        html = build_halo_html(body, post_name)
+        return "html", html, html
+    content = rewrite_wiki_links(md_to_html(body))
+    return "markdown", body, content
 
 
 def wrap_style(css: str) -> str:

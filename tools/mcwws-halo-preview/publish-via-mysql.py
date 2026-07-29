@@ -63,7 +63,9 @@ def upsert_extension(name: str, obj: dict) -> None:
     mysql_exec(sql)
 
 
-def compile_article(src: Path, *, rewrite_upload: bool) -> tuple[dict[str, str], str, str, str]:
+def compile_article(
+    src: Path, *, rewrite_upload: bool
+) -> tuple[dict[str, str], str, str, str, str]:
     raw = src.read_text(encoding="utf-8")
     wiki_root = _exp.find_wiki_root(src)
     fm, body = _exp.split_frontmatter(raw)
@@ -73,9 +75,21 @@ def compile_article(src: Path, *, rewrite_upload: bool) -> tuple[dict[str, str],
         body = _exp.rewrite_halo_asset_paths(body)
     slug = meta.get("slug") or src.stem
     post_name = str(uuid.uuid4())
-    html = _exp.build_halo_html(body, post_name)
-    md_html = _exp.rewrite_wiki_links(_exp.md_to_html(body))
-    return meta, slug, html, md_html
+    raw_type, raw, content = _exp.compile_for_halo_publish(body, post_name)
+    return meta, slug, raw_type, raw, content
+
+
+def apply_content_annotations(post: dict, raw_type: str, raw: str, content: str) -> None:
+    ann = post.setdefault("metadata", {}).setdefault("annotations", {})
+    ann["content.halo.run/preferred-editor"] = (
+        "markdown" if raw_type == "markdown" else "default"
+    )
+    ann["content.halo.run/content-json"] = json.dumps(
+        {"raw": raw, "content": content, "rawType": raw_type},
+        ensure_ascii=False,
+    )
+    ann.pop("checksum/content", None)
+    ann.pop("checksum/config", None)
 
 
 def find_post_by_slug(slug: str) -> tuple[str, dict] | None:
@@ -98,12 +112,14 @@ def find_post_by_slug(slug: str) -> tuple[str, dict] | None:
     return None
 
 
-def build_new_post(meta: dict[str, str], post_name: str, snap_name: str) -> dict:
+def build_new_post(
+    meta: dict[str, str], post_name: str, snap_name: str, raw_type: str, raw: str, content: str
+) -> dict:
     slug = meta["slug"]
     title = meta.get("title", slug)
     excerpt = meta.get("description") or meta.get("excerpt") or ""
     t = now_z()
-    return {
+    post: dict = {
         "apiVersion": "content.halo.run/v1alpha1",
         "kind": "Post",
         "metadata": {
@@ -121,7 +137,6 @@ def build_new_post(meta: dict[str, str], post_name: str, snap_name: str) -> dict
             "annotations": {
                 "content.halo.run/permalink-pattern": "/archives/{slug}",
                 "content.halo.run/last-released-snapshot": snap_name,
-                "content.halo.run/preferred-editor": "default",
             },
             "version": 1,
             "creationTimestamp": t,
@@ -167,10 +182,26 @@ def build_new_post(meta: dict[str, str], post_name: str, snap_name: str) -> dict
             "observedVersion": 1,
         },
     }
+    apply_content_annotations(post, raw_type, raw, content)
+    return post
 
 
-def build_snapshot(post_name: str, snap_name: str, html: str, md_html: str) -> dict:
+def build_snapshot(
+    post_name: str,
+    snap_name: str,
+    raw_type: str,
+    raw: str,
+    content: str,
+) -> dict:
+    """Halo 前台渲染以 Snapshot 为准。MySQL 直写时 markdown 型快照会触发 JSON 解析 500，故纯 MD 文章用 HTML 快照存渲染结果，Markdown 原文仅放在 Post content-json。"""
     t = now_z()
+    snap_raw_type = raw_type
+    snap_raw = raw
+    snap_content = content
+    if raw_type == "markdown":
+        snap_raw_type = "HTML"
+        snap_raw = content
+        snap_content = content
     return {
         "apiVersion": "content.halo.run/v1alpha1",
         "kind": "Snapshot",
@@ -186,9 +217,9 @@ def build_snapshot(post_name: str, snap_name: str, html: str, md_html: str) -> d
                 "kind": "Post",
                 "name": post_name,
             },
-            "rawType": "HTML",
-            "rawPatch": html,
-            "contentPatch": html,
+            "rawType": snap_raw_type,
+            "rawPatch": snap_raw,
+            "contentPatch": snap_content,
             "lastModifyTime": t,
             "owner": "ryanyu",
             "contributors": ["ryanyu"],
@@ -196,21 +227,30 @@ def build_snapshot(post_name: str, snap_name: str, html: str, md_html: str) -> d
     }
 
 
-def update_existing_post(post: dict, snap_name: str, html: str) -> None:
+def update_existing_post(
+    post: dict, snap_name: str, meta: dict[str, str], raw_type: str, raw: str, content: str
+) -> None:
     t = now_z()
+    excerpt = meta.get("description") or meta.get("excerpt") or ""
+    post["spec"]["title"] = meta.get("title", post["spec"].get("title", ""))
     post["spec"]["releaseSnapshot"] = snap_name
     post["spec"]["headSnapshot"] = snap_name
+    post["spec"]["baseSnapshot"] = snap_name
     post["spec"]["deleted"] = False
     post["spec"]["publish"] = True
     post["spec"]["publishTime"] = t
+    post["spec"].setdefault("excerpt", {})["raw"] = excerpt
+    post["spec"]["excerpt"]["autoGenerate"] = False
     post.setdefault("metadata", {}).setdefault("labels", {})["content.halo.run/published"] = "true"
     post["metadata"]["labels"]["content.halo.run/deleted"] = "false"
     post.setdefault("status", {})["phase"] = "PUBLISHED"
     post["status"]["permalink"] = f"/archives/{post['spec']['slug']}"
+    post["status"]["excerpt"] = excerpt
     post["status"]["lastModifyTime"] = t
     post["metadata"].setdefault("annotations", {})[
         "content.halo.run/last-released-snapshot"
     ] = snap_name
+    apply_content_annotations(post, raw_type, raw, content)
 
 
 def main() -> int:
@@ -219,21 +259,23 @@ def main() -> int:
     p.add_argument("--rewrite-upload", action="store_true")
     args = p.parse_args()
     src = args.input.resolve()
-    meta, slug, html, _md_html = compile_article(src, rewrite_upload=args.rewrite_upload)
+    meta, slug, raw_type, raw, content = compile_article(
+        src, rewrite_upload=args.rewrite_upload
+    )
 
     existing = find_post_by_slug(slug)
     snap_name = str(uuid.uuid4())
     if existing:
         post_path, post = existing
         post_name = post["metadata"]["name"]
-        update_existing_post(post, snap_name, html)
+        update_existing_post(post, snap_name, meta, raw_type, raw, content)
     else:
         post_name = str(uuid.uuid4())
         post_path = f"/registry/content.halo.run/posts/{post_name}"
-        post = build_new_post(meta, post_name, snap_name)
+        post = build_new_post(meta, post_name, snap_name, raw_type, raw, content)
 
     snap_path = f"/registry/content.halo.run/snapshots/{snap_name}"
-    snap = build_snapshot(post_name, snap_name, html, _md_html)
+    snap = build_snapshot(post_name, snap_name, raw_type, raw, content)
 
     upsert_extension(post_path, post)
     upsert_extension(snap_path, snap)

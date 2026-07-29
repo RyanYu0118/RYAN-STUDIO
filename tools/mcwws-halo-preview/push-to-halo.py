@@ -23,6 +23,7 @@ _export_spec.loader.exec_module(_export)
 
 build_halo_html = _export.build_halo_html
 build_post = _export.build_post
+compile_for_halo_publish = _export.compile_for_halo_publish
 expand_halo_includes = _export.expand_halo_includes
 find_wiki_root = _export.find_wiki_root
 parse_frontmatter_meta = _export.parse_frontmatter_meta
@@ -134,7 +135,19 @@ def attach_content_json(post: dict, html: str) -> dict:
     return post
 
 
-def compile_md(src: Path, *, rewrite_upload: bool) -> tuple[dict[str, str], str, str]:
+def attach_content(post: dict, raw_type: str, raw: str, content: str) -> dict:
+    post = json.loads(json.dumps(post))
+    ann = post.setdefault("metadata", {}).setdefault("annotations", {})
+    editor = "markdown" if raw_type == "markdown" else "default"
+    ann["content.halo.run/preferred-editor"] = editor
+    ann["content.halo.run/content-json"] = json.dumps(
+        {"content": content, "raw": raw, "rawType": raw_type},
+        ensure_ascii=False,
+    )
+    return post
+
+
+def compile_md(src: Path, *, rewrite_upload: bool) -> tuple[dict[str, str], str, str, str, str]:
     raw = src.read_text(encoding="utf-8")
     wiki_root = find_wiki_root(src)
     fm, body = split_frontmatter(raw)
@@ -148,13 +161,15 @@ def compile_md(src: Path, *, rewrite_upload: bool) -> tuple[dict[str, str], str,
         import uuid
 
         post_name = str(uuid.uuid4())
-    html = build_halo_html(body, post_name)
-    return meta, slug, html
+    raw_type, raw, content = compile_for_halo_publish(body, post_name)
+    return meta, slug, raw_type, raw, content
 
 
-def build_payload(meta: dict[str, str], post_name: str, html: str, *, publish: bool) -> dict:
+def build_payload(
+    meta: dict[str, str], post_name: str, raw_type: str, raw: str, content: str, *, publish: bool
+) -> dict:
     post = build_post(meta, post_name, draft=not publish)
-    post = attach_content_json(post, html)
+    post = attach_content(post, raw_type, raw, content)
     if publish:
         post["spec"]["publish"] = True
         post.setdefault("metadata", {}).setdefault("labels", {})[
@@ -204,10 +219,14 @@ def push_post(
             name = resp["metadata"]["name"]
 
     # 同步草稿正文（部分版本 PUT post 已含 content-json，再写 draft 更稳）
-    html = json.loads(
+    content_json = json.loads(
         post_body["metadata"]["annotations"]["content.halo.run/content-json"]
-    )["content"]
-    draft = {"raw": html, "content": html, "rawType": "html"}
+    )
+    draft = {
+        "raw": content_json["raw"],
+        "content": content_json["content"],
+        "rawType": content_json["rawType"],
+    }
     code, resp = api_request(
         base,
         pat,
@@ -253,7 +272,7 @@ def main() -> int:
     wiki_root = find_wiki_root(src)
     load_env_file(wiki_root / ".halo.env")
 
-    meta, slug, html = compile_md(src, rewrite_upload=args.rewrite_upload)
+    meta, slug, raw_type, raw, content = compile_md(src, rewrite_upload=args.rewrite_upload)
     name_map = load_name_map(wiki_root)
     post_name = name_map.get(slug, "")
     if not post_name:
@@ -261,13 +280,13 @@ def main() -> int:
 
         post_name = str(uuid.uuid4())
 
-    post_body = build_payload(meta, post_name, html, publish=args.publish)
+    post_body = build_payload(meta, post_name, raw_type, raw, content, publish=args.publish)
 
     if args.dry_run:
         out = wiki_root / "_publish" / f"{src.stem}.dry-run.html"
         out.parent.mkdir(parents=True, exist_ok=True)
-        out.write_text(html, encoding="utf-8")
-        print(f"Dry-run HTML: {out}")
+        out.write_text(content, encoding="utf-8")
+        print(f"Dry-run ({raw_type}): {out}")
         print(f"slug={slug} title={meta.get('title', '')}")
         return 0
 

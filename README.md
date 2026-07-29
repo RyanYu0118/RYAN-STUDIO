@@ -6,10 +6,11 @@ Ryan 的工作室仓库：含简单静态页与本地 **1Panel / Halo** 部署�
 
 根目录 `index.html` 为早期测试页，可按需替换或挂 GitHub Pages。
 
-## Wiki 文章源（Markdown）
+## Wiki 文章源（Markdown，唯一维护位置）
 
-| 路径 | 说明 |
-|------|------|
+本仓库为 Wiki **唯一 Git 源**。Minecraft `1.21.11` 服务器目录已删除 `wiki/` 与 `tools/mcwws-halo-preview/`，仅保留 `WIKI.md` 指向此处。
+
+| 路径 | 说明 ||------|------|
 | `wiki/**/*.md` | 玩家 / 开发者 Wiki 正文（Git 为源，Halo 为发布端） |
 | `wiki/_halo/` | Halo 粘贴用 HTML/CSS/JS 片段 |
 | `tools/mcwws-halo-preview/` | 编译、导出 JSON、推 Halo（API / 本地 MySQL） |
