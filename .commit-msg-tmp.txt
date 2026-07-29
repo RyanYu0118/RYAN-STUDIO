@@ -1,0 +1,8 @@
+新功能(wiki): 红链新建一律使用文章 UUID 作 slug
+feat(wiki): red-link creates always use post UUID as slug
+
+- spec.slug 固定为 metadata.name，链接目标写入 rs.wiki/redlink-target-slug 注解
+- rs-config 增加 slugFromPostName；rs-loader 缓存 v2.3；贡献文档同步
+
+- New red-link posts always use metadata.name as spec.slug; intended target stored in annotation
+- Add slugFromPostName in rs-config; bump rs-loader to v2.3; update wiki-contributing

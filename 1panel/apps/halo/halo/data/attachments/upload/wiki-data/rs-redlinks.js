@@ -91,29 +91,12 @@
     return spec.publish === true && status.phase === "PUBLISHED";
   }
 
-  function basenameSlug(slug) {
-    var parts = String(slug).split("/");
-    return parts[parts.length - 1] || slug;
-  }
-
-  /** index 等与首页/索引页冲突的 slug 改用文章 metadata.name（UUID） */
-  function shouldUsePostNameAsSlug(linkSlug) {
-    if (!linkSlug) return true;
-    var base = basenameSlug(linkSlug).toLowerCase();
-    if (base === "index") return true;
-    var reserved = cfg.reservedSlugs || ["index"];
-    for (var i = 0; i < reserved.length; i++) {
-      var r = String(reserved[i]).toLowerCase();
-      if (linkSlug.toLowerCase() === r || base === r) return true;
-    }
-    return false;
-  }
-
+  /** 默认红链新建用 metadata.name（UUID）作 spec.slug；slugFromPostName: false 时用链接 slug */
   function resolvePublishSlug(linkSlug, postName) {
-    if (shouldUsePostNameAsSlug(linkSlug)) {
-      return { publishSlug: postName, linkTarget: linkSlug, usedPostId: true };
+    if (cfg.slugFromPostName === false && linkSlug) {
+      return { publishSlug: linkSlug, linkTarget: linkSlug, usedPostId: false };
     }
-    return { publishSlug: linkSlug, linkTarget: linkSlug, usedPostId: false };
+    return { publishSlug: postName, linkTarget: linkSlug || "", usedPostId: true };
   }
 
   function fetchPostBySlug(slug) {
@@ -300,7 +283,7 @@
       "content.halo.run/permalink-pattern": "/archives/{slug}",
       "content.halo.run/content-json": contentJson,
     };
-    if (resolved.usedPostId && resolved.linkTarget) {
+    if (resolved.linkTarget) {
       annotations["rs.wiki/redlink-target-slug"] = resolved.linkTarget;
     }
 
@@ -433,20 +416,16 @@
     var postName = crypto.randomUUID();
     var resolved = resolvePublishSlug(slug, postName);
     var publishSlug = resolved.publishSlug;
-    var confirmSlugLine =
-      resolved.usedPostId
-        ? "链接目标 `" +
-          slug +
-          "` 易冲突，将用文章 ID `" +
-          publishSlug +
-          "` 作为地址（原目标写入注解）。"
-        : "先发布 slug `" + publishSlug + "`，并在本页跳转到该文章？";
     if (
       !window.confirm(
         "条目「" +
           title +
           "」尚未发布。\n\n将继承当前页的分类、标签与封面，" +
-          confirmSlugLine
+          "新建文章并以 ID `" +
+          publishSlug +
+          "` 作为地址（链接目标 `" +
+          slug +
+          "` 写入注解），发布后在当前页打开？"
       )
     ) {
       return;
@@ -468,8 +447,8 @@
           alert("发布失败：" + (result.error || "未知错误"));
           return;
         }
-        markLinkPublished(a, result.slug || slug);
-        navigateToPublishedArticle(result.slug || slug);
+        markLinkPublished(a, result.slug);
+        navigateToPublishedArticle(result.slug);
       })
       .catch(function (err) {
         a.classList.remove("rs-wiki-redlink--pending");
