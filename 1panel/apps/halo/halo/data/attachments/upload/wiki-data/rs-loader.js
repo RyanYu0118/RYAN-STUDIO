@@ -17,7 +17,7 @@
         anchor: "/upload/wiki-data/rs-anchor-scroll.js?v=1.0",
         home:   "/upload/wiki-data/rs-home.js",
         wiki:   "/upload/wiki-data/rs-wiki.js",
-        redlinks: "/upload/wiki-data/rs-redlinks.js?v=2.9"
+        redlinks: "/upload/wiki-data/rs-redlinks.js?v=3.1"
     };
 
     function loadScript(url, callback) {
@@ -92,8 +92,13 @@
             loadScript(SCRIPTS.redlinks);
         }
 
-        // 无论什么页面，都尝试初始化快速编辑（它会自动根据暗号判断是否执行）
-        initQuickEdit();
+        if (path.indexOf("/archives/") === 0) {
+            loadScript("/upload/wiki-data/rs-ensure-manual-id.js?v=1.0", function () {
+                initQuickEdit();
+            });
+        } else {
+            initQuickEdit();
+        }
 
         if (isHomePage) {
             document.body.classList.add('layout-home-minimal'); 

@@ -313,9 +313,9 @@
   function buildRedlinkDraftContent(postName, title) {
     var line = "待完善。";
     var html =
-      '<div id="halo-manual-id" style="display:none;">' +
+      '<div class="html-edited"><div id="halo-manual-id" style="display:none;">' +
       postName +
-      "</div><p>" +
+      "</div></div><p>" +
       line +
       "</p>";
     return { raw: html, content: html, rawType: "html" };
@@ -497,7 +497,7 @@
   }
 
   function navigateToPublishedArticle(slug) {
-    window.location.replace(PATH_PREFIX + slug);
+    window.location.href = PATH_PREFIX + slug;
   }
 
   function onRedlinkClick(e) {

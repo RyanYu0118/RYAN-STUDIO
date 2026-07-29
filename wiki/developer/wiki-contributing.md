@@ -37,6 +37,15 @@ Halo **没有**内置红链。本站通过主题已加载的 `rs-redlinks.js` �
 python tools/mcwws-halo-preview/export-wiki-slugs.py
 ```
 
+**批量补 `halo-manual-id`（正文头部 HTML 模块，与 Wiki 发布一致）**：
+
+```powershell
+python tools/mcwws-halo-preview/ensure-halo-manual-id.py --dry-run
+python tools/mcwws-halo-preview/ensure-halo-manual-id.py
+```
+
+需 `wiki/.halo.env` 中的 `HALO_PAT`。前台 `rs-ensure-manual-id.js` 仅在缺 ID 时 DOM 注入以便快速编辑，**持久化请跑上述脚本**。
+
 输出：`1panel/apps/halo/halo/data/attachments/upload/wiki-data/wiki-slugs.json`（Git 已跟踪，需随 Wiki 推送）。
 
 可在 `rs-config.js` 的 `redlinks` 段关闭 `createOnClick` 或 `enabled`。
