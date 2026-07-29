@@ -50,7 +50,11 @@ pat_id_rsa*
 
 # 构建/发布临时产物
 **/_publish/
+**/_preview/
 **/*.dry-run.html
+wiki/.halo.env
+wiki/.halo-post-names.json
+**/__pycache__/
 
 # OS / 编辑器
 .DS_Store

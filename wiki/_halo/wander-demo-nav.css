@@ -1,0 +1,26 @@
+/* demo 模块 1：导航条 CSS */
+.nav-quote-box {
+  border-left: 5px solid #ff0000;
+  padding-left: 15px;
+  margin: 10px 0;
+}
+
+html[data-user-color-scheme="dark"] .nav-quote-box,
+@media (prefers-color-scheme: dark) {
+  .nav-quote-box {
+    border-left-color: #ffffff !important;
+  }
+}
+
+.nav-quote-box .nav-quote-title {
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  margin: 0 0 0.15rem;
+}
+
+.nav-quote-box .nav-quote-sub {
+  margin: 0;
+  font-size: 0.85rem;
+  opacity: 0.75;
+}

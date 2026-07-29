@@ -1,0 +1,251 @@
+/* 自 demo 导出：全息交互卡片 CSS（Halo 独立 HTML 块，配 wanderCard 脚本） */
+
+.wander-smart-container {
+  width: 100%;
+  margin-top: 25px;
+  box-sizing: border-box;
+  padding: 10px;
+  position: relative;
+}
+
+/* 双卡 / 多卡网格（社会科学 · 自然科学） */
+.wander-smart-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  width: 100%;
+}
+
+@media (max-width: 900px) {
+  .wander-smart-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* 给 TOC 用的隐藏标题锚点 */
+.wd-toc-anchor {
+  position: absolute;
+  top: 0;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: 0;
+  overflow: hidden;
+  border: none;
+  clip: rect(0, 0, 0, 0);
+}
+
+.wd-title {
+  margin: 0 0 8px 0;
+  padding: 0;
+  border: none;
+  display: block;
+}
+
+.font-cn {
+  font-family: "ZiHun-59-ChuangCuHei", "PingFang SC", sans-serif !important;
+}
+
+.font-en {
+  font-family: "Rajdhani-Medium", "Segoe UI", sans-serif !important;
+}
+
+.wd-smart-card {
+  display: block;
+  width: 100%;
+  aspect-ratio: 2.35 / 1;
+  border-radius: 12px;
+  text-decoration: none !important;
+  position: relative;
+  overflow: hidden;
+  background: #000;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-sizing: border-box;
+  box-shadow: 0 15px 50px rgba(0, 0, 0, 0.6);
+  transition: all 0.5s cubic-bezier(0.25, 0.8, 0.25, 1);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  --x: 50%;
+  --y: 50%;
+}
+
+.wd-rainbow-border {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background: linear-gradient(
+    120deg,
+    #091018,
+    #2b4c5d,
+    #0077be,
+    #00f2ff,
+    #ffffff,
+    #00f2ff,
+    #0077be,
+    #2b4c5d,
+    #091018
+  );
+  background-size: 200% 200%;
+  animation: rainbow-flow 15s linear infinite;
+  clip-path: circle(0% at var(--x) var(--y));
+  transition: clip-path 0.6s cubic-bezier(0.25, 1, 0.5, 1);
+  pointer-events: none;
+}
+
+@keyframes rainbow-flow {
+  0% {
+    background-position: 0% 50%;
+  }
+  100% {
+    background-position: 200% 50%;
+  }
+}
+
+.wd-inner-mask {
+  position: absolute;
+  inset: 1px;
+  border-radius: 10px;
+  background: #000;
+  z-index: 2;
+  overflow: hidden;
+}
+
+.wd-static-bg {
+  position: absolute;
+  inset: -10px;
+  background-size: cover;
+  background-position: center;
+  filter: blur(2px);
+  opacity: 1;
+  transition: filter 0.5s ease, opacity 0.5s ease;
+  z-index: 3;
+}
+
+.wd-lazy-video {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 0;
+  z-index: 4;
+  transition: opacity 0.8s ease;
+}
+
+.wd-inner-mask::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.95) 0%, rgba(0, 0, 0, 0.4) 35%, transparent 60%);
+  z-index: 5;
+  pointer-events: none;
+}
+
+.wd-content {
+  position: relative;
+  z-index: 6;
+  height: 100%;
+  padding: 30px;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  text-align: left;
+}
+
+.wd-smart-card .wd-title {
+  font-size: 42px;
+  font-weight: 700;
+  color: #ffffff;
+  line-height: 1;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  text-shadow: 0 4px 15px rgba(0, 0, 0, 1);
+}
+
+/* 社会科学：略偏暖琥珀点缀 */
+.wd-smart-card--social .wd-rainbow-border {
+  background: linear-gradient(
+    120deg,
+    #120a08,
+    #4a3020,
+    #b45309,
+    #fbbf24,
+    #ffffff,
+    #fbbf24,
+    #b45309,
+    #4a3020,
+    #120a08
+  );
+  background-size: 200% 200%;
+}
+
+/* 自然科学：默认冷青（与主卡片一致，可单独覆写） */
+.wd-smart-card--natural .wd-rainbow-border {
+  background: linear-gradient(
+    120deg,
+    #061210,
+    #1e4d3a,
+    #059669,
+    #34d399,
+    #ffffff,
+    #34d399,
+    #059669,
+    #1e4d3a,
+    #061210
+  );
+  background-size: 200% 200%;
+}
+
+.wd-meta-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 15px;
+  color: #d1d5db;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.8);
+}
+
+.wd-divider {
+  width: 1px;
+  height: 12px;
+  background: rgba(255, 255, 255, 0.3);
+  display: inline-block;
+}
+
+.wd-smart-card:hover .wd-rainbow-border,
+.wd-smart-card.is-playing .wd-rainbow-border {
+  clip-path: circle(150% at var(--x) var(--y));
+  animation-duration: 2s;
+}
+
+.wd-smart-card.is-playing .wd-static-bg {
+  filter: blur(0px);
+  opacity: 0;
+}
+
+.wd-smart-card.is-playing .wd-lazy-video {
+  opacity: 1;
+}
+
+.wd-smart-card.is-playing {
+  box-shadow: 0 25px 70px rgba(0, 0, 0, 0.8);
+  transform: translateY(-3px);
+  border-color: transparent;
+}
+
+@media (max-width: 768px) {
+  .wd-smart-card {
+    aspect-ratio: 16 / 9;
+  }
+  .wd-title {
+    font-size: 28px;
+  }
+  .wd-content {
+    padding: 20px;
+  }
+  .wd-meta-bar {
+    font-size: 13px;
+    gap: 8px;
+  }
+}

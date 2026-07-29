@@ -6,7 +6,17 @@ Ryan 的工作室仓库：含简单静态页与本地 **1Panel / Halo** 部署�
 
 根目录 `index.html` 为早期测试页，可按需替换或挂 GitHub Pages。
 
-## Halo / Wiki 资源
+## Wiki 文章源（Markdown）
+
+| 路径 | 说明 |
+|------|------|
+| `wiki/**/*.md` | 玩家 / 开发者 Wiki 正文（Git 为源，Halo 为发布端） |
+| `wiki/_halo/` | Halo 粘贴用 HTML/CSS/JS 片段 |
+| `tools/mcwws-halo-preview/` | 编译、导出 JSON、推 Halo（API / 本地 MySQL） |
+
+在 `wiki/` 目录下配置 `cp .halo.env.example .halo.env` 后可用 `推送到Halo.ps1`；无 PAT 时可用 `publish-via-mysql.py`（需本机 `halo-mysql` 容器）。
+
+## Halo / Wiki 站点资源
 
 | 路径 | 说明 |
 |------|------|
