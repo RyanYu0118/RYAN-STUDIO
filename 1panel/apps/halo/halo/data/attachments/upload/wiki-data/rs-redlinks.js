@@ -69,7 +69,8 @@
         return r.json();
       })
       .then(function (data) {
-        slugSet = new Set(data.slugs || []);
+        // slugs = Halo 已发布；勿用 gitSlugs 判蓝链（Git 有 md 未发布时会 404）
+        slugSet = new Set(data.slugs || data.publishedSlugs || []);
         slugSetLoadedAt = now;
         return slugSet;
       })
@@ -105,10 +106,9 @@
       if (a.closest(".rs-wiki-redlink-skip")) return;
       var slug = parseArchivesSlug(a.getAttribute("href"));
       if (!slug) return;
-      var exists = set.has(slug);
-      if (exists) return;
-      a.classList.add("rs-wiki-redlink");
       a.setAttribute("data-rs-wiki-slug", slug);
+      if (set.has(slug)) return;
+      a.classList.add("rs-wiki-redlink");
       a.setAttribute("title", "条目尚未创建 · 点击可新建草稿（需登录）");
       a.setAttribute("href", PATH_PREFIX + slug);
     });
@@ -266,15 +266,24 @@
     loadSlugSet(false).then(function (set) {
       markLinks(root, set);
       var unknown = [];
-      root.querySelectorAll("a.rs-wiki-redlink").forEach(function (a) {
+      root.querySelectorAll("a.rs-wiki-redlink[data-rs-wiki-slug]").forEach(function (a) {
         unknown.push(a.getAttribute("data-rs-wiki-slug"));
       });
-      if (unknown.length === 0) {
+      var inIndex = [];
+      root.querySelectorAll('a[href*="' + PATH_PREFIX + '"]').forEach(function (a) {
+        if (a.classList.contains("rs-wiki-redlink")) return;
+        var slug = a.getAttribute("data-rs-wiki-slug");
+        if (slug && set.has(slug)) inIndex.push(slug);
+      });
+      var toVerify = unknown.concat(inIndex.filter(function (s, i, arr) {
+        return arr.indexOf(s) === i;
+      }));
+      if (toVerify.length === 0) {
         bindRedlinks(root);
         return;
       }
       Promise.all(
-        unknown.map(function (slug) {
+        toVerify.map(function (slug) {
           return slugExistsViaApi(slug).then(function (exists) {
             return { slug: slug, exists: exists };
           });
@@ -282,11 +291,14 @@
       ).then(function (results) {
         results.forEach(function (r) {
           if (r.exists && slugSet) slugSet.add(r.slug);
-          if (!r.exists) return;
-          root.querySelectorAll('a.rs-wiki-redlink[data-rs-wiki-slug="' + r.slug + '"]').forEach(function (a) {
-            a.classList.remove("rs-wiki-redlink");
-            a.removeAttribute("data-rs-wiki-slug");
-            a.removeAttribute("title");
+          root.querySelectorAll('a[data-rs-wiki-slug="' + r.slug + '"]').forEach(function (a) {
+            if (r.exists) {
+              a.classList.remove("rs-wiki-redlink");
+              a.removeAttribute("title");
+            } else {
+              a.classList.add("rs-wiki-redlink");
+              a.setAttribute("title", "条目尚未创建 · 点击可新建草稿（需登录）");
+            }
           });
         });
         bindRedlinks(root);

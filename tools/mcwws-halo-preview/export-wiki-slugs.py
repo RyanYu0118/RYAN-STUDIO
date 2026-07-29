@@ -87,7 +87,12 @@ def main() -> int:
         default="http://localhost:8090",
         help="合并 Halo 已发布文章 slug（可选）",
     )
-    p.add_argument("--no-halo", action="store_true", help="仅扫描 Git wiki，不请求 Halo API")
+    p.add_argument(
+        "--include-git",
+        action="store_true",
+        help="将 Git 源稿 slug 并入 slugs（旧行为；会导致未发布的 md 显示为蓝链）",
+    )
+    p.add_argument("--no-halo", action="store_true", help="不请求 Halo API（slugs 为空或仅 --include-git）")
     args = p.parse_args()
     wiki_root = args.wiki_root.resolve()
     git_slugs = collect_wiki_slugs(wiki_root)
@@ -96,19 +101,23 @@ def main() -> int:
         try:
             halo_slugs = fetch_halo_slugs(args.halo_url)
         except Exception as e:
-            print(f"warn: Halo API 未合并 ({e})，仅使用 Git slug")
-    all_slugs = sorted(git_slugs | halo_slugs)
+            print(f"warn: Halo API 未合并 ({e})，slugs 将为空（前台靠 API 逐条校验）")
+    if args.include_git:
+        published = sorted(git_slugs | halo_slugs)
+    else:
+        published = sorted(halo_slugs)
     payload = {
         "updated": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "sources": {
             "git": len(git_slugs),
             "halo": len(halo_slugs),
         },
-        "slugs": all_slugs,
+        "slugs": published,
+        "gitSlugs": sorted(git_slugs),
     }
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
-    print(f"OK {len(all_slugs)} slugs -> {args.output}")
+    print(f"OK published={len(published)} git={len(git_slugs)} -> {args.output}")
     return 0
 
 

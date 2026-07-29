@@ -1,10 +1,22 @@
 {
-  "updated": "2026-07-29T16:46:09Z",
+  "updated": "2026-07-29T16:55:30Z",
   "sources": {
     "git": 28,
     "halo": 10
   },
   "slugs": [
+    "join-server",
+    "poster",
+    "production",
+    "production_umbrella",
+    "wwswiki",
+    "wwswiki_metro",
+    "wwswiki_worldbuilding",
+    "wwswiki_worldbuilding_economy",
+    "wwswiki_worldbuilding_natural",
+    "wwswiki_worldbuilding_social"
+  ],
+  "gitSlugs": [
     "README",
     "developer",
     "developer/guide",
@@ -17,7 +29,6 @@
     "developer/resources/resource-packs",
     "developer/wiki-contributing",
     "home",
-    "join-server",
     "player",
     "player/commands",
     "player/community/diary",
@@ -32,14 +43,7 @@
     "player/server-world/prices",
     "player/world-building/wwswiki_worldbuilding",
     "player/world-building/wwswiki_worldbuilding_natural",
-    "poster",
-    "production",
-    "production_umbrella",
-    "wwswiki",
-    "wwswiki_metro",
-    "wwswiki_worldbuilding",
     "wwswiki_worldbuilding_economy",
-    "wwswiki_worldbuilding_natural",
     "wwswiki_worldbuilding_social"
   ]
 }

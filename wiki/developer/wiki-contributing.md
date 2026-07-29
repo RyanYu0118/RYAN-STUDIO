@@ -25,7 +25,8 @@ tags: [Wiki]
 
 Halo **没有**内置红链。本站通过主题已加载的 `rs-redlinks.js` 实现：
 
-- 正文里指向 `/archives/{slug}` 的内链，若 slug 不在 `wiki-slugs.json` 中会显示为**红色虚线链接**。
+- 正文里指向 `/archives/{slug}` 的内链，若 **Halo 尚未发布**该 slug（见 `wiki-slugs.json` 的 `slugs`，仅来自 API），会显示为**红色虚线链接**。
+- `gitSlugs` 仅作规划参考；Git 里有 `prices.md` 但未发布时**不会**再误判为蓝链。
 - **已登录**且有发文权限的用户点击红链 → 确认后为该 slug **创建 Markdown 草稿**并打开控制台编辑器。
 - 未登录会跳转到登录页。
 
