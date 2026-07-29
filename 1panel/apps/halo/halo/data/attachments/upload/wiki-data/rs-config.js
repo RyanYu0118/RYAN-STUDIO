@@ -36,7 +36,9 @@ window.RSConfig = {
         pathPrefix: "/archives/",
         cacheMs: 900000,
         createOnClick: true,
+        publishFirst: true,
         defaultCategory: "category-f8bm8yzr",
-        minecraftCategory: "category-1g9f80go"
+        minecraftCategory: "category-1g9f80go",
+        postOwner: "ryanyu"
     }
 };

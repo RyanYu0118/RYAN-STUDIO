@@ -27,7 +27,7 @@ Halo **没有**内置红链。本站通过主题已加载的 `rs-redlinks.js` �
 
 - 正文里指向 `/archives/{slug}` 的内链，若 **Halo 尚未发布**该 slug（见 `wiki-slugs.json` 的 `slugs`，仅来自 API），会显示为**红色虚线链接**。
 - `gitSlugs` 仅作规划参考；Git 里有 `prices.md` 但未发布时**不会**再误判为蓝链。
-- **已登录**且有发文权限的用户点击红链 → 确认后为该 slug **创建 Markdown 草稿**并打开控制台编辑器。
+- **已登录**且有发文权限的用户点击红链 → **继承当前文章页**的分类、标签、封面；标题取**红链文字**；**先发布**（API 确认 `published`）后再打开编辑器。仅**已发布** slug 显示蓝链（草稿/未发布仍红链）。
 - 未登录会跳转到登录页。
 
 维护索引（发布 Wiki 后建议执行一次）：
@@ -39,6 +39,14 @@ python tools/mcwws-halo-preview/export-wiki-slugs.py
 输出：`1panel/apps/halo/halo/data/attachments/upload/wiki-data/wiki-slugs.json`（Git 已跟踪，需随 Wiki 推送）。
 
 可在 `rs-config.js` 的 `redlinks` 段关闭 `createOnClick` 或 `enabled`。
+
+若编辑器 **一直转圈**、并导致其他页面无法刷新：多为草稿 `inProgress` 卡住（占满浏览器对 Halo 的连接数）。本地可修复：
+
+```powershell
+python tools/mcwws-halo-preview/repair-stuck-draft.py <文章 metadata.name UUID>
+```
+
+然后关闭卡住的编辑标签页，重新打开 `/console/posts/editor?name=...`。
 
 ## Halo 交互页（与 demo 同系）
 
