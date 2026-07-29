@@ -1,0 +1,226 @@
+/* =========================================
+   全局字体配置文件 (fronts.css)
+   最后更新时间：2026-02-09
+   包含字体数量：22款
+   ========================================= */
+
+/* --- 1. Minecraft AE (支持中文) --- */
+@font-face {
+    font-family: 'Minecraft-AE';
+    src: url('/upload/wiki-data/fronts/5_Minecraft%20AE(%E6%94%AF%E6%8C%81%E4%B8%AD%E6%96%87).ttf') format('truetype');
+    font-display: swap;
+}
+.minecraft-ae {
+    font-family: 'Minecraft-AE', sans-serif !important;
+}
+
+/* --- 2. 微软雅黑-常规 (Microsoft YaHei Regular) --- */
+@font-face {
+    font-family: 'Microsoft-YaHei-Regular';
+    src: url('/upload/wiki-data/fronts/%E5%BE%AE%E8%BD%AF%E9%9B%85%E9%BB%91%20%E5%B8%B8%E8%A7%84.ttf') format('truetype');
+    font-display: swap;
+}
+.microsoft-yahei-regular {
+    font-family: 'Microsoft-YaHei-Regular', sans-serif !important;
+}
+
+/* --- 3. 微软雅黑-粗体 (Microsoft YaHei Bold) --- */
+@font-face {
+    font-family: 'Microsoft-YaHei-Bold';
+    src: url('/upload/wiki-data/fronts/%E5%BE%AE%E8%BD%AF%E9%9B%85%E9%BB%91%20%E7%B2%97%E4%BD%93.ttf') format('truetype');
+    font-display: swap;
+}
+.microsoft-yahei-bold {
+    font-family: 'Microsoft-YaHei-Bold', sans-serif !important;
+}
+
+/* --- 4. 字魂58号-创中黑 (ZiHun 58 ChuangZhongHei) --- */
+@font-face {
+    font-family: 'ZiHun-58-ChuangZhongHei';
+    src: url('/upload/wiki-data/fronts/%E5%AD%97%E9%AD%8258%E5%8F%B7-%E5%88%9B%E4%B8%AD%E9%BB%91.ttf') format('truetype');
+    font-display: swap;
+}
+.zihun-58 {
+    font-family: 'ZiHun-58-ChuangZhongHei', sans-serif !important;
+}
+
+/* --- 5. 思源柔黑 (SiYuan RouHei) --- */
+@font-face {
+    font-family: 'SiYuan-RouHei';
+    src: url('/upload/wiki-data/fronts/%E6%80%9D%E6%BA%90%E6%9F%94%E9%BB%91.ttf') format('truetype');
+    font-display: swap;
+}
+.siyuan-rouhei {
+    font-family: 'SiYuan-RouHei', sans-serif !important;
+}
+
+/* --- 6. 新蒂赵孟頫体 (XinDi ZhaoMengFu) --- */
+@font-face {
+    font-family: 'XinDi-ZhaoMengFu-Ti';
+    src: url('/upload/wiki-data/fronts/%E6%96%B0%E8%92%82%E8%B5%B5%E5%AD%9F%E9%A0%AB%E4%BD%93.ttf') format('truetype');
+    font-display: swap;
+}
+.xindi-zhaomengfu {
+    font-family: 'XinDi-ZhaoMengFu-Ti', cursive, serif !important;
+}
+
+/* --- 7. 字魂59号-创粗黑 (ZiHun 59 ChuangCuHei) --- */
+@font-face {
+    font-family: 'ZiHun-59-ChuangCuHei';
+    src: url('/upload/wiki-data/fronts/%E5%AD%97%E9%AD%8259%E5%8F%B7-%E5%88%9B%E7%B2%97%E9%BB%91.ttf') format('truetype');
+    font-display: swap;
+}
+.zihun-59 {
+    font-family: 'ZiHun-59-ChuangCuHei', sans-serif !important;
+}
+
+/* --- 8. 字魂57号-创细黑 (ZiHun 57 ChuangXiHei) --- */
+@font-face {
+    font-family: 'ZiHun-57-ChuangXiHei';
+    src: url('/upload/wiki-data/fronts/%E5%AD%97%E9%AD%8257%E5%8F%B7-%E5%88%9B%E7%BB%86%E9%BB%91.ttf') format('truetype');
+    font-display: swap;
+}
+.zihun-57 {
+    font-family: 'ZiHun-57-ChuangXiHei', sans-serif !important;
+}
+
+/* --- 9. 液晶字体-Display Free (LCD Display Free TFB) --- */
+@font-face {
+    font-family: 'LCD-Display-Free-TFB';
+    src: url('/upload/wiki-data/fronts/%E6%B6%B2%E6%99%B6DISPLAY%20FREE%20TFB.ttf') format('truetype');
+    font-display: swap;
+}
+.lcd-display {
+    font-family: 'LCD-Display-Free-TFB', monospace !important;
+}
+
+/* --- 10. 液晶数字 (LCD DigitalNumbers) --- */
+@font-face {
+    font-family: 'LCD-Digital-Numbers';
+    src: url('/upload/wiki-data/fronts/%E6%B6%B2%E6%99%B6DigitalNumbers.ttf') format('truetype');
+    font-display: swap;
+}
+.lcd-digital {
+    font-family: 'LCD-Digital-Numbers', monospace !important;
+}
+
+/* --- 11. 德彪钢笔行书 (DeBiao GangBi XingShu) --- */
+@font-face {
+    font-family: 'DeBiao-GangBi-XingShu';
+    src: url('/upload/wiki-data/fronts/%E5%BE%B7%E5%BD%AA%E9%92%A2%E7%AC%94%E8%A1%8C%E4%B9%A6%E5%AD%97%E5%BA%93-RQwK.otf') format('opentype');
+    font-display: swap;
+}
+.debiao-gangbi-xingshu {
+    font-family: 'DeBiao-GangBi-XingShu', cursive, serif !important;
+}
+
+/* --- 12. Gobold Thin --- */
+@font-face {
+    font-family: 'Gobold-Thin';
+    src: url('/upload/wiki-data/fronts/Gobold-Thin.ttf') format('truetype');
+    font-display: swap;
+}
+.gobold-thin {
+    font-family: 'Gobold-Thin', sans-serif !important;
+}
+
+/* --- 13. Life Is Okay --- */
+@font-face {
+    font-family: 'Life-Is-Okay';
+    src: url('/upload/wiki-data/fronts/Life%20Is%20Okay.otf') format('opentype');
+    font-display: swap;
+}
+.life-is-okay {
+    font-family: 'Life-Is-Okay', sans-serif !important;
+}
+
+/* --- 14. Alte DIN 1451 Mittelschrift --- */
+@font-face {
+    font-family: 'Alte-DIN-1451-Mittelschrift';
+    src: url('/upload/wiki-data/fronts/Alte%20DIN%201451%20Mittelschrift%20gepraegt%20Regular.ttf') format('truetype');
+    font-display: swap;
+}
+.alte-din-1451 {
+    font-family: 'Alte-DIN-1451-Mittelschrift', sans-serif !important;
+}
+
+/* --- 15. Boxed Regular Bold --- */
+@font-face {
+    font-family: 'Boxed-Regular-Bold';
+    src: url('/upload/wiki-data/fronts/Boxed%20Regular%20Bold.ttf') format('truetype');
+    font-display: swap;
+}
+.boxed-bold {
+    font-family: 'Boxed-Regular-Bold', sans-serif !important;
+}
+
+/* --- 16. Rajdhani Medium --- */
+@font-face {
+    font-family: 'Rajdhani-Medium';
+    src: url('/upload/wiki-data/fronts/Rajdhani%20Medium.otf') format('opentype');
+    font-display: swap;
+}
+.rajdhani-medium {
+    font-family: 'Rajdhani-Medium', sans-serif !important;
+}
+
+/* --- 17. DIN 1451 LT --- */
+@font-face {
+    font-family: 'DIN-1451-LT-Mittelschrift';
+    src: url('/upload/wiki-data/fronts/DIN%201451%20LT%20W06%20Mittelschrift.otf') format('opentype');
+    font-display: swap;
+}
+.din-1451-lt {
+    font-family: 'DIN-1451-LT-Mittelschrift', sans-serif !important;
+}
+
+/* --- 18. Candara --- */
+@font-face {
+    font-family: 'Candara';
+    src: url('/upload/wiki-data/fronts/Candara.ttf') format('truetype');
+    font-display: swap;
+}
+.candara {
+    font-family: 'Candara', sans-serif !important;
+}
+
+/* --- 19. 未知字体 (Font.ttf -> Custom Font Alpha) --- */
+@font-face {
+    font-family: 'Custom-Font-Alpha';
+    src: url('/upload/wiki-data/fronts/Font.ttf') format('truetype');
+    font-display: swap;
+}
+.custom-font-alpha {
+    font-family: 'Custom-Font-Alpha', sans-serif !important;
+}
+
+/* --- 20. 江城黑体 900W (JiangCheng HeiTi) --- */
+@font-face {
+    font-family: 'JiangCheng-HeiTi-900W';
+    src: url('/upload/wiki-data/fronts/%E6%B1%9F%E5%9F%8E%E9%BB%91%E4%BD%93%20900W.ttf') format('truetype');
+    font-display: swap;
+}
+.jiangcheng-heiti {
+    font-family: 'JiangCheng-HeiTi-900W', sans-serif !important;
+}
+
+/* --- 21. 禹卫书法行书简体 (YuWei ShuFa XingShu) --- */
+@font-face {
+    font-family: 'YuWei-ShuFa-XingShu-JianTi';
+    src: url('/upload/wiki-data/fronts/%E7%A6%B9%E5%8D%AB%E4%B9%A6%E6%B3%95%E8%A1%8C%E4%B9%A6%E7%AE%80%E4%BD%93.ttf') format('truetype');
+    font-display: swap;
+}
+.yuwei-shufa {
+    font-family: 'YuWei-ShuFa-XingShu-JianTi', cursive, serif !important;
+}
+
+/* --- 22. 李旭科书法 1.4 (LiXuKe ShuFa) --- */
+@font-face {
+    font-family: 'LiXuKe-ShuFa-1-4';
+    src: url('/upload/wiki-data/fronts/%E6%9D%8E%E6%97%AD%E7%A7%91%E4%B9%A6%E6%B3%951.4.ttf') format('truetype');
+    font-display: swap;
+}
+.lixuke-shufa {
+    font-family: 'LiXuKe-ShuFa-1-4', cursive, serif !important;
+}
+

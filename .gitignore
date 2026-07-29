@@ -1,0 +1,60 @@
+# 1Panel 本机运行时（不可移植、体积大）
+1panel/cache/
+1panel/db/
+1panel/backup/
+1panel/log/
+1panel/runtime/
+1panel/tmp/
+1panel/geo/
+1panel/docker/
+1panel/mcp/
+1panel/resource/
+
+# MySQL 数据卷
+**/mysql-data/
+
+# 密钥与环境（用 .env.example 代替）
+**/.env
+!**/.env.example
+**/.halo.env
+**/.halo-post-names.json
+
+# Halo 运行时与主题/插件（可容器内重装）
+**/data/logs/
+**/data/plugins/
+**/data/themes/
+**/data/db/
+**/data/indices/
+**/data/keys/
+**/data/backups/
+**/data/attachments/thumbnails/
+**/data/attachments/upload/*
+!**/data/attachments/upload/wiki-data/
+!**/data/attachments/upload/wiki-data/**
+
+# wiki-data 内仍忽略超大/敏感
+**/data/attachments/upload/wiki-data/**/*.psd
+**/data/attachments/upload/wiki-data/**/private*.zip
+**/data/attachments/upload/wiki-data/**/*.zip
+
+# 验证文件、许可证与设备标识
+**/WW_verify_*.txt
+**/public.key
+**/.device_id
+**/*.nitrite*
+**/export2doc_files/
+*.jks
+pat_id_rsa*
+*.mv.db
+*.trace.db
+
+# 构建/发布临时产物
+**/_publish/
+**/*.dry-run.html
+
+# OS / 编辑器
+.DS_Store
+Thumbs.db
+*.sock
+.idea/
+.vscode/

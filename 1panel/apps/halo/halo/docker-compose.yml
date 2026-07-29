@@ -1,0 +1,71 @@
+services:
+    mysql:
+        container_name: ${MYSQL_CONTAINER_NAME}
+        environment:
+            MYSQL_DATABASE: ${PANEL_DB_NAME}
+            MYSQL_PASSWORD: ${PANEL_DB_USER_PASSWORD}
+            MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+            MYSQL_USER: ${PANEL_DB_USER}
+        healthcheck:
+            interval: 10s
+            retries: 10
+            start_period: 40s
+            test:
+                - CMD
+                - mysqladmin
+                - ping
+                - -h
+                - 127.0.0.1
+                - -uroot
+                - -p${MYSQL_ROOT_PASSWORD}
+            timeout: 5s
+        image: mysql:8.4
+        networks:
+            - halo-net
+        ports:
+            - ${MYSQL_HOST_PORT:-3306}:3306
+        restart: always
+        volumes:
+            - ./mysql-data:/var/lib/mysql
+            - ./mysql/conf/my.cnf:/etc/my.cnf:ro
+    halo:
+        command:
+            - --spring.r2dbc.url=r2dbc:pool:${PANEL_DB_TYPE}://${PANEL_DB_HOST}:${PANEL_DB_PORT}/${PANEL_DB_NAME}
+            - --spring.r2dbc.username=${PANEL_DB_USER}
+            - --spring.r2dbc.password=${PANEL_DB_USER_PASSWORD}
+            - --spring.sql.init.platform=${PANEL_DB_TYPE}
+            - --halo.external-url=${HALO_EXTERNAL_URL}
+        container_name: ${CONTAINER_NAME}
+        depends_on:
+            mysql:
+                condition: service_healthy
+        deploy:
+            resources:
+                limits:
+                    cpus: ${CPUS}
+                    memory: ${MEMORY_LIMIT}
+        environment:
+            - JVM_OPTS=
+        healthcheck:
+            interval: 30s
+            retries: 5
+            start_period: 90s
+            test:
+                - CMD
+                - curl
+                - -f
+                - http://localhost:8090/actuator/health/readiness
+            timeout: 5s
+        image: halohub/halo-pro:2.25.4
+        labels:
+            createdBy: Apps
+        networks:
+            - halo-net
+        ports:
+            - ${HOST_IP}:${PANEL_APP_PORT_HTTP}:8090
+        restart: always
+        volumes:
+            - ./data:/root/.halo2
+networks:
+    halo-net:
+        driver: bridge
