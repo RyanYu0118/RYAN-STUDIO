@@ -37,6 +37,8 @@ window.RSConfig = {
         cacheMs: 900000,
         createOnClick: true,
         publishFirst: true,
+        /** 链到 index 等保留 slug 时，改用文章 UUID 作为 spec.slug，避免与索引页冲突 */
+        reservedSlugs: ["index"],
         defaultCategory: "category-f8bm8yzr",
         minecraftCategory: "category-1g9f80go",
         postOwner: "ryanyu"

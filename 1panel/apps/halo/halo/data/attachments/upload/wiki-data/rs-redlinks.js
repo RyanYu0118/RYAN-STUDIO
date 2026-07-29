@@ -1,5 +1,5 @@
 /* =======================================================
-   RS Redlinks — MediaWiki 风格红链：先发布再编辑
+   RS Redlinks — MediaWiki 风格红链：点击先发布再跳转文章页
    ======================================================= */
 (function () {
   var cfg = (window.RSConfig && window.RSConfig.redlinks) || {};
@@ -91,6 +91,31 @@
     return spec.publish === true && status.phase === "PUBLISHED";
   }
 
+  function basenameSlug(slug) {
+    var parts = String(slug).split("/");
+    return parts[parts.length - 1] || slug;
+  }
+
+  /** index 等与首页/索引页冲突的 slug 改用文章 metadata.name（UUID） */
+  function shouldUsePostNameAsSlug(linkSlug) {
+    if (!linkSlug) return true;
+    var base = basenameSlug(linkSlug).toLowerCase();
+    if (base === "index") return true;
+    var reserved = cfg.reservedSlugs || ["index"];
+    for (var i = 0; i < reserved.length; i++) {
+      var r = String(reserved[i]).toLowerCase();
+      if (linkSlug.toLowerCase() === r || base === r) return true;
+    }
+    return false;
+  }
+
+  function resolvePublishSlug(linkSlug, postName) {
+    if (shouldUsePostNameAsSlug(linkSlug)) {
+      return { publishSlug: postName, linkTarget: linkSlug, usedPostId: true };
+    }
+    return { publishSlug: linkSlug, linkTarget: linkSlug, usedPostId: false };
+  }
+
   function fetchPostBySlug(slug) {
     var q =
       "/apis/api.content.halo.run/v1alpha1/posts?fieldSelector=" +
@@ -126,7 +151,7 @@
         return;
       }
       a.classList.add("rs-wiki-redlink");
-      a.setAttribute("title", "尚未发布 · 点击将先发布再编辑");
+      a.setAttribute("title", "尚未发布 · 点击将先发布并打开该页");
       a.setAttribute("href", PATH_PREFIX + slug);
     });
   }
@@ -256,8 +281,10 @@
     });
   }
 
-  function createAndPublishRedlink(slug, title, postName, sourcePost) {
+  function createAndPublishRedlink(linkSlug, title, postName, sourcePost) {
     postName = postName || crypto.randomUUID();
+    var resolved = resolvePublishSlug(linkSlug, postName);
+    var publishSlug = resolved.publishSlug;
     var draftContent = buildRedlinkDraftContent(postName, title);
     var contentJson = JSON.stringify({
       raw: draftContent.raw,
@@ -268,16 +295,21 @@
     var inherited = inheritMetaFromSource(sourcePost);
     var headers = apiHeaders();
 
+    var annotations = {
+      "content.halo.run/preferred-editor": "default",
+      "content.halo.run/permalink-pattern": "/archives/{slug}",
+      "content.halo.run/content-json": contentJson,
+    };
+    if (resolved.usedPostId && resolved.linkTarget) {
+      annotations["rs.wiki/redlink-target-slug"] = resolved.linkTarget;
+    }
+
     var body = {
       apiVersion: "content.halo.run/v1alpha1",
       kind: "Post",
       metadata: {
         name: postName,
-        annotations: {
-          "content.halo.run/preferred-editor": "default",
-          "content.halo.run/permalink-pattern": "/archives/{slug}",
-          "content.halo.run/content-json": contentJson,
-        },
+        annotations: annotations,
         labels: {
           "content.halo.run/published": "false",
           "content.halo.run/deleted": "false",
@@ -296,7 +328,7 @@
         priority: 0,
         publish: false,
         publishTime: "",
-        slug: slug,
+        slug: publishSlug,
         tags: inherited.tags,
         template: "",
         title: title,
@@ -316,19 +348,19 @@
         }
         if (!res.ok) {
           return res.text().then(function (t) {
-            return fetchPostBySlug(slug).then(function (existing) {
+            return fetchPostBySlug(publishSlug).then(function (existing) {
               if (existing && existing.metadata && existing.metadata.name) {
                 var en = existing.metadata.name;
                 if (isPostPublished(existing)) {
-                  return { ok: true, name: en, slug: slug, existed: true, published: true };
+                  return { ok: true, name: en, slug: publishSlug, existed: true, published: true };
                 }
                 return publishPostAndWait(en, headers)
                   .then(function () {
                     return repairPostOnce(en, headers);
                   })
                   .then(function () {
-                    return waitUntilPublished(slug).then(function () {
-                      return { ok: true, name: en, slug: slug, existed: true, published: true };
+                    return waitUntilPublished(publishSlug).then(function () {
+                      return { ok: true, name: en, slug: publishSlug, existed: true, published: true };
                     });
                   })
                   .catch(function (err) {
@@ -346,19 +378,26 @@
               return repairPostOnce(name, headers);
             })
             .then(function () {
-              return waitUntilPublished(slug);
+              return waitUntilPublished(publishSlug);
             })
             .then(function (pubOk) {
               if (!pubOk) {
-                return slugPublishedViaApi(slug).then(function (ok) {
+                return slugPublishedViaApi(publishSlug).then(function (ok) {
                   if (!ok) {
-                    throw new Error("发布未完成，请稍后在控制台检查 slug: " + slug);
+                    throw new Error("发布未完成，请稍后在控制台检查 slug: " + publishSlug);
                   }
                 });
               }
             })
             .then(function () {
-              return { ok: true, name: name, slug: slug, published: true };
+              return {
+                ok: true,
+                name: name,
+                slug: publishSlug,
+                linkTarget: resolved.linkTarget,
+                usedPostId: resolved.usedPostId,
+                published: true,
+              };
             });
         });
       })
@@ -367,65 +406,14 @@
       });
   }
 
-  function openWaitWindow() {
-    var w = null;
-    try {
-      w = window.open("", "_blank");
-    } catch (e) {
-      return null;
-    }
-    if (!w) return null;
-    try {
-      w.document.open();
-      w.document.write(
-        "<!DOCTYPE html><html><head><meta charset=\"utf-8\"><title>Wiki 发布</title>" +
-          "<style>body{font-family:system-ui,sans-serif;margin:0;min-height:100vh;display:flex;" +
-          "align-items:center;justify-content:center;background:#111;color:#eee}" +
-          ".box{text-align:center;padding:2rem;max-width:26rem;line-height:1.6}</style></head>" +
-          "<body><div class=\"box\"><p style=\"font-size:1.1rem;margin:0 0 .5rem\">正在发布 Wiki 条目…</p>" +
-          "<p style=\"opacity:.65;font-size:.9rem;margin:0\">继承当前页分类/标签/封面，完成后进入编辑器</p></div></body></html>"
-      );
-      w.document.close();
-    } catch (e2) {
-      /* ignore */
-    }
-    return w;
-  }
-
-  function showWaitError(win, message) {
-    if (!win || win.closed) return;
-    try {
-      win.document.open();
-      win.document.write(
-        "<!DOCTYPE html><html><head><meta charset=\"utf-8\"><title>发布失败</title></head>" +
-          "<body style=\"font-family:system-ui;padding:2rem;max-width:32rem;line-height:1.6\">" +
-          "<h1 style=\"font-size:1.1rem\">发布失败</h1><pre style=\"white-space:pre-wrap;opacity:.85\">" +
-          String(message).replace(/</g, "&lt;") +
-          "</pre></body></html>"
-      );
-      win.document.close();
-    } catch (e) {
-      win.close();
-    }
-  }
-
-  function openEditorWindow(editorWin, postName) {
-    var url = "/console/posts/editor?name=" + encodeURIComponent(postName);
-    if (editorWin && !editorWin.closed) {
-      try {
-        editorWin.location.href = url;
-        editorWin.focus();
-        return;
-      } catch (e) {
-        /* fall through */
-      }
-    }
-    var w = window.open(url, "_blank");
-    if (!w) window.location.href = url;
+  function navigateToPublishedArticle(slug) {
+    window.location.href = PATH_PREFIX + slug;
   }
 
   function markLinkPublished(anchor, slug) {
     if (slugSet) slugSet.add(slug);
+    anchor.setAttribute("href", PATH_PREFIX + slug);
+    anchor.setAttribute("data-rs-wiki-slug", slug);
     anchor.classList.remove("rs-wiki-redlink");
     anchor.classList.remove("rs-wiki-redlink--pending");
     anchor.removeAttribute("title");
@@ -442,20 +430,27 @@
     }
     var title = linkTitle(a);
     var sourceSlug = parseArchivesSlug(location.pathname);
+    var postName = crypto.randomUUID();
+    var resolved = resolvePublishSlug(slug, postName);
+    var publishSlug = resolved.publishSlug;
+    var confirmSlugLine =
+      resolved.usedPostId
+        ? "链接目标 `" +
+          slug +
+          "` 易冲突，将用文章 ID `" +
+          publishSlug +
+          "` 作为地址（原目标写入注解）。"
+        : "先发布 slug `" + publishSlug + "`，并在本页跳转到该文章？";
     if (
       !window.confirm(
         "条目「" +
           title +
           "」尚未发布。\n\n将继承当前页的分类、标签与封面，" +
-          "先发布 slug `" +
-          slug +
-          "`，再打开编辑器继续修改？"
+          confirmSlugLine
       )
     ) {
       return;
     }
-    var postName = crypto.randomUUID();
-    var waitWin = openWaitWindow();
     a.classList.add("rs-wiki-redlink--pending");
 
     fetchPostBySlug(sourceSlug || "")
@@ -465,22 +460,19 @@
       .then(function (result) {
         a.classList.remove("rs-wiki-redlink--pending");
         if (result.needLogin) {
-          if (waitWin && !waitWin.closed) waitWin.close();
           var ret = encodeURIComponent(location.pathname + location.search);
           window.location.href = "/login?redirect_uri=" + ret;
           return;
         }
         if (!result.ok) {
-          showWaitError(waitWin, result.error || "未知错误");
           alert("发布失败：" + (result.error || "未知错误"));
           return;
         }
-        markLinkPublished(a, slug);
-        openEditorWindow(waitWin, result.name);
+        markLinkPublished(a, result.slug || slug);
+        navigateToPublishedArticle(result.slug || slug);
       })
       .catch(function (err) {
         a.classList.remove("rs-wiki-redlink--pending");
-        showWaitError(waitWin, String(err));
         alert("发布失败：" + err);
       });
   }
@@ -520,7 +512,7 @@
               a.removeAttribute("title");
             } else {
               a.classList.add("rs-wiki-redlink");
-              a.setAttribute("title", "尚未发布 · 点击将先发布再编辑");
+              a.setAttribute("title", "尚未发布 · 点击将先发布并打开该页");
             }
           });
         });
