@@ -1,0 +1,74 @@
+---
+description: Agent 提交 Git 时以开发改动为主，运行时噪声文件一并推送但在提交说明中次要带过
+alwaysApply: true
+---
+
+# Agent 主导的 Git 提交规范
+
+本仓库 Minecraft 服务器**后台持续运行**，会产生大量与开发并行的变更（物价、玩家数据、区块、世界状态等）。
+
+## 何时提交
+
+- **仅当用户明确同意**才执行 git commit / push；不要静默自动 push。
+- 完成一轮**代码/配置开发**后，必须用 **AskQuestion** 弹出可点击选项（不要只让用户打字）：
+  - **提交并推送 (y)**（Recommended）→ `git commit` + `git push`
+  - **只提交 (c)** → 仅 `git commit`
+  - **暂不提交 (n)** → 跳过
+- 用户若已回复，以下**单行简写视为等同点击**（不区分大小写）：
+  - `y` / `yes` / `提交并推送` → 提交并推送
+  - `c` / `commit` / `只提交` → 只提交
+  - `n` / `no` / `跳过` → 不提交
+
+**说明：** Cursor 聊天无法提供常驻自定义按钮；AskQuestion 选项卡即「可点击按钮」。用户随时发 `y` 即可触发提交并推送，无需打完整句子。
+
+## 暂存范围
+
+提交时分两层处理：
+
+### 1. 核心改动（优先描述）
+
+本会话中 Agent 或用户**有意修改**的路径，例如：
+
+- `tools/**` 源码与 build 脚本
+- `plugins/Skript/scripts/**`
+- 自研插件源码与 `plugin.yml`（`tools/mcwws-*`、`MCWWS_*`）
+- 用户点名要纳入的配置
+
+### 2. 运行时噪声（一并推送，提交说明次要带过）
+
+**默认与核心改动一同暂存并推送**，不在正文中逐文件展开，只在列表**末尾用一条**概括，例如「同步服务器运行时状态与物价数据」。
+
+常见噪声文件包括但不限于：
+
+- `level.dat`、`level.dat_old`、`raids.dat`、`raids_end.dat`
+- `**/*.mca`
+- `plugins/**/market_state.yml`、`price_history.csv`、`web_prices.yml`
+- 玩家数据、Essentials userdata、`usercache.json`
+- 插件数据库/日志/缓存、`.paper-remapped/**`
+- 其他明显由服务器运行时写入的已跟踪文件
+
+推荐命令：
+
+1. 先 `git add` 本会话核心路径（明确可控）
+2. 再 **`git add -A`**（仓库根目录）纳入**全部**已跟踪变更与**未跟踪**的运行时/构建产物（Slimefun 备份与 error-reports、`tools/**/build/` 等）；**不要**仅用 `git add -u`（会漏掉 `??` 未跟踪文件）
+3. 提交前 **`git status`** 应无剩余改动；若仍有 `??` 且非敏感文件，继续 `git add` 直至干净
+4. **不要** `git add` 未跟踪的敏感文件（`.env`、密钥、凭证）；若出现应先警告用户
+
+**禁止**仅凭 `git status` 统计或文件修改时间**代替**对核心改动的意图理解来撰写标题与正文主干。
+
+## 提交信息怎么写
+
+1. **标题与正文前几条以本会话实际完成的开发内容为准**（Agent 记忆中的改动意图）。
+2. 遵循根目录 `.cursorrules` 的**双语 Conventional Commits** 格式（中文标题 + 英文标题；复杂变更附中英列表正文）。
+3. 正文**先写**核心逻辑变更（做了什么、为什么），**不要**在正文前几项罗列噪声文件名。
+4. 若有噪声文件一并提交，在中文列表与英文列表的**各自最后一条**用一句话带过，例如：
+   - `- 同步服务器运行时状态、物价与市场数据等`
+   - `- Synced server runtime state, prices, and market data`
+
+## 推荐流程
+
+1. `git status` / `git diff -- <核心路径>` 核对开发改动
+2. `git add` 核心路径，再 `git add -A` 纳入噪声与未跟踪文件；`git status` 确认工作区干净
+3. 用 HEREDOC 写入双语 commit message（噪声放末尾一条）
+4. `git commit` 后 `git status` 验证
+5. 用户选「提交并推送」或回复 `y` 时再 `git push`

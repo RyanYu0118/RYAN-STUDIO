@@ -1,0 +1,51 @@
+# Bilingual Git Commit Message Generation Rules (Chinese First, Detailed Body)
+
+You are an expert developer. When generating git commit messages, you MUST strictly output a bilingual format. The first line MUST be completely localized into Simplified Chinese (INCLUDING the commit type), and the second line MUST use standard English Conventional Commits.
+
+## 1. Structure / 结构规范
+If the commit involves multiple files or complex changes, you MUST include a detailed body with bullet points in both languages, separated by an empty line.
+如果提交涉及多个文件或复杂变更，必须在标题下方空一行，并使用列表分条说明具体改动（先中文列表，后英文列表）。
+
+<中文类型>(<scope>): <中文简述>
+<english_type>(<scope>): <English Subject>
+
+- <中文变更详情 1>
+- <中文变更详情 2>
+
+- <English 1 change detailed>
+- <English 2 change detailed>
+
+## 2. Type Mapping / 类型严格映射表
+You MUST translate the standard `<english_type>` into the `<中文类型>` for the first line exactly as follows:
+- feat -> 新功能
+- fix -> 修复
+- docs -> 文档
+- style -> 格式
+- refactor -> 重构
+- perf -> 性能
+- test -> 测试
+- chore -> 杂项
+- build -> 构建
+
+## 3. Core Rules / 核心规则
+- No chit-chat. DIRECT OUTPUT ONLY. Only output the commit message itself.
+- The `<scope>` (if present) should remain exactly the same in both lines.
+- ALWAYS provide the Chinese version first, followed immediately by the English version.
+- **CHRONOLOGICAL & PRIORITY ORDER / 时间线与优先级**: You MUST analyze and summarize the changes based on the file modification time from NEWEST to OLDEST. Prioritize human-written code, config scripts, or agent-modified files (the most recently touched files) as the core content of the commit. Automatically deprioritize or group generic runtime changes if they occur earlier in time. / 你**必须按照修改时间从新到旧的顺序**来分析和总结变更。将最新被修改的代码、脚本和人工/智能体（agent）调整的核心文件作为生成提交信息的最主要依据。如果较早发生的变化属于通用运行时变动，应自动降低其权重或合并忽略。
+- **DEPRIORITIZE RUNTIME / NOISE FILES / 降级运行时与噪声文件**: When the commit also includes server runtime or dynamic state files (e.g. `market_state.yml`, `price_history.csv`, `web_prices.yml`, `level.dat`, `level.dat_old`, `raids.dat`, `raids_end.dat`, `*.mca`, player data, plugin DBs/logs), **still commit and push them**, but you MUST place them at the very bottom of the commit message body. Prioritize describing core code or other important configuration changes first, and briefly gloss over all such files together in a **single final bullet** in each language. / 当提交同时包含服务器运行时或动态状态文件时，**仍应纳入版本库并推送**，但必须将这些内容放在提交信息正文的最次要位置（列表末尾）。优先详细描述核心代码或其他重要配置的更改，中英文列表各自**最后用一条**合并概括这些噪声变更，不要逐文件展开。
+- **CONTEXT EXTRACTION / 核心变更提取**: When summarizing multiple files, extract the core logic changes rather than just listing file names. / 在总结多文件修改时，提取核心逻辑变更，而不是仅仅罗列文件名。
+
+## 4. Examples / 参考范例
+
+新功能(vision): 重构果实识别模块并升级至 YOLO v11 模型
+feat(vision): refactor fruit recognition module and upgrade to YOLO v11 model
+
+- 引入 YOLO v11 权重文件，替换旧版目标检测逻辑
+- 优化双目相机的标定算法，修复点云数据映射偏移问题
+- 新增模型推理结果的可视化输出脚本
+- 更新市场与物价状态等相关数据文件
+
+- Introduced YOLO v11 weights to replace the legacy object detection logic
+- Optimized binocular camera calibration to fix point cloud data mapping offset
+- Added visualization output scripts for model inference results
+- Updated market and price history state files

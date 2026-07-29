@@ -1,0 +1,29 @@
+---
+description: MCWWS 自研 Bukkit 插件命名规范（jar、数据目录、plugin.yml）
+alwaysApply: true
+---
+
+# MCWWS 自研插件命名规范
+
+在本仓库**自行编写或编译**的 Minecraft 插件，必须统一使用 `MCWWS_<名称>` 前缀（下划线分隔）。
+
+## 必须对齐的三处
+
+1. **`plugin.yml` 的 `name:`** — Paper 据此创建 `plugins/<name>/` 数据目录
+2. **输出 jar 文件名** — 如 `plugins/MCWWS_WorldEditSurvival.jar` 或 `MCWWS_SFurnaceFix-1.0.0.jar`
+3. **源码/工具目录** — 推荐 `tools/mcwws-<kebab-case>/` 或根目录 `MCWWS_<名称>/`
+
+三者语义一致；**禁止** jar 叫 `MCWWS_*` 而 `plugin.yml` 仍用无下划线旧名（否则会出现两个配置目录）。
+
+## 示例
+
+| 插件 | plugin.yml `name` | jar | 数据目录 |
+|------|-------------------|-----|----------|
+| 创世神生存扣费 | `MCWWS_WorldEditSurvival` | `MCWWS_WorldEditSurvival.jar` | `plugins/MCWWS_WorldEditSurvival/` |
+| Slimefun 熔炉修复 | `MCWWS_SFurnaceFix` | `MCWWS_SFurnaceFix-1.0.0.jar` | `plugins/MCWWS_SFurnaceFix/` |
+
+## 编写/编译时检查
+
+- 新建插件：`plugin.yml`、`build.ps1`（或 Gradle）输出路径一次性写对
+- 重命名插件：同时改 `plugin.yml`、build 输出路径，并迁移已有 `plugins/<旧名>/` 配置目录
+- Java `main` 类包名无需与插件名相同，但对外可见名称（命令、日志前缀）建议带 MCWWS 语境
