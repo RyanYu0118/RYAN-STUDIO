@@ -21,6 +21,24 @@ tags: [Wiki]
 4. 或 `wiki/发布到Halo.ps1` / `wiki/导出Halo文章JSON.ps1 -RewriteUpload`（手动粘贴 / JSON 导入）。
 5. 勿在 Halo 后台改完后覆盖 Git；若线上 drift，导出到 `wiki/demo/` 作对照再合并回 Git。
 
+## Wiki 红链（类似 MediaWiki）
+
+Halo **没有**内置红链。本站通过主题已加载的 `rs-redlinks.js` 实现：
+
+- 正文里指向 `/archives/{slug}` 的内链，若 slug 不在 `wiki-slugs.json` 中会显示为**红色虚线链接**。
+- **已登录**且有发文权限的用户点击红链 → 确认后为该 slug **创建 Markdown 草稿**并打开控制台编辑器。
+- 未登录会跳转到登录页。
+
+维护索引（发布 Wiki 后建议执行一次）：
+
+```powershell
+python tools/mcwws-halo-preview/export-wiki-slugs.py
+```
+
+输出：`1panel/apps/halo/halo/data/attachments/upload/wiki-data/wiki-slugs.json`（Git 已跟踪，需随 Wiki 推送）。
+
+可在 `rs-config.js` 的 `redlinks` 段关闭 `createOnClick` 或 `enabled`。
+
 ## Halo 交互页（与 demo 同系）
 
 - 共享样式与脚本：`wiki/_halo/mcwws-wiki.css`、`wiki/_halo/mcwws-wiki.js`

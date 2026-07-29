@@ -8,7 +8,8 @@
         config: "/upload/wiki-data/rs-config.js",
         anchor: "/upload/wiki-data/rs-anchor-scroll.js?v=1.0",
         home:   "/upload/wiki-data/rs-home.js",
-        wiki:   "/upload/wiki-data/rs-wiki.js"
+        wiki:   "/upload/wiki-data/rs-wiki.js",
+        redlinks: "/upload/wiki-data/rs-redlinks.js?v=1.0"
     };
 
     function loadScript(url, callback) {
@@ -77,6 +78,11 @@
 
         // 全站：统一目录 / 锚点跳转偏移（必须在 config 之后）
         loadScript(SCRIPTS.anchor);
+
+        // 全站：Wiki 红链（/archives/ 内链）
+        if (!window.RSConfig.redlinks || window.RSConfig.redlinks.enabled !== false) {
+            loadScript(SCRIPTS.redlinks);
+        }
 
         // 无论什么页面，都尝试初始化快速编辑（它会自动根据暗号判断是否执行）
         initQuickEdit();
