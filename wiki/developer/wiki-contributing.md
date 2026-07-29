@@ -29,6 +29,7 @@ Halo **没有**内置红链。本站通过主题已加载的 `rs-redlinks.js` �
 - `gitSlugs` 仅作规划参考；Git 里有 `prices.md` 但未发布时**不会**再误判为蓝链。
 - **已登录**且有发文权限的用户点击红链 → **继承当前文章页**的分类、标签、封面；标题取**红链文字**；**先发布**（API 确认 `published`）后在本标签页打开新建页。**新建文章的 `spec.slug` 一律为文章 UUID**（与 `metadata.name` 相同），正文链接里的目标 slug 写入注解 `rs.wiki/redlink-target-slug`，供日后对照 Git frontmatter 或在控制台改 slug。仅**链接目标 slug 已在 Halo 发布**时显示蓝链（未发布仍红链）。
 - 未登录会跳转到登录页。
+- **后台编辑器**点「发布」后：需全站加载 `rs-loader.js`（Halo **系统 → 代码注入 → head/footer** 增加 `<script src="/upload/wiki-data/rs-loader.js"></script>`），成功后自动进入 `/archives/{slug}`，不再留在 `/console`。
 
 维护索引（发布 Wiki 后建议执行一次）：
 

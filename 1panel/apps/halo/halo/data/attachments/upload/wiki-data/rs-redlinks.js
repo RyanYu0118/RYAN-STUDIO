@@ -311,12 +311,13 @@
   }
 
   function buildRedlinkDraftContent(postName, title) {
-    var manualBlock =
-      '<div class="html-edited"><div id="halo-manual-id" style="display:none;">' +
+    var line = "待完善。";
+    var html =
+      '<div id="halo-manual-id" style="display:none;">' +
       postName +
-      "</div></div>";
-    var bodyBlock = '<div class="html-edited"></div>';
-    var html = manualBlock + bodyBlock;
+      "</div><p>" +
+      line +
+      "</p>";
     return { raw: html, content: html, rawType: "html" };
   }
 
@@ -496,7 +497,7 @@
   }
 
   function navigateToPublishedArticle(slug) {
-    window.location.href = PATH_PREFIX + slug;
+    window.location.replace(PATH_PREFIX + slug);
   }
 
   function onRedlinkClick(e) {

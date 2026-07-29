@@ -4,12 +4,20 @@
 (function() {
     console.log("🚀 RS Loader: 初始化中...");
 
+    if (location.pathname.indexOf("/console") === 0) {
+        var consoleScript = document.createElement("script");
+        consoleScript.src = "/upload/wiki-data/rs-console-publish-redirect.js?v=1.0";
+        consoleScript.async = false;
+        document.head.appendChild(consoleScript);
+        return;
+    }
+
     const SCRIPTS = {
         config: "/upload/wiki-data/rs-config.js",
         anchor: "/upload/wiki-data/rs-anchor-scroll.js?v=1.0",
         home:   "/upload/wiki-data/rs-home.js",
         wiki:   "/upload/wiki-data/rs-wiki.js",
-        redlinks: "/upload/wiki-data/rs-redlinks.js?v=2.6"
+        redlinks: "/upload/wiki-data/rs-redlinks.js?v=2.9"
     };
 
     function loadScript(url, callback) {
