@@ -37,8 +37,10 @@ window.RSConfig = {
         cacheMs: 900000,
         createOnClick: true,
         publishFirst: true,
-        /** 红链新建 spec.slug 固定为文章 metadata.name（UUID），不用链接里的 slug */
-        slugFromPostName: true,
+        /** 红链新建 spec.slug：mcwws_ + 链接目标英文路径（player/rules → mcwws_player_rules） */
+        slugPrefix: "mcwws_",
+        slugFromTitle: true,
+        slugFromPostName: false,
         defaultCategory: "category-f8bm8yzr",
         minecraftCategory: "category-1g9f80go",
         postOwner: "ryanyu"

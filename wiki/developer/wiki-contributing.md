@@ -27,7 +27,7 @@ Halo **没有**内置红链。本站通过主题已加载的 `rs-redlinks.js` �
 
 - 正文里指向 `/archives/{slug}` 的内链，若 **Halo 尚未发布**该 slug（见 `wiki-slugs.json` 的 `slugs` + `redlinkTargets`，或前台 API 查 `rs.wiki/redlink-target-slug`），会显示为**红色虚线链接**。
 - `gitSlugs` 仅作规划参考；Git 里有 `prices.md` 但未发布时**不会**再误判为蓝链。
-- **已登录**且有发文权限的用户点击红链 → **继承当前文章页**的分类、标签、封面；标题取**红链文字**；**先发布**（API 确认 `published`）后在本标签页打开新建页。**新建文章的 `spec.slug` 一律为文章 UUID**（与 `metadata.name` 相同），正文链接里的目标 slug 写入注解 `rs.wiki/redlink-target-slug`，供日后对照 Git frontmatter 或在控制台改 slug。仅**链接目标 slug 已在 Halo 发布**时显示蓝链（未发布仍红链）。
+- **已登录**且有发文权限的用户点击红链 → **继承当前文章页**的分类、标签、封面；标题取**红链文字**；**先发布**后在本标签页打开新建页。**新建 `spec.slug`**：`mcwws_` + 链接目标英文路径（`player/rules` → `mcwws_player_rules`），目标写入注解 `rs.wiki/redlink-target-slug`。
 - 未登录会跳转到登录页。
 - **后台编辑器**点「发布」后：需全站加载 `rs-loader.js`（Halo **系统 → 代码注入 → head/footer** 增加 `<script src="/upload/wiki-data/rs-loader.js"></script>`），成功后自动进入 `/archives/{slug}`，不再留在 `/console`。
 
@@ -44,7 +44,17 @@ python tools/mcwws-halo-preview/ensure-halo-manual-id.py --dry-run
 python tools/mcwws-halo-preview/ensure-halo-manual-id.py
 ```
 
-需 `wiki/.halo.env` 中的 `HALO_PAT`。前台 `rs-ensure-manual-id.js` 仅在缺 ID 时 DOM 注入以便快速编辑，**持久化请跑上述脚本**。
+**批量把红链占位文章的 UUID slug 改为 `mcwws_` + 标题**（本地需 `halo-mysql` 容器）：
+
+```powershell
+python tools/mcwws-halo-preview/rename-redlink-slugs.py --force-english --dry-run
+python tools/mcwws-halo-preview/rename-redlink-slugs.py --force-english --restart-halo
+python tools/mcwws-halo-preview/export-wiki-slugs.py
+```
+
+改 slug 后须 **`--restart-halo`**（或手动 `docker restart halo`），否则 `/archives/` 可能仍 404（索引未刷新）。
+
+需 `wiki/.halo.env` 中的 `HALO_PAT`（仅 `ensure-halo-manual-id.py` API 版）。前台 `rs-ensure-manual-id.js` 仅在缺 ID 时 DOM 注入以便快速编辑，**持久化请跑上述脚本**。
 
 输出：`1panel/apps/halo/halo/data/attachments/upload/wiki-data/wiki-slugs.json`（Git 已跟踪，需随 Wiki 推送）。
 

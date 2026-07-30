@@ -1,11 +1,18 @@
 {
-  "updated": "2026-07-29T16:55:30Z",
+  "updated": "2026-07-30T02:20:49Z",
   "sources": {
     "git": 28,
-    "halo": 10
+    "halo": 17
   },
   "slugs": [
     "join-server",
+    "mcwws_player_community_diary_e83142",
+    "mcwws_player_community_major_projects",
+    "mcwws_player_economy_2c5a74",
+    "mcwws_player_rules",
+    "mcwws_player_server_world_buildings",
+    "mcwws_player_server_world_prices",
+    "mcwws_untitled_73e20e",
     "poster",
     "production",
     "production_umbrella",
@@ -15,6 +22,15 @@
     "wwswiki_worldbuilding_economy",
     "wwswiki_worldbuilding_natural",
     "wwswiki_worldbuilding_social"
+  ],
+  "redlinkTargets": [
+    "index",
+    "player/community/diary",
+    "player/community/major-projects",
+    "player/economy",
+    "player/rules",
+    "player/server-world/buildings",
+    "player/server-world/prices"
   ],
   "gitSlugs": [
     "README",

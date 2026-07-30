@@ -10,6 +10,7 @@
   var WIKI_CATEGORY = cfg.defaultCategory || "category-f8bm8yzr";
   var MINIGAME_CATEGORY = cfg.minecraftCategory || "category-1g9f80go";
   var POST_OWNER = cfg.postOwner || "ryanyu";
+  var SLUG_PREFIX = cfg.slugPrefix || "mcwws_";
 
   var slugSet = null;
   var slugSetLoadedAt = 0;
@@ -205,12 +206,79 @@
     return spec.publish === true && status.phase === "PUBLISHED";
   }
 
-  /** 默认红链新建用 metadata.name（UUID）作 spec.slug；slugFromPostName: false 时用链接 slug */
-  function resolvePublishSlug(linkSlug, postName) {
-    if (cfg.slugFromPostName === false && linkSlug) {
+  /** mcwws_ + 红链目标路径（player/rules → mcwws_player_rules）；无英文路径时再退化为标题拉丁字符 */
+  function slugFromRedlink(linkSlug, title) {
+    var base = "";
+    if (linkSlug) {
+      base = String(linkSlug)
+        .replace(/\\/g, "/")
+        .replace(/^\/+|\/+$/g, "")
+        .replace(/\//g, "_")
+        .replace(/[^\w_]+/g, "_")
+        .replace(/_+/g, "_")
+        .replace(/^_|_$/g, "")
+        .toLowerCase();
+    }
+    if (base && base !== "index") {
+      return SLUG_PREFIX + base;
+    }
+    var s = String(title || "")
+      .trim()
+      .replace(
+        /[\s\u00a0·•，,。！？!?：:；;\/\\|（）()\[\]【】《》「」『』"'""''\-]+/g,
+        "_"
+      )
+      .replace(/[^\w]+/g, "")
+      .replace(/_+/g, "_")
+      .replace(/^_|_$/g, "")
+      .toLowerCase();
+    if (!s) s = "untitled";
+    var out = SLUG_PREFIX + s;
+    if (out.length > 180) out = out.slice(0, 180).replace(/_+$/, "");
+    return out;
+  }
+
+  function slugFromTitle(title) {
+    return slugFromRedlink("", title);
+  }
+
+  function ensureUniquePublishSlug(candidate, postName, attempt) {
+    attempt = attempt || 0;
+    return fetchPostBySlug(candidate).then(function (post) {
+      if (!post) return candidate;
+      if (attempt >= 8) {
+        return candidate + "_" + String(postName).replace(/-/g, "").slice(0, 8);
+      }
+      var suffix = attempt === 0 ? String(postName).replace(/-/g, "").slice(0, 6) : String(attempt + 2);
+      return ensureUniquePublishSlug(candidate + "_" + suffix, postName, attempt + 1);
+    });
+  }
+
+  /** 红链新建 slug：默认标题 → mcwws_*；slugFromPostName 时用 UUID；否则可用链接 slug */
+  function resolvePublishSlug(linkSlug, postName, title) {
+    if (cfg.slugFromTitle !== false) {
+      return {
+        publishSlug: slugFromRedlink(linkSlug, title),
+        linkTarget: linkSlug || "",
+        usedPostId: false,
+        fromTitle: true,
+      };
+    }
+    if (cfg.slugFromPostName === true) {
+      return { publishSlug: postName, linkTarget: linkSlug || "", usedPostId: true };
+    }
+    if (linkSlug) {
       return { publishSlug: linkSlug, linkTarget: linkSlug, usedPostId: false };
     }
-    return { publishSlug: postName, linkTarget: linkSlug || "", usedPostId: true };
+    return { publishSlug: postName, linkTarget: "", usedPostId: true };
+  }
+
+  function resolvePublishSlugUnique(linkSlug, postName, title) {
+    var resolved = resolvePublishSlug(linkSlug, postName, title);
+    return ensureUniquePublishSlug(resolved.publishSlug, postName).then(function (publishSlug) {
+      resolved.publishSlug = publishSlug;
+      return resolved;
+    });
   }
 
   function fetchPostBySlug(slug) {
@@ -371,9 +439,9 @@
     });
   }
 
-  function createAndPublishRedlink(linkSlug, title, postName, sourcePost) {
+  function createAndPublishRedlink(linkSlug, title, postName, sourcePost, resolved) {
     postName = postName || crypto.randomUUID();
-    var resolved = resolvePublishSlug(linkSlug, postName);
+    resolved = resolved || resolvePublishSlug(linkSlug, postName, title);
     var publishSlug = resolved.publishSlug;
     var draftContent = buildRedlinkDraftContent(postName, title);
     var contentJson = JSON.stringify({
@@ -523,48 +591,50 @@
     var title = linkTitle(a);
     var sourceSlug = parseArchivesSlug(location.pathname);
     var postName = crypto.randomUUID();
-    var resolved = resolvePublishSlug(slug, postName);
-    var publishSlug = resolved.publishSlug;
-    if (
-      !window.confirm(
-        "条目「" +
-          title +
-          "」尚未发布。\n\n将继承当前页的分类、标签与封面，" +
-          "新建文章并以 ID `" +
-          publishSlug +
-          "` 作为地址（链接目标 `" +
-          slug +
-          "` 写入注解），发布后在当前页打开？"
-      )
-    ) {
-      return;
-    }
-    a.classList.add("rs-wiki-redlink--pending");
 
-    fetchPostBySlug(sourceSlug || "")
-      .then(function (sourcePost) {
-        return createAndPublishRedlink(slug, title, postName, sourcePost);
-      })
-      .then(function (result) {
-        a.classList.remove("rs-wiki-redlink--pending");
-        if (result.needLogin) {
-          var ret = encodeURIComponent(location.pathname + location.search);
-          window.location.href = "/login?redirect_uri=" + ret;
-          return;
-        }
-        if (!result.ok) {
-          alert("发布失败：" + (result.error || "未知错误"));
-          return;
-        }
-        var linkTarget = result.linkTarget || slug;
-        registerRedlinkTarget(linkTarget, result.slug);
-        applyPublishedLink(a, linkTarget, result.slug);
-        navigateToPublishedArticle(result.slug);
-      })
-      .catch(function (err) {
-        a.classList.remove("rs-wiki-redlink--pending");
-        alert("发布失败：" + err);
-      });
+    resolvePublishSlugUnique(slug, postName, title).then(function (resolved) {
+      var publishSlug = resolved.publishSlug;
+      if (
+        !window.confirm(
+          "条目「" +
+            title +
+            "」尚未发布。\n\n将继承当前页的分类、标签与封面，" +
+            "新建文章并以别名 `" +
+            publishSlug +
+            "` 作为地址（链接目标 `" +
+            slug +
+            "` 写入注解），发布后在当前页打开？"
+        )
+      ) {
+        return;
+      }
+      a.classList.add("rs-wiki-redlink--pending");
+
+      fetchPostBySlug(sourceSlug || "")
+        .then(function (sourcePost) {
+          return createAndPublishRedlink(slug, title, postName, sourcePost, resolved);
+        })
+        .then(function (result) {
+          a.classList.remove("rs-wiki-redlink--pending");
+          if (result.needLogin) {
+            var ret = encodeURIComponent(location.pathname + location.search);
+            window.location.href = "/login?redirect_uri=" + ret;
+            return;
+          }
+          if (!result.ok) {
+            alert("发布失败：" + (result.error || "未知错误"));
+            return;
+          }
+          var linkTarget = result.linkTarget || slug;
+          registerRedlinkTarget(linkTarget, result.slug);
+          applyPublishedLink(a, linkTarget, result.slug);
+          navigateToPublishedArticle(result.slug);
+        })
+        .catch(function (err) {
+          a.classList.remove("rs-wiki-redlink--pending");
+          alert("发布失败：" + err);
+        });
+    });
   }
 
   function bindRedlinks(root) {
