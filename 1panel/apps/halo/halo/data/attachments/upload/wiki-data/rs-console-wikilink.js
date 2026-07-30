@@ -532,8 +532,48 @@
 
   function isNativeLinkInput(input) {
     if (!input || input.tagName !== "INPUT") return false;
+    if (
+      !input.closest(
+        '[class*="editor"], [class*="richtext"], [class*="bubble"], [class*="toolbar"], [data-tippy-root], [class*="tippy"]'
+      )
+    ) {
+      return false;
+    }
     var ph = (input.getAttribute("placeholder") || "").toLowerCase();
-    return ph.indexOf("链接") >= 0 || ph.indexOf("link") >= 0;
+    var aria = (input.getAttribute("aria-label") || "").toLowerCase();
+    var hay = ph + " " + aria;
+    return /链接地址|link address/.test(hay);
+  }
+
+  function linkControlLabel(btn) {
+    return (
+      btn.getAttribute("aria-label") ||
+      btn.getAttribute("title") ||
+      btn.getAttribute("data-tooltip") ||
+      btn.getAttribute("data-tip") ||
+      btn.textContent ||
+      ""
+    )
+      .trim()
+      .toLowerCase();
+  }
+
+  function isNativeLinkControl(el) {
+    if (!el || !el.closest) return false;
+    var btn = el.closest("button, [role='button']");
+    if (!btn) return false;
+    if (
+      !btn.closest(
+        '[class*="editor"], [class*="richtext"], [class*="toolbar"], [class*="bubble"], [class*="menu"]'
+      )
+    ) {
+      return false;
+    }
+    var label = linkControlLabel(btn);
+    if (!label) return false;
+    return /^(add link|edit link|insert link|cancel link|添加链接|修改链接|插入链接|取消链接|链接)$/.test(
+      label
+    ) || /\b(add|edit|insert|cancel)\s+link\b/.test(label);
   }
 
   function hideNativeLinkPopover() {
@@ -564,25 +604,6 @@
       input.value = title;
       input.dispatchEvent(new Event("input", { bubbles: true }));
     }
-  }
-
-  function isNativeLinkControl(el) {
-    if (!el || !el.closest) return false;
-    var btn = el.closest("button, [role='button']");
-    if (!btn) return false;
-    var label = (
-      btn.getAttribute("aria-label") ||
-      btn.getAttribute("title") ||
-      btn.getAttribute("data-tooltip") ||
-      btn.textContent ||
-      ""
-    ).toLowerCase();
-    if (/链接|link|hyperlink/.test(label)) return true;
-    if (!document.querySelector(".ProseMirror")) return false;
-    if (!btn.closest('[class*="editor"], [class*="richtext"], [class*="toolbar"], [class*="bubble"], [class*="menu"]')) {
-      return false;
-    }
-    return !!btn.querySelector("svg");
   }
 
   function hookNativeLinkToolbar() {
