@@ -5,7 +5,7 @@
   "use strict";
 
   window.RSWikiLink = window.RSWikiLink || {};
-  var RS_WIKILINK_VER = "2.2";
+  var RS_WIKILINK_VER = "2.5";
   if (window.RSWikiLink.__ver === RS_WIKILINK_VER) {
     return;
   }
@@ -27,6 +27,9 @@
   var selHideTimer = null;
   var nativeHooked = false; // legacy; use window.RSWikiLink.__nativeHooked
   var editorPoll = null;
+  var provisionalLinkActive = false;
+  var outsideWikiHandler = null;
+  var PENDING_HREF = "#rs-wikilink-pending";
 
   function onEditorPath() {
     return location.pathname.indexOf("/console/posts/editor") >= 0;
@@ -105,6 +108,7 @@
     href = normalizeExternalUrl(href);
     if (!href) return false;
     label = (label || ctx.text || "").trim() || href;
+    if (applyHrefToProvisionalOrSelection(href, label, ctx)) return true;
     var editor = ctx.editor || findEditor();
     if (!editor) return false;
 
@@ -262,6 +266,95 @@
     }
   }
 
+  function triggerEditorInput(el) {
+    el.dispatchEvent(new Event("input", { bubbles: true }));
+  }
+
+  function getBubbleMenuRect() {
+    var menu = document.querySelector(".bubble-menu");
+    return menu ? menu.getBoundingClientRect() : null;
+  }
+
+  function selectionHasLink() {
+    var sel = window.getSelection();
+    if (!sel || !sel.rangeCount) return false;
+    var node = sel.anchorNode;
+    if (!node) return false;
+    var el = node.nodeType === 3 ? node.parentElement : node;
+    while (el) {
+      if (el.tagName === "A") return true;
+      if (el.classList && el.classList.contains("ProseMirror")) break;
+      el = el.parentElement;
+    }
+    return false;
+  }
+
+  function findPendingLinkAnchor(editor) {
+    if (!editor || !editor.el) return null;
+    return editor.el.querySelector('a[href="' + PENDING_HREF + '"]');
+  }
+
+  function ensureProvisionalLink(ctx) {
+    if (provisionalLinkActive || selectionHasLink()) return;
+    var editor = (ctx && ctx.editor) || findEditor();
+    if (!editor || editor.type !== "prosemirror") return;
+    editor.el.focus();
+    restoreDomSelection(ctx || getSelectionForLink());
+    try {
+      if (document.queryCommandSupported("createLink")) {
+        document.execCommand("createLink", false, PENDING_HREF);
+        provisionalLinkActive = true;
+        triggerEditorInput(editor.el);
+      }
+    } catch (e0) {
+      /* ignore */
+    }
+  }
+
+  function clearProvisionalLink() {
+    if (!provisionalLinkActive) return;
+    var editor = findEditor();
+    if (!editor || editor.type !== "prosemirror") {
+      provisionalLinkActive = false;
+      return;
+    }
+    var pending = findPendingLinkAnchor(editor);
+    if (pending) {
+      try {
+        var range = document.createRange();
+        range.selectNodeContents(pending);
+        var sel = window.getSelection();
+        if (sel) {
+          sel.removeAllRanges();
+          sel.addRange(range);
+        }
+        if (document.queryCommandSupported("unlink")) {
+          document.execCommand("unlink");
+        } else {
+          pending.replaceWith.apply(pending, Array.prototype.slice.call(pending.childNodes));
+        }
+        triggerEditorInput(editor.el);
+      } catch (e1) {
+        /* ignore */
+      }
+    }
+    provisionalLinkActive = false;
+  }
+
+  function applyHrefToProvisionalOrSelection(href, label, ctx) {
+    var editor = (ctx && ctx.editor) || findEditor();
+    if (!editor || editor.type !== "prosemirror") return false;
+    var pending = findPendingLinkAnchor(editor);
+    if (pending) {
+      pending.href = href;
+      if (label) pending.textContent = label;
+      provisionalLinkActive = false;
+      triggerEditorInput(editor.el);
+      return true;
+    }
+    return false;
+  }
+
   function replaceWithLink(target, label, ctx) {
     if (isExternalUrl(target)) return replaceWithExternalLink(normalizeExternalUrl(target), label, ctx);
     target = normalizeTarget(target);
@@ -270,6 +363,8 @@
     var editor = ctx.editor || findEditor();
     if (!editor) return false;
     var href = archivesHref(target);
+
+    if (applyHrefToProvisionalOrSelection(href, label, ctx)) return true;
 
     if (editor.type === "textarea" && ctx.range && ctx.range.start !== ctx.range.end) {
       var ta = editor.el;
@@ -350,7 +445,7 @@
     style.textContent =
       "#rs-wikilink-bubble{position:fixed;z-index:10054;display:none;transform:translate(-50%,-100%);margin-top:-8px}" +
       "#rs-wikilink-bubble button{width:36px;height:36px;border-radius:8px;border:1px solid rgba(0,0,0,.12);background:#fff;box-shadow:0 4px 14px rgba(0,0,0,.15);cursor:pointer;font-size:16px}" +
-      "#rs-wikilink-pop{position:fixed;z-index:10060;width:min(360px,calc(100vw - 24px));background:#fff;color:#111;border-radius:10px;box-shadow:0 10px 40px rgba(0,0,0,.22);border:1px solid rgba(0,0,0,.08);overflow:hidden}" +
+      "#rs-wikilink-pop{position:fixed;z-index:10060;width:min(360px,calc(100vw - 24px));background:#fff;color:#111;border-radius:10px;box-shadow:0 10px 40px rgba(0,0,0,.22);border:1px solid rgba(0,0,0,.08);overflow:hidden;pointer-events:auto}" +
       "#rs-wikilink-pop .head{display:flex;align-items:center;gap:8px;padding:10px 12px;border-bottom:1px solid #eee}" +
       "#rs-wikilink-pop .head .title{flex:1;font:600 14px system-ui,sans-serif;text-align:center}" +
       "#rs-wikilink-pop .head button{border:none;background:transparent;cursor:pointer;font:500 13px system-ui,sans-serif;color:#1976d2;padding:4px 6px}" +
@@ -374,7 +469,14 @@
     if (bubble) bubble.style.display = "none";
   }
 
-  function hidePopover() {
+  function detachOutsideWikiHandler() {
+    if (!outsideWikiHandler) return;
+    document.removeEventListener("mousedown", outsideWikiHandler, true);
+    outsideWikiHandler = null;
+  }
+
+  function hidePopover(clearPending) {
+    detachOutsideWikiHandler();
     if (popoverBackdrop) {
       popoverBackdrop.remove();
       popoverBackdrop = null;
@@ -382,6 +484,9 @@
     if (popover) {
       popover.remove();
       popover = null;
+    }
+    if (clearPending !== false) {
+      clearProvisionalLink();
     }
   }
 
@@ -463,18 +568,13 @@
   }
 
   function openLinkPopover(ctx, anchorRect) {
-    hidePopover();
-    hideBubble();
+    hidePopover(false);
     ctx = getSelectionForLink();
     selectionCtx = ctx;
     var initial = ctx.text || "";
 
     popoverBackdrop = document.createElement("div");
     popoverBackdrop.id = "rs-wikilink-backdrop";
-    popoverBackdrop.addEventListener("mousedown", function (e) {
-      e.preventDefault();
-      hidePopover();
-    });
     document.body.appendChild(popoverBackdrop);
 
     popover = document.createElement("div");
@@ -484,8 +584,16 @@
       '<div class="title">添加链接</div><button type="button" class="done">完成</button></div>' +
       '<div class="search"><input type="text" placeholder="Wiki 页面名，或 https:// 外部地址…" autocomplete="off"></div>' +
       '<div class="results"></div>' +
-      '<div class="hint">选中文字后：<b>链环</b> 或 <b>Ctrl+K</b> → Wiki 内链；无选中 → Halo 外链框。Esc / 点击框外关闭。</div>';
+      '<div class="hint">Halo 原生气泡（普通链接 / 取消 / 打开）保持可用；此处填写 Wiki 目标后点完成。</div>';
     document.body.appendChild(popover);
+
+    outsideWikiHandler = function (e) {
+      if (!popover) return;
+      if (popover.contains(e.target)) return;
+      if (e.target.closest && e.target.closest(".bubble-menu")) return;
+      hidePopover(true);
+    };
+    document.addEventListener("mousedown", outsideWikiHandler, true);
 
     var input = popover.querySelector("input");
     var results = popover.querySelector(".results");
@@ -512,16 +620,16 @@
       } else {
         replaceWithLink(normalizeTarget(raw), label, ctx);
       }
-      hidePopover();
+      hidePopover(false);
     }
     popover.querySelector(".done").addEventListener("click", finish);
-    popover.querySelector(".close").addEventListener("click", hidePopover);
+    popover.querySelector(".close").addEventListener("click", function () { hidePopover(true); });
     input.addEventListener("keydown", function (e) {
       if (e.key === "Enter") { e.preventDefault(); finish(); }
-      if (e.key === "Escape") hidePopover();
+      if (e.key === "Escape") hidePopover(true);
     });
 
-    var rect = anchorRect || ctx.rect;
+    var rect = anchorRect || getBubbleMenuRect() || ctx.rect;
     if (!rect && ctx.editor && ctx.editor.el) rect = ctx.editor.el.getBoundingClientRect();
     rect = rect || { top: window.innerHeight / 2, left: window.innerWidth / 2, width: 0, height: 0, bottom: window.innerHeight / 2 };
     popover.style.top = Math.min(rect.bottom + 8, window.innerHeight - 320) + "px";
@@ -559,17 +667,67 @@
 
   function isSecondaryLinkAction(btn) {
     var label = linkControlLabel(btn);
-    return /cancel link|取消链接|open link|打开链接|nofollow|在新窗口|new window/.test(label);
+    return /cancel link|取消链接|open link|打开链接|nofollow|在新窗口|new window|delete|删除/.test(label);
+  }
+
+  /** Halo 链环按钮：仅图标、size-8（LinkBubbleButton），非 Hyperlink Card 的「普通链接」文字下拉 */
+  function isIconOnlyLinkBubbleButton(btn) {
+    if (!btn || btn.tagName !== "BUTTON") return false;
+    return /\bsize-8\b/.test(btn.className || "");
+  }
+
+  /** plugin-editor-hyperlink-card：「普通链接 / 行内卡片 / 链接卡片…」展示形式选择器 */
+  function isHyperlinkCardTypeDropdown(el) {
+    if (!onEditorPath() || !el || !el.closest) return false;
+    var btn = el.closest(".bubble-menu button");
+    if (!btn || isIconOnlyLinkBubbleButton(btn)) return false;
+    var label = (btn.textContent || "").replace(/\s+/g, " ").trim();
+    return /普通链接|行内卡片|链接卡片/.test(label);
+  }
+
+  function isInBubbleMenu(el) {
+    return !!(el && el.closest && el.closest(".bubble-menu"));
+  }
+
+  function openWikiImmediate(ctx) {
+    if (window.RSWikiLink.__wikiArmTimer) {
+      clearTimeout(window.RSWikiLink.__wikiArmTimer);
+      window.RSWikiLink.__wikiArmTimer = null;
+    }
+    window.RSWikiLink.__wantWikiPopover = false;
+    ensureProvisionalLink(ctx || getSelectionForLink());
+    openLinkPopover(ctx || getSelectionForLink(), getBubbleMenuRect());
+  }
+
+  function shouldHijackNativeLinkInput(input) {
+    if (window.RSWikiLink.__wantWikiPopover) return true;
+    if (window.RSWikiLink.__lastAddLinkClick && Date.now() - window.RSWikiLink.__lastAddLinkClick < 4000) {
+      return true;
+    }
+    if (input && !input.value && lastGoodCtx && lastGoodCtx.text) return true;
+    return false;
   }
 
   function isLinkBubbleInsertButton(el) {
     if (!onEditorPath() || !el || !el.closest) return false;
-    var btn = el.closest("button");
+    if (isHyperlinkCardTypeDropdown(el)) return false;
+    var btn = el.closest(".bubble-menu button");
     if (!btn) return false;
     if (isSecondaryLinkAction(btn) || buttonHasUnlinkIcon(btn)) return false;
-    var menu = btn.closest(".bubble-menu");
-    if (menu && btn.closest(".inline-flex")) return true;
+    var label = (btn.textContent || "").replace(/\s+/g, " ").trim();
+    if (/普通链接|行内卡片|链接卡片/.test(label)) return false;
+    var wrap = btn.closest(".inline-flex");
+    if (!wrap || !isInBubbleMenu(btn)) return false;
+    if (isIconOnlyLinkBubbleButton(btn)) return true;
+    if (!label && btn.querySelector("svg")) return true;
+    if (/\bh-8\b/.test(btn.className || "") && btn.querySelector("svg") && !label) return true;
     return false;
+  }
+
+  function scanAndReplaceNativeLinkPanels() {
+    document.querySelectorAll("input").forEach(function (input) {
+      tryReplaceNativeLinkWithWiki(input);
+    });
   }
 
   function closeNativeLinkPanel(input) {
@@ -577,43 +735,55 @@
     var panel = input.closest("[class*='w-96']") || input.closest(".relative");
     var popper =
       (panel && (panel.closest("[data-popper-placement]") || panel.closest("[class*='popper']"))) ||
-      input.closest("[data-popper-placement]");
+      input.closest("[data-popper-placement]") ||
+      input.closest(".v-popper__inner") ||
+      input.closest("[role='tooltip']");
     if (popper && popper.parentElement) {
       popper.parentElement.removeChild(popper);
+      return;
+    }
+    if (panel && panel.parentElement && panel !== document.body) {
+      panel.parentElement.removeChild(panel);
     }
   }
 
   function openWikiFromTrigger(e) {
-    rememberSelection(captureSelection());
     var sel = getSelectionTextForWiki();
     if (!sel.text) return false;
-    window.RSWikiLink.__wantWikiPopover = true;
+    window.RSWikiLink.__lastAddLinkClick = Date.now();
     if (e && e.preventDefault) {
       e.preventDefault();
       e.stopPropagation();
       e.stopImmediatePropagation();
     }
-    setTimeout(function () {
-      openLinkPopover(sel.ctx);
-    }, 0);
+    openWikiImmediate(sel.ctx);
     return true;
   }
 
   function tryReplaceNativeLinkWithWiki(input) {
-    if (!isNativeLinkInput(input) || input.closest("#rs-wikilink-pop") || popover) return;
+    if (!isNativeLinkInput(input) || input.closest("#rs-wikilink-pop")) return;
+    if (popover) {
+      closeNativeLinkPanel(input);
+      return;
+    }
     var sel = getSelectionTextForWiki();
     if (!sel.text) {
       prefillNativeLinkInput(input);
       return;
     }
-    if (!window.RSWikiLink.__wantWikiPopover) {
+    if (!shouldHijackNativeLinkInput(input)) {
       prefillNativeLinkInput(input);
       return;
     }
+    if (window.RSWikiLink.__wikiArmTimer) {
+      clearTimeout(window.RSWikiLink.__wikiArmTimer);
+      window.RSWikiLink.__wikiArmTimer = null;
+    }
     window.RSWikiLink.__wantWikiPopover = false;
     closeNativeLinkPanel(input);
+    ensureProvisionalLink(sel.ctx);
     setTimeout(function () {
-      if (!popover) openLinkPopover(sel.ctx);
+      if (!popover) openLinkPopover(sel.ctx, getBubbleMenuRect());
     }, 0);
   }
 
@@ -624,7 +794,10 @@
     var ph = (input.getAttribute("placeholder") || "").toLowerCase();
     var aria = (input.getAttribute("aria-label") || "").toLowerCase();
     var hay = ph + " " + aria;
-    return /链接地址|link address|输入链接|enter the link/i.test(hay);
+    if (/链接地址|link address|输入链接|enter the link/i.test(hay)) return true;
+    var panel = input.closest("[class*='w-96']") || input.closest(".relative");
+    if (panel && /在新窗口|nofollow|open in new window/i.test(panel.textContent || "")) return true;
+    return false;
   }
 
   function prefillNativeLinkInput(input) {
@@ -643,25 +816,15 @@
 
     document.addEventListener("mousedown", function (e) {
       if (isLinkBubbleInsertButton(e.target)) {
-        var sel = getSelectionTextForWiki();
         rememberSelection(captureSelection());
-        if (sel.text) {
-          openWikiFromTrigger(e);
-          return;
-        }
+        if (getSelectionTextForWiki().text) openWikiFromTrigger(e);
+        return;
       }
       if (findEditor() && findEditor().el && findEditor().el.contains(e.target)) {
         rememberSelection(captureSelection());
       } else {
         rememberSelection();
       }
-    }, true);
-
-    document.addEventListener("click", function (e) {
-      if (!isLinkBubbleInsertButton(e.target)) return;
-      var sel = getSelectionTextForWiki();
-      if (!sel.text) return;
-      openWikiFromTrigger(e);
     }, true);
 
     document.addEventListener("keydown", function (e) {
@@ -671,16 +834,25 @@
       var sel = getSelectionTextForWiki();
       if (!sel.text) return;
       e.preventDefault();
-      e.stopPropagation();
-      e.stopImmediatePropagation();
-      openLinkPopover(sel.ctx);
+      if (window.RSWikiLink.__wikiArmTimer) {
+        clearTimeout(window.RSWikiLink.__wikiArmTimer);
+        window.RSWikiLink.__wikiArmTimer = null;
+      }
+      window.RSWikiLink.__wantWikiPopover = false;
+      window.RSWikiLink.__lastAddLinkClick = Date.now();
+      ensureProvisionalLink(sel.ctx);
+      openLinkPopover(sel.ctx, getBubbleMenuRect());
+    }, true);
+
+    document.addEventListener("click", function (e) {
+      if (!isLinkBubbleInsertButton(e.target)) return;
+      rememberSelection(captureSelection());
+      if (!getSelectionTextForWiki().text) return;
+      openWikiFromTrigger(e);
     }, true);
 
     var obs = new MutationObserver(function () {
-      if (popover) return;
-      document.querySelectorAll("input").forEach(function (input) {
-        tryReplaceNativeLinkWithWiki(input);
-      });
+      scanAndReplaceNativeLinkPanels();
     });
     obs.observe(document.body, { childList: true, subtree: true });
   }
@@ -773,15 +945,29 @@
     document.body.appendChild(btn);
   }
 
+  function bindSelectionMemory() {
+    if (window.RSWikiLink.__selMemBound) return;
+    window.RSWikiLink.__selMemBound = true;
+    document.addEventListener("mouseup", function () {
+      rememberSelection(captureSelection());
+    }, true);
+    document.addEventListener("keyup", function () {
+      rememberSelection(captureSelection());
+    }, true);
+    document.addEventListener("selectionchange", function () {
+      rememberSelection();
+    });
+  }
+
   function bindEditorListeners() {
     document.addEventListener("mouseup", onSelectionUpdated, true);
     document.addEventListener("keyup", onSelectionUpdated, true);
-    document.addEventListener("selectionchange", function () { rememberSelection(); });
   }
 
   function boot() {
     if (!onEditorPath()) return;
     if ((window.RSConfig && window.RSConfig.wikilink && window.RSConfig.wikilink.enabled === false)) return;
+    bindSelectionMemory();
     hookNativeLinkToolbar();
     if (window.RSWikiLink.__editorReady) return;
     if (!findEditor()) return;
@@ -791,7 +977,7 @@
     initToolbar();
     if (cfg.showSelectionBubble !== false) bindEditorListeners();
     loadIndex().then(function () {
-      console.log("[rs-wikilink] v" + RS_WIKILINK_VER + " 已就绪：选中文字 → 链环 / Ctrl+K");
+      console.log("[rs-wikilink] v" + RS_WIKILINK_VER + " 已就绪：添加链接 → Wiki 面板（v2.5 修复选区记忆）");
     });
   }
 
