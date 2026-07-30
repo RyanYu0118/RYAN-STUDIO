@@ -5,10 +5,11 @@
   "use strict";
 
   window.RSWikiLink = window.RSWikiLink || {};
-
-  if (window.RSWikiLink.init && window.RSWikiLink.__booted) {
+  var RS_WIKILINK_VER = "2.1";
+  if (window.RSWikiLink.__ver === RS_WIKILINK_VER) {
     return;
   }
+  window.RSWikiLink.__ver = RS_WIKILINK_VER;
 
   var cfg = (window.RSConfig && window.RSConfig.wikilink) || {};
   var PATH_PREFIX = cfg.pathPrefix || "/archives/";
@@ -24,7 +25,7 @@
   var selectionCtx = null;
   var lastGoodCtx = null;
   var selHideTimer = null;
-  var nativeHooked = false;
+  var nativeHooked = false; // legacy; use window.RSWikiLink.__nativeHooked
   var editorPoll = null;
 
   function onEditorPath() {
@@ -566,26 +567,36 @@
     var svg = btn && btn.querySelector("svg");
     if (!svg) return false;
     var inner = (svg.innerHTML || "") + (svg.outerHTML || "");
-    return (
-      inner.indexOf("2.828-2.829") >= 0 &&
-      inner.indexOf("2.121-2.121") >= 0 &&
-      inner.indexOf("4.377-4.1") >= 0
-    );
+    return inner.indexOf("2.828-2.829") >= 0 && inner.indexOf("10.232") < 0;
   }
 
   function isWikiLinkTrigger(el) {
-    if (!el || !el.closest) return false;
+    if (!onEditorPath() || !el || !el.closest) return false;
     var btn = el.closest("button, [role='button']");
     if (!btn) return false;
-    if (
-      !btn.closest(
-        '[class*="editor"], [class*="richtext"], [class*="toolbar"], [class*="bubble"], [class*="menu"]'
-      )
-    ) {
-      return false;
+    if (isSecondaryLinkAction(btn) || buttonHasUnlinkIcon(btn)) return false;
+    if (!buttonHasLinkIcon(btn)) return false;
+    // Halo LinkBubbleButton：VDropdown.inline-flex > 链环 button
+    if (btn.closest(".inline-flex")) return true;
+    if (btn.closest(".bubble-menu")) return true;
+    return btn.closest(
+      '[class*="editor"], [class*="richtext"], [class*="toolbar"]'
+    );
+  }
+
+  function openWikiFromTrigger(e) {
+    rememberSelection(captureSelection());
+    var sel = getSelectionTextForWiki();
+    if (!sel.text) {
+      console.warn("[rs-wikilink] 请先选中文字再添加 Wiki 链接");
+      return;
     }
-    if (isSecondaryLinkAction(btn)) return false;
-    return buttonHasLinkIcon(btn);
+    e.preventDefault();
+    e.stopPropagation();
+    e.stopImmediatePropagation();
+    setTimeout(function () {
+      openLinkPopover(sel.ctx);
+    }, 0);
   }
 
   function isNativeLinkInput(input) {
@@ -609,10 +620,14 @@
   }
 
   function hookNativeLinkToolbar() {
-    if (nativeHooked) return;
-    nativeHooked = true;
+    if (window.RSWikiLink.__nativeHooked) return;
+    window.RSWikiLink.__nativeHooked = true;
 
     document.addEventListener("mousedown", function (e) {
+      if (isWikiLinkTrigger(e.target)) {
+        openWikiFromTrigger(e);
+        return;
+      }
       if (findEditor() && findEditor().el && findEditor().el.contains(e.target)) {
         rememberSelection(captureSelection());
       } else {
@@ -620,21 +635,10 @@
       }
     }, true);
 
-    document.addEventListener("click", function (e) {
-      if (!isWikiLinkTrigger(e.target)) return;
-      var sel = getSelectionTextForWiki();
-      if (!sel.text) return;
-      e.preventDefault();
-      e.stopPropagation();
-      e.stopImmediatePropagation();
-      setTimeout(function () {
-        openLinkPopover(sel.ctx);
-      }, 0);
-    }, true);
-
     document.addEventListener("keydown", function (e) {
       if (!(e.ctrlKey || e.metaKey) || e.key.toLowerCase() !== "k") return;
       if (!onEditorPath()) return;
+      rememberSelection(captureSelection());
       var sel = getSelectionTextForWiki();
       if (!sel.text) return;
       e.preventDefault();
@@ -749,6 +753,7 @@
   function boot() {
     if (!onEditorPath()) return;
     if ((window.RSConfig && window.RSConfig.wikilink && window.RSConfig.wikilink.enabled === false)) return;
+    hookNativeLinkToolbar();
     if (window.RSWikiLink.__editorReady) return;
     if (!findEditor()) return;
     window.RSWikiLink.__editorReady = true;
@@ -756,9 +761,8 @@
     hookSave();
     initToolbar();
     if (cfg.showSelectionBubble !== false) bindEditorListeners();
-    hookNativeLinkToolbar();
     loadIndex().then(function () {
-      console.log("[rs-wikilink] 已就绪：选中文字 → 链环 / Ctrl+K；无选中 → Halo 原生链接");
+      console.log("[rs-wikilink] v" + RS_WIKILINK_VER + " 已就绪：选中文字 → 链环 / Ctrl+K");
     });
   }
 

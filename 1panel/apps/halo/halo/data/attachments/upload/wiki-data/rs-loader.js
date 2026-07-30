@@ -20,14 +20,17 @@
             function afterWiki() {
                 if (window.RSWikiLink && window.RSWikiLink.init) window.RSWikiLink.init();
             }
-            if (window.__rsConsoleScriptsLoaded) {
+            var WIKI_VER = "2.1";
+            var scriptsLoaded = window.__rsConsoleScriptsLoaded;
+            var wikiVer = window.RSWikiLink && window.RSWikiLink.__ver;
+            if (scriptsLoaded && wikiVer === WIKI_VER) {
                 afterWiki();
                 return;
             }
             window.__rsConsoleScriptsLoaded = true;
             loadConsoleScript("/upload/wiki-data/rs-config.js?v=2", function () {
                 loadConsoleScript("/upload/wiki-data/rs-console-publish-redirect.js?v=1.0");
-                loadConsoleScript("/upload/wiki-data/rs-console-wikilink.js?v=2.0", afterWiki);
+                loadConsoleScript("/upload/wiki-data/rs-console-wikilink.js?v=" + WIKI_VER, afterWiki);
             });
         }
         bootConsoleWiki();
