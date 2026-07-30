@@ -206,36 +206,32 @@
     return spec.publish === true && status.phase === "PUBLISHED";
   }
 
-  /** mcwws_ + 红链目标路径（player/rules → mcwws_player_rules）；无英文路径时再退化为标题拉丁字符 */
+  /** mcwws_ + 链接目标；英文路径转下划线，中文标题保留为页面名 */
   function slugFromRedlink(linkSlug, title) {
-    var base = "";
-    if (linkSlug) {
-      base = String(linkSlug)
+    function cleanSegment(raw) {
+      return String(raw || "")
         .replace(/\\/g, "/")
         .replace(/^\/+|\/+$/g, "")
         .replace(/\//g, "_")
-        .replace(/[^\w_]+/g, "_")
+        .replace(/[\s\u00a0·•，,。！？!?：:；;\/\\|（）()\[\]【】《》「」『』"'""''\-]+/g, "_")
         .replace(/_+/g, "_")
-        .replace(/^_|_$/g, "")
-        .toLowerCase();
+        .replace(/^_|_$/g, "");
     }
+    var base = cleanSegment(linkSlug);
     if (base && base !== "index") {
-      return SLUG_PREFIX + base;
+      if (/^[\x00-\x7f_]+$/.test(base)) base = base.toLowerCase();
+      var out = SLUG_PREFIX + base;
+      if (out.length > 180) out = out.slice(0, 180).replace(/_+$/, "");
+      return out;
     }
-    var s = String(title || "")
-      .trim()
-      .replace(
-        /[\s\u00a0·•，,。！？!?：:；;\/\\|（）()\[\]【】《》「」『』"'""''\-]+/g,
-        "_"
-      )
-      .replace(/[^\w]+/g, "")
-      .replace(/_+/g, "_")
-      .replace(/^_|_$/g, "")
-      .toLowerCase();
-    if (!s) s = "untitled";
-    var out = SLUG_PREFIX + s;
-    if (out.length > 180) out = out.slice(0, 180).replace(/_+$/, "");
-    return out;
+    var fromTitle = cleanSegment(title);
+    if (fromTitle && fromTitle !== "index") {
+      if (/^[\x00-\x7f_]+$/.test(fromTitle)) fromTitle = fromTitle.toLowerCase();
+      var out2 = SLUG_PREFIX + fromTitle;
+      if (out2.length > 180) out2 = out2.slice(0, 180).replace(/_+$/, "");
+      return out2;
+    }
+    return SLUG_PREFIX + "untitled";
   }
 
   function slugFromTitle(title) {

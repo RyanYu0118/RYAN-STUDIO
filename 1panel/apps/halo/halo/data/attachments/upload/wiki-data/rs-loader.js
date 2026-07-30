@@ -16,7 +16,7 @@
         loadConsoleScript("/upload/wiki-data/rs-config.js", function () {
             loadConsoleScript("/upload/wiki-data/rs-console-publish-redirect.js?v=1.0");
             if (location.pathname.indexOf("/console/posts/editor") >= 0) {
-                loadConsoleScript("/upload/wiki-data/rs-console-wikilink.js?v=1.0");
+                loadConsoleScript("/upload/wiki-data/rs-console-wikilink.js?v=1.1");
             }
         });
         return;
@@ -27,7 +27,7 @@
         anchor: "/upload/wiki-data/rs-anchor-scroll.js?v=1.0",
         home:   "/upload/wiki-data/rs-home.js",
         wiki:   "/upload/wiki-data/rs-wiki.js",
-        redlinks: "/upload/wiki-data/rs-redlinks.js?v=3.4"
+        redlinks: "/upload/wiki-data/rs-redlinks.js?v=3.5"
     };
 
     function loadScript(url, callback) {

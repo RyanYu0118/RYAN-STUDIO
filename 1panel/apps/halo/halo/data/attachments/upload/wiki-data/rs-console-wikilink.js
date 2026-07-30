@@ -1,5 +1,5 @@
 /* =======================================================
-   RS Console WikiLink — MediaWiki 风格 [[路径|文字]] 编辑器助手
+   RS Console WikiLink — MediaWiki 风格：选中文字 → 添加链接 / 红链
    ======================================================= */
 (function () {
   "use strict";
@@ -12,11 +12,17 @@
   var PATH_PREFIX = cfg.pathPrefix || "/archives/";
   var SLUG_INDEX = cfg.slugIndex || "/upload/wiki-data/wiki-slugs.json";
   var BRACKET_RE = /\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g;
+
   var suggestPaths = [];
+  var publishedSlugs = {};
+  var pageIndex = [];
   var acBox = null;
   var acIndex = 0;
   var acOpen = false;
-  var acPrefix = "";
+  var bubble = null;
+  var popover = null;
+  var selectionCtx = null;
+  var selHideTimer = null;
 
   function normalizeTarget(raw) {
     var path = String(raw || "")
@@ -24,9 +30,7 @@
       .replace(/\\/g, "/");
     if (path.startsWith(PATH_PREFIX)) path = path.slice(PATH_PREFIX.length);
     if (path.startsWith("/archives/")) path = path.slice("/archives/".length);
-    while (path.startsWith("../") || path.startsWith("./")) {
-      path = path.replace(/^\.\.?\//, "");
-    }
+    while (path.startsWith("../") || path.startsWith("./")) path = path.replace(/^\.\.?\//, "");
     if (path.endsWith(".md")) path = path.slice(0, -3);
     if (path.endsWith("/index")) path = path.slice(0, -"/index".length);
     return path.replace(/^\/+|\/+$/g, "");
@@ -40,11 +44,28 @@
 
   function archivesHref(target) {
     var slug = normalizeTarget(target);
-    return slug ? PATH_PREFIX + slug : PATH_PREFIX;
+    if (!slug) return PATH_PREFIX;
+    return PATH_PREFIX + encodeURIComponent(slug).replace(/%2F/g, "/");
+  }
+
+  function decodeArchivesSlug(encoded) {
+    try {
+      return decodeURIComponent(encoded);
+    } catch (e) {
+      return encoded;
+    }
   }
 
   function looksLikeHtml(text) {
     return /<\/?[a-z][\s\S]*>/i.test(text);
+  }
+
+  function escapeHtml(s) {
+    return String(s)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;");
   }
 
   function bracketToMarkdown(target, label) {
@@ -57,14 +78,6 @@
     var href = archivesHref(target);
     var text = (label || "").trim() || defaultLabel(target);
     return '<a href="' + href + '">' + escapeHtml(text) + "</a>";
-  }
-
-  function escapeHtml(s) {
-    return String(s)
-      .replace(/&/g, "&amp;")
-      .replace(/</g, "&lt;")
-      .replace(/>/g, "&gt;")
-      .replace(/"/g, "&quot;");
   }
 
   function expandWikiLinksInText(text, forceHtml) {
@@ -91,8 +104,7 @@
   function maybeTransformSaveBody(body) {
     if (!body || typeof body !== "string" || body.indexOf("[[") < 0) return body;
     try {
-      var data = JSON.parse(body);
-      return JSON.stringify(transformDeep(data));
+      return JSON.stringify(transformDeep(JSON.parse(body)));
     } catch (e) {
       return expandWikiLinksInText(body);
     }
@@ -108,9 +120,7 @@
         if (url && /\/apis\/uc\.api\.content\.halo\.run\/v1alpha1\/posts\b/.test(url)) {
           var method = (init.method || "GET").toUpperCase();
           if (method === "PUT" || method === "POST") {
-            nextInit = Object.assign({}, init, {
-              body: maybeTransformSaveBody(init.body),
-            });
+            nextInit = Object.assign({}, init, { body: maybeTransformSaveBody(init.body) });
           }
         }
       }
@@ -129,52 +139,116 @@
     return null;
   }
 
-  function insertText(editor, text) {
-    if (!editor) return false;
-    if (editor.type === "textarea") {
+  function captureSelection() {
+    var editor = findEditor();
+    if (editor && editor.type === "textarea") {
       var ta = editor.el;
       var start = ta.selectionStart;
       var end = ta.selectionEnd;
+      var text = ta.value.slice(start, end).replace(/\s+/g, " ").trim();
+      return {
+        editor: editor,
+        text: text,
+        range: { start: start, end: end },
+        rect: null,
+      };
+    }
+    var sel = window.getSelection();
+    if (sel && sel.rangeCount && !sel.isCollapsed) {
+      var t = sel.toString().replace(/\s+/g, " ").trim();
+      if (!t) return { editor: editor, text: "", range: null, rect: null, selection: sel };
+      var range = sel.getRangeAt(0);
+      return {
+        editor: editor,
+        text: t,
+        range: null,
+        rect: range.getBoundingClientRect(),
+        selection: sel,
+        domRange: range,
+      };
+    }
+    return { editor: editor, text: "", range: null, rect: null };
+  }
+
+  function replaceWithLink(target, label, ctx) {
+    target = normalizeTarget(target);
+    if (!target) return false;
+    label = (label || ctx.text || "").trim() || defaultLabel(target);
+    var editor = ctx.editor || findEditor();
+    if (!editor) return false;
+
+    var href = archivesHref(target);
+    if (editor.type === "textarea" && ctx.range && ctx.range.start !== ctx.range.end) {
+      var ta = editor.el;
+      var snippet = bracketToMarkdown(target, label);
       var val = ta.value;
-      ta.value = val.slice(0, start) + text + val.slice(end);
-      ta.selectionStart = ta.selectionEnd = start + text.length;
+      ta.value = val.slice(0, ctx.range.start) + snippet + val.slice(ctx.range.end);
+      var pos = ctx.range.start + snippet.length;
+      ta.selectionStart = ta.selectionEnd = pos;
       ta.dispatchEvent(new Event("input", { bubbles: true }));
       ta.focus();
       return true;
     }
+    if (editor.type === "prosemirror" && ctx.selection && !ctx.selection.isCollapsed) {
+      editor.el.focus();
+      try {
+        if (document.queryCommandSupported("createLink")) {
+          document.execCommand("createLink", false, href);
+          return true;
+        }
+      } catch (e1) {
+        /* ignore */
+      }
+    }
+    var snippet = editor.type === "textarea" ? bracketToMarkdown(target, label) : bracketToHtml(target, label);
+    if (editor.type === "textarea" && ctx.range) {
+      var ta2 = editor.el;
+      var val2 = ta2.value;
+      ta2.value = val2.slice(0, ctx.range.start) + snippet + val2.slice(ctx.range.end);
+      ta2.selectionStart = ta2.selectionEnd = ctx.range.start + snippet.length;
+      ta2.dispatchEvent(new Event("input", { bubbles: true }));
+      ta2.focus();
+      return true;
+    }
     editor.el.focus();
     try {
-      document.execCommand("insertText", false, text);
-      return true;
-    } catch (e1) {
-      /* ignore */
-    }
-    try {
-      document.execCommand("insertHTML", false, text);
+      document.execCommand("insertHTML", false, snippet);
       return true;
     } catch (e2) {
       return false;
     }
   }
 
-  function insertWikiLink(target, label) {
-    var editor = findEditor();
-    if (!editor) {
-      alert("未找到编辑器，请先点击正文编辑区。");
-      return;
+  function isPublishedSlug(slug) {
+    slug = normalizeTarget(slug);
+    return !!(slug && publishedSlugs[slug]);
+  }
+
+  function searchPages(query) {
+    query = (query || "").trim().toLowerCase();
+    if (!query) return pageIndex.slice(0, 10);
+    var out = [];
+    pageIndex.forEach(function (p) {
+      var hay = (p.title + " " + p.slug + " " + (p.label || "")).toLowerCase();
+      if (hay.indexOf(query) >= 0) out.push(p);
+    });
+    suggestPaths.forEach(function (path) {
+      if (path.toLowerCase().indexOf(query) < 0) return;
+      if (out.some(function (x) { return x.slug === path; })) return;
+      out.push({ slug: path, title: defaultLabel(path), published: isPublishedSlug(path) });
+    });
+    return out.slice(0, 12);
+  }
+
+  function exactPage(query) {
+    query = normalizeTarget(query);
+    if (!query) return null;
+    for (var i = 0; i < pageIndex.length; i++) {
+      var p = pageIndex[i];
+      if (p.slug === query || p.title === query) return p;
     }
-    target = normalizeTarget(target);
-    if (!target) return;
-    label = (label || "").trim();
-    var snippet;
-    if (editor.type === "textarea") {
-      snippet = bracketToMarkdown(target, label);
-    } else if (editor.type === "prosemirror" && !looksLikeHtml(editor.el.innerHTML)) {
-      snippet = bracketToMarkdown(target, label);
-    } else {
-      snippet = bracketToHtml(target, label);
-    }
-    insertText(editor, snippet);
+    if (isPublishedSlug(query)) return { slug: query, title: defaultLabel(query), published: true };
+    return null;
   }
 
   function injectStyles() {
@@ -182,22 +256,29 @@
     var style = document.createElement("style");
     style.id = "rs-wikilink-style";
     style.textContent =
-      "#rs-wikilink-btn{position:fixed;right:24px;bottom:24px;z-index:10050;" +
-      "padding:8px 14px;border-radius:8px;border:1px solid rgba(128,128,128,.35);" +
-      "background:rgba(255,255,255,.92);backdrop-filter:blur(8px);cursor:pointer;" +
+      "#rs-wikilink-bubble{position:fixed;z-index:10054;display:none;transform:translate(-50%,-100%);margin-top:-8px}" +
+      "#rs-wikilink-bubble button{width:36px;height:36px;border-radius:8px;border:1px solid rgba(0,0,0,.12);" +
+      "background:#fff;box-shadow:0 4px 14px rgba(0,0,0,.15);cursor:pointer;font-size:16px;line-height:1}" +
+      "#rs-wikilink-bubble button:hover{background:#f5f5f5}" +
+      "#rs-wikilink-pop{position:fixed;z-index:10060;width:min(360px,calc(100vw - 24px));background:#fff;color:#111;" +
+      "border-radius:10px;box-shadow:0 10px 40px rgba(0,0,0,.22);border:1px solid rgba(0,0,0,.08);overflow:hidden}" +
+      "#rs-wikilink-pop .head{display:flex;align-items:center;gap:8px;padding:10px 12px;border-bottom:1px solid #eee}" +
+      "#rs-wikilink-pop .head .title{flex:1;font:600 14px system-ui,sans-serif;text-align:center}" +
+      "#rs-wikilink-pop .head button{border:none;background:transparent;cursor:pointer;font:500 13px system-ui,sans-serif;color:#1976d2;padding:4px 6px}" +
+      "#rs-wikilink-pop .head button.close{color:#666;font-size:18px;line-height:1}" +
+      "#rs-wikilink-pop .search{padding:10px 12px;border-bottom:1px solid #f0f0f0}" +
+      "#rs-wikilink-pop .search input{width:100%;box-sizing:border-box;border:1px solid #ddd;border-radius:8px;padding:9px 10px;font:14px system-ui,sans-serif}" +
+      "#rs-wikilink-pop .results{max-height:240px;overflow:auto;padding:6px 0}" +
+      "#rs-wikilink-pop .row{display:flex;align-items:center;gap:10px;padding:8px 12px;cursor:pointer}" +
+      "#rs-wikilink-pop .row:hover,#rs-wikilink-pop .row.active{background:#f5f5f5}" +
+      "#rs-wikilink-pop .row .icon{width:28px;height:28px;border-radius:6px;background:#eee;display:flex;align-items:center;justify-content:center;font:600 14px sans-serif;color:#666;flex-shrink:0}" +
+      "#rs-wikilink-pop .row.red .icon{background:#ffebee;color:#c62828}" +
+      "#rs-wikilink-pop .row.red .label{color:#c62828;font-weight:600}" +
+      "#rs-wikilink-pop .row .meta{font:11px/1.3 ui-monospace,monospace;color:#888;margin-top:2px}" +
+      "#rs-wikilink-pop .hint{padding:8px 12px 10px;font:12px/1.45 system-ui,sans-serif;color:#666;border-top:1px solid #f0f0f0}" +
+      "#rs-wikilink-btn{position:fixed;right:24px;bottom:24px;z-index:10050;padding:8px 14px;border-radius:8px;" +
+      "border:1px solid rgba(128,128,128,.35);background:rgba(255,255,255,.92);backdrop-filter:blur(8px);cursor:pointer;" +
       "font:600 13px/1.2 system-ui,sans-serif;box-shadow:0 4px 16px rgba(0,0,0,.12)}" +
-      "#rs-wikilink-btn:hover{background:#fff}" +
-      "#rs-wikilink-modal{position:fixed;inset:0;z-index:10060;background:rgba(0,0,0,.45);" +
-      "display:flex;align-items:center;justify-content:center;padding:16px}" +
-      "#rs-wikilink-modal .panel{min-width:min(420px,92vw);background:#fff;color:#111;" +
-      "border-radius:12px;padding:18px 18px 14px;box-shadow:0 12px 40px rgba(0,0,0,.25)}" +
-      "#rs-wikilink-modal h3{margin:0 0 12px;font:600 16px/1.3 system-ui,sans-serif}" +
-      "#rs-wikilink-modal label{display:block;margin:10px 0 4px;font:500 12px system-ui,sans-serif;opacity:.75}" +
-      "#rs-wikilink-modal input{width:100%;box-sizing:border-box;padding:8px 10px;border:1px solid #ccc;border-radius:6px;font:14px system-ui,sans-serif}" +
-      "#rs-wikilink-modal .hint{margin:8px 0 0;font:12px/1.45 system-ui,sans-serif;opacity:.65}" +
-      "#rs-wikilink-modal .actions{display:flex;justify-content:flex-end;gap:8px;margin-top:14px}" +
-      "#rs-wikilink-modal button{padding:7px 14px;border-radius:6px;border:1px solid #ccc;background:#f5f5f5;cursor:pointer;font:500 13px system-ui,sans-serif}" +
-      "#rs-wikilink-modal button.primary{background:#c62828;border-color:#b71c1c;color:#fff}" +
       "#rs-wikilink-ac{position:fixed;z-index:10055;max-height:220px;overflow:auto;background:#fff;" +
       "border:1px solid #ccc;border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.15);min-width:220px;display:none}" +
       "#rs-wikilink-ac .item{padding:7px 10px;cursor:pointer;font:13px/1.35 ui-monospace,monospace}" +
@@ -205,48 +286,172 @@
     document.head.appendChild(style);
   }
 
-  function showDialog() {
-    var existing = document.getElementById("rs-wikilink-modal");
-    if (existing) existing.remove();
+  function hideBubble() {
+    if (bubble) bubble.style.display = "none";
+  }
 
-    var wrap = document.createElement("div");
-    wrap.id = "rs-wikilink-modal";
-    wrap.innerHTML =
-      '<div class="panel" role="dialog" aria-label="插入 Wiki 链接">' +
-      "<h3>插入 Wiki 链接</h3>" +
-      '<label for="rs-wl-target">页面路径（英文，如 player/rules）</label>' +
-      '<input id="rs-wl-target" type="text" placeholder="player/rules" autocomplete="off">' +
-      '<label for="rs-wl-label">显示文字（可选）</label>' +
-      '<input id="rs-wl-label" type="text" placeholder="玩家规则" autocomplete="off">' +
-      '<p class="hint">也可在正文直接输入 MediaWiki 语法：<code>[[player/rules|玩家规则]]</code>，保存时自动转换。未发布页在前台显示为红链。</p>' +
-      '<div class="actions">' +
-      '<button type="button" data-act="cancel">取消</button>' +
-      '<button type="button" class="primary" data-act="ok">插入</button>' +
-      "</div></div>";
-    document.body.appendChild(wrap);
+  function hidePopover() {
+    if (popover) {
+      popover.remove();
+      popover = null;
+    }
+  }
 
-    var targetInput = wrap.querySelector("#rs-wl-target");
-    var labelInput = wrap.querySelector("#rs-wl-label");
-    targetInput.focus();
+  function positionNearRect(el, rect) {
+    if (!rect) return;
+    var top = rect.top - 8;
+    var left = rect.left + rect.width / 2;
+    if (top < 12) top = rect.bottom + 12;
+    el.style.top = Math.max(8, top) + "px";
+    el.style.left = Math.min(Math.max(left, 80), window.innerWidth - 80) + "px";
+  }
 
-    wrap.addEventListener("click", function (e) {
-      if (e.target === wrap) wrap.remove();
+  function ensureBubble() {
+    if (bubble) return bubble;
+    bubble = document.createElement("div");
+    bubble.id = "rs-wikilink-bubble";
+    bubble.innerHTML = '<button type="button" title="添加链接 (Ctrl+K)">🔗</button>';
+    bubble.querySelector("button").addEventListener("mousedown", function (e) {
+      e.preventDefault();
+      openLinkPopover(selectionCtx);
     });
-    wrap.querySelector('[data-act="cancel"]').addEventListener("click", function () {
-      wrap.remove();
+    document.body.appendChild(bubble);
+    return bubble;
+  }
+
+  function showBubbleForSelection(ctx) {
+    if (!ctx || !ctx.text) {
+      hideBubble();
+      return;
+    }
+    selectionCtx = ctx;
+    var b = ensureBubble();
+    var rect = ctx.rect;
+    if (!rect && ctx.editor && ctx.editor.type === "textarea" && ctx.range) {
+      rect = ctx.editor.el.getBoundingClientRect();
+    }
+    if (!rect) return;
+    positionNearRect(b, rect);
+    b.style.display = "block";
+  }
+
+  function renderPopoverResults(query, listEl, pickFn) {
+    var q = (query || "").trim();
+    var exact = exactPage(q);
+    var results = searchPages(q);
+    var html = "";
+
+    if (q && !exact) {
+      html +=
+        '<div class="row red active" data-target="' +
+        escapeHtml(q) +
+        '" data-label="' +
+        escapeHtml(q) +
+        '">' +
+        '<div class="icon">?</div><div><div class="label">' +
+        escapeHtml(q) +
+        '</div><div class="meta">此页面尚未创建 · 将插入红链</div></div></div>';
+    }
+
+    results.forEach(function (p, i) {
+      if (q && p.title === q && !exact) return;
+      html +=
+        '<div class="row' +
+        (!html && i === 0 ? " active" : "") +
+        (p.published ? "" : " red") +
+        '" data-target="' +
+        escapeHtml(p.slug) +
+        '" data-label="' +
+        escapeHtml(p.title) +
+        '">' +
+        '<div class="icon">' +
+        (p.published ? "✓" : "?") +
+        "</div><div><div class=\"label\">" +
+        escapeHtml(p.title) +
+        '</div><div class="meta">' +
+        escapeHtml(p.slug) +
+        (p.published ? "" : " · 红链") +
+        "</div></div></div>";
     });
-    wrap.querySelector('[data-act="ok"]').addEventListener("click", function () {
-      insertWikiLink(targetInput.value, labelInput.value);
-      wrap.remove();
+
+    if (!html) {
+      html = '<div class="hint" style="border:0">输入页面名称，或从列表中选择</div>';
+    }
+    listEl.innerHTML = html;
+    listEl.querySelectorAll(".row").forEach(function (row) {
+      row.addEventListener("click", function () {
+        listEl.querySelectorAll(".row").forEach(function (r) { r.classList.remove("active"); });
+        row.classList.add("active");
+        pickFn(row.getAttribute("data-target"), row.getAttribute("data-label"));
+      });
     });
-    wrap.querySelector(".panel").addEventListener("keydown", function (e) {
-      if (e.key === "Escape") wrap.remove();
+  }
+
+  function openLinkPopover(ctx, anchorRect) {
+    hidePopover();
+    hideBubble();
+    ctx = ctx || captureSelection();
+    selectionCtx = ctx;
+    var initial = ctx.text || "";
+
+    popover = document.createElement("div");
+    popover.id = "rs-wikilink-pop";
+    popover.innerHTML =
+      '<div class="head">' +
+      '<button type="button" class="close" aria-label="关闭">×</button>' +
+      '<div class="title">添加链接</div>' +
+      '<button type="button" class="done">完成</button>' +
+      "</div>" +
+      '<div class="search"><input type="text" placeholder="搜索或新建页面…" autocomplete="off"></div>' +
+      '<div class="results"></div>' +
+      '<div class="hint">页面名称默认取选中文字；未发布的链接在前台显示为<span style="color:#c62828">红链</span>，读者点击可创建条目。</div>';
+
+    document.body.appendChild(popover);
+    var input = popover.querySelector("input");
+    var results = popover.querySelector(".results");
+    var picked = { target: initial, label: initial };
+
+    input.value = initial;
+    renderPopoverResults(initial, results, function (target, label) {
+      picked.target = target;
+      picked.label = label;
+      input.value = target;
+    });
+
+    input.addEventListener("input", function () {
+      renderPopoverResults(input.value, results, function (target, label) {
+        picked.target = target;
+        picked.label = label;
+      });
+    });
+
+    function finish() {
+      var target = normalizeTarget(input.value.trim() || picked.target);
+      var label = (ctx.text || picked.label || target).trim();
+      if (!target) return;
+      replaceWithLink(target, label, ctx);
+      hidePopover();
+    }
+
+    popover.querySelector(".done").addEventListener("click", finish);
+    popover.querySelector(".close").addEventListener("click", hidePopover);
+    input.addEventListener("keydown", function (e) {
       if (e.key === "Enter") {
         e.preventDefault();
-        insertWikiLink(targetInput.value, labelInput.value);
-        wrap.remove();
+        finish();
       }
+      if (e.key === "Escape") hidePopover();
     });
+
+    var rect = anchorRect || ctx.rect;
+    if (!rect && ctx.editor && ctx.editor.type === "textarea") {
+      rect = ctx.editor.el.getBoundingClientRect();
+    }
+    rect = rect || { top: window.innerHeight / 2, left: window.innerWidth / 2, width: 0, height: 0 };
+    popover.style.top = Math.min(rect.bottom + 8, window.innerHeight - 320) + "px";
+    popover.style.left = Math.min(Math.max(rect.left, 12), window.innerWidth - 380) + "px";
+    input.focus();
+    input.select();
   }
 
   function ensureAcBox() {
@@ -254,166 +459,89 @@
     acBox = document.createElement("div");
     acBox.id = "rs-wikilink-ac";
     document.body.appendChild(acBox);
-    acBox.addEventListener("mousedown", function (e) {
-      var item = e.target.closest(".item");
-      if (!item) return;
-      e.preventDefault();
-      completeAutocomplete(item.getAttribute("data-path"));
-    });
     return acBox;
-  }
-
-  function filteredPaths(prefix) {
-    prefix = (prefix || "").toLowerCase();
-    return suggestPaths
-      .filter(function (p) {
-        return !prefix || p.toLowerCase().indexOf(prefix) >= 0;
-      })
-      .slice(0, 12);
-  }
-
-  function positionAcBox(editorEl) {
-    var rect = editorEl.getBoundingClientRect();
-    ensureAcBox().style.left = Math.min(rect.left + 12, window.innerWidth - 240) + "px";
-    acBox.style.top = Math.min(rect.top + 48, window.innerHeight - 240) + "px";
-  }
-
-  function renderAutocomplete(prefix) {
-    var list = filteredPaths(prefix);
-    acIndex = 0;
-    if (!list.length) {
-      hideAutocomplete();
-      return;
-    }
-    ensureAcBox();
-    acBox.innerHTML = list
-      .map(function (p, i) {
-        return (
-          '<div class="item' +
-          (i === 0 ? " active" : "") +
-          '" data-path="' +
-          escapeHtml(p) +
-          '">' +
-          escapeHtml(p) +
-          "</div>"
-        );
-      })
-      .join("");
-    acBox.style.display = "block";
-    acOpen = true;
-    acPrefix = prefix;
   }
 
   function hideAutocomplete() {
     acOpen = false;
-    acPrefix = "";
     if (acBox) acBox.style.display = "none";
   }
 
-  function completeAutocomplete(path) {
-    var editor = findEditor();
-    hideAutocomplete();
-    if (!editor || editor.type !== "textarea") {
-      insertWikiLink(path, "");
-      return;
-    }
-    var ta = editor.el;
-    var val = ta.value;
-    var pos = ta.selectionStart;
-    var before = val.slice(0, pos);
-    var open = before.lastIndexOf("[[");
-    if (open < 0) return;
-    var after = val.slice(pos);
-    var insert = path + "]]";
-    ta.value = val.slice(0, open + 2) + insert + after;
-    var cursor = open + 2 + insert.length;
-    ta.selectionStart = ta.selectionEnd = cursor;
-    ta.dispatchEvent(new Event("input", { bubbles: true }));
-    ta.focus();
+  function onSelectionUpdated() {
+    clearTimeout(selHideTimer);
+    selHideTimer = setTimeout(function () {
+      if (popover) return;
+      var ctx = captureSelection();
+      if (ctx.text && ctx.text.length >= 1) showBubbleForSelection(ctx);
+      else hideBubble();
+    }, 120);
   }
 
   function onEditorKeyDown(e) {
+    if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key.toLowerCase() === "k") {
+      e.preventDefault();
+      openLinkPopover(captureSelection());
+      return;
+    }
     if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === "k") {
       e.preventDefault();
-      showDialog();
-      return;
-    }
-    if (!acOpen) {
-      if (e.key === "[" && findEditor() && findEditor().type === "textarea") {
-        setTimeout(function () {
-          var ed = findEditor();
-          if (!ed || ed.type !== "textarea") return;
-          var ta = ed.el;
-          var pos = ta.selectionStart;
-          var chunk = ta.value.slice(Math.max(0, pos - 2), pos);
-          if (chunk === "[[") {
-            acPrefix = "";
-            positionAcBox(ta);
-            renderAutocomplete("");
-          }
-        }, 0);
-      }
-      return;
-    }
-    if (e.key === "Escape") {
-      hideAutocomplete();
-      return;
-    }
-    if (e.key === "ArrowDown" || e.key === "ArrowUp") {
-      e.preventDefault();
-      var items = acBox ? acBox.querySelectorAll(".item") : [];
-      if (!items.length) return;
-      items[acIndex].classList.remove("active");
-      acIndex = e.key === "ArrowDown" ? (acIndex + 1) % items.length : (acIndex - 1 + items.length) % items.length;
-      items[acIndex].classList.add("active");
-      return;
-    }
-    if (e.key === "Enter" && acOpen) {
-      e.preventDefault();
-      var active = acBox && acBox.querySelector(".item.active");
-      if (active) completeAutocomplete(active.getAttribute("data-path"));
+      openLinkPopover(captureSelection());
       return;
     }
   }
 
-  function onEditorInput() {
-    var editor = findEditor();
-    if (!editor || editor.type !== "textarea") return;
-    var ta = editor.el;
-    var pos = ta.selectionStart;
-    var before = ta.value.slice(0, pos);
-    var open = before.lastIndexOf("[[");
-    if (open < 0) {
-      hideAutocomplete();
-      return;
-    }
-    var partial = before.slice(open + 2);
-    if (partial.indexOf("]]") >= 0 || partial.indexOf("|") >= 0) {
-      hideAutocomplete();
-      return;
-    }
-    positionAcBox(ta);
-    renderAutocomplete(partial);
-  }
-
-  function loadSuggestPaths() {
-    return fetch(SLUG_INDEX, { credentials: "same-origin", cache: "no-cache" })
-      .then(function (r) {
-        return r.json();
-      })
+  function loadIndex() {
+    publishedSlugs = {};
+    pageIndex = [];
+    var slugP = fetch(SLUG_INDEX, { credentials: "same-origin", cache: "no-cache" })
+      .then(function (r) { return r.json(); })
       .then(function (data) {
-        var set = {};
+        suggestPaths = [];
+        var seen = {};
         ["gitSlugs", "slugs", "redlinkTargets"].forEach(function (key) {
           (data[key] || []).forEach(function (p) {
             var n = normalizeTarget(p);
-            if (n) set[n] = true;
+            if (!n || seen[n]) return;
+            seen[n] = true;
+            suggestPaths.push(n);
+            if (key === "slugs") publishedSlugs[n] = true;
           });
         });
-        suggestPaths = Object.keys(set).sort();
+        suggestPaths.sort();
       })
       .catch(function () {
         suggestPaths = [];
       });
+
+    var postsP = (function loadPosts(page) {
+      page = page || 1;
+      return fetch("/apis/api.content.halo.run/v1alpha1/posts?page=" + page + "&size=100", {
+        credentials: "same-origin",
+      })
+        .then(function (r) { return r.json(); })
+        .then(function (data) {
+          (data.items || []).forEach(function (post) {
+            var slug = post.spec && post.spec.slug;
+            var title = (post.spec && post.spec.title) || slug;
+            if (!slug) return;
+            var labels = (post.metadata && post.metadata.labels) || {};
+            var pub = labels["content.halo.run/published"] === "true";
+            pageIndex.push({ slug: slug, title: title, published: pub });
+            if (pub) publishedSlugs[slug] = true;
+            var ann = post.metadata && post.metadata.annotations;
+            var lt = ann && ann["rs.wiki/redlink-target-slug"];
+            if (lt) {
+              publishedSlugs[normalizeTarget(lt)] = pub;
+              pageIndex.push({ slug: normalizeTarget(lt), title: title, published: pub, label: lt });
+            }
+          });
+          if (data.hasNext && page < 10) return loadPosts(page + 1);
+        });
+    })();
+
+    return Promise.all([slugP, postsP]).then(function () {
+      pageIndex.sort(function (a, b) { return a.title.localeCompare(b.title, "zh"); });
+    });
   }
 
   function initToolbar() {
@@ -421,15 +549,24 @@
     var btn = document.createElement("button");
     btn.id = "rs-wikilink-btn";
     btn.type = "button";
-    btn.title = "插入 Wiki 链接 (Ctrl+Shift+K)";
-    btn.textContent = "[[Wiki 链接]]";
-    btn.addEventListener("click", showDialog);
+    btn.title = "添加链接 (Ctrl+K)";
+    btn.textContent = "🔗 添加链接";
+    btn.addEventListener("click", function () {
+      openLinkPopover(captureSelection());
+    });
     document.body.appendChild(btn);
   }
 
   function bindEditorListeners() {
     document.addEventListener("keydown", onEditorKeyDown, true);
-    document.addEventListener("input", onEditorInput, true);
+    document.addEventListener("mouseup", onSelectionUpdated, true);
+    document.addEventListener("keyup", onSelectionUpdated, true);
+    document.addEventListener("mousedown", function (e) {
+      if (popover && !popover.contains(e.target) && !(bubble && bubble.contains(e.target))) {
+        /* keep popover until explicit close */
+      }
+      if (!popover && !(bubble && bubble.contains(e.target))) hideBubble();
+    }, true);
   }
 
   function init() {
@@ -437,8 +574,9 @@
     hookSave();
     initToolbar();
     bindEditorListeners();
-    loadSuggestPaths();
-    console.log("[rs-wikilink] MediaWiki 链接助手已启用（[[path|label]] / Ctrl+Shift+K）");
+    loadIndex().then(function () {
+      console.log("[rs-wikilink] 选中文字 → 🔗 添加链接（MediaWiki 模式，Ctrl+K）");
+    });
   }
 
   if (document.readyState === "loading") {
