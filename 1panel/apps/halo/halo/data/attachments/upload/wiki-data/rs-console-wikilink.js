@@ -332,6 +332,10 @@
   }
 
   function showBubbleForSelection(ctx) {
+    if (cfg.showSelectionBubble === false) {
+      hideBubble();
+      return;
+    }
     if (!ctx || !ctx.text) {
       hideBubble();
       return;
@@ -587,7 +591,26 @@
     return Promise.all([slugP, postsP]);
   }
 
+  function removeFloatingUi() {
+    if (cfg.showCornerButton === false) {
+      var btn = document.getElementById("rs-wikilink-btn");
+      if (btn) btn.remove();
+    }
+    if (cfg.showSelectionBubble === false) {
+      hideBubble();
+      if (bubble) {
+        bubble.remove();
+        bubble = null;
+      }
+    }
+  }
+
   function initToolbar() {
+    if (cfg.showCornerButton === false) {
+      var old = document.getElementById("rs-wikilink-btn");
+      if (old) old.remove();
+      return;
+    }
     if (document.getElementById("rs-wikilink-btn")) return;
     var btn = document.createElement("button");
     btn.id = "rs-wikilink-btn";
@@ -613,14 +636,15 @@
     injectStyles();
     hookSave();
     initToolbar();
-    bindEditorListeners();
+    if (cfg.showSelectionBubble !== false) bindEditorListeners();
     hookNativeLinkToolbar();
     loadIndex().then(function () {
-      console.log("[rs-wikilink] 已就绪：选中文字 → 🔗 / Ctrl+K / 工具栏链接");
+      console.log("[rs-wikilink] 已就绪：Ctrl+K / 工具栏链环添加链接");
     });
   }
 
   window.RSWikiLink.init = function () {
+    removeFloatingUi();
     boot();
     if (editorPoll) return;
     editorPoll = setInterval(function () {

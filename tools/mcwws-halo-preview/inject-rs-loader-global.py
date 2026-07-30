@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""将 rs-loader.js 注入 Halo：主题 globalHead + injector 插件 /console/** head。"""
+"""将 rs-loader.js 注入 Halo：主题 globalHead + patch console.html（Injector 2.0 不支持 /console）。"""
 from __future__ import annotations
 
 import argparse
@@ -8,9 +8,7 @@ import subprocess
 import sys
 
 SYSTEM_CM = "/registry/configmaps/system"
-INJECTOR_CM = "/registry/configmaps/plugin-injector-configMap"
 LOADER_TAG = '<script src="/upload/wiki-data/rs-loader.js?v=110"></script>'
-CONSOLE_PATHS = ["/console/**", "/ui/console.html"]
 MYSQL = [
     "docker",
     "exec",
@@ -67,43 +65,15 @@ def patch_global_head(dry_run: bool) -> bool:
     return True
 
 
-def patch_injector_console(dry_run: bool) -> bool:
-    obj = load_extension(INJECTOR_CM)
-    basic = json.loads(obj["data"].get("basic") or '{"rules":[]}')
-    rules: list[dict] = basic.get("rules") or []
-    for r in rules:
-        if "rs-loader.js" in (r.get("code") or ""):
-            print("injector 规则已包含 rs-loader.js")
-            return False
-    rules.append(
-        {
-            "enabled": True,
-            "code": LOADER_TAG,
-            "pathPatterns": [{"pathPattern": p} for p in CONSOLE_PATHS],
-            "mode": "head",
-        }
-    )
-    basic["rules"] = rules
-    obj["data"]["basic"] = json.dumps(basic, ensure_ascii=False)
-    if dry_run:
-        print("[dry-run] injector basic.rules += console head injection")
-        return True
-    upsert_extension(INJECTOR_CM, obj)
-    print("已写入 plugin-injector-configMap（/console/** head 注入）")
-    return True
-
-
 def main() -> int:
-    p = argparse.ArgumentParser(description="Inject rs-loader for theme + Halo console")
+    p = argparse.ArgumentParser(description="Inject rs-loader for Halo theme globalHead")
     p.add_argument("--dry-run", action="store_true")
     args = p.parse_args()
 
-    changed = patch_global_head(args.dry_run) | patch_injector_console(args.dry_run)
+    changed = patch_global_head(args.dry_run)
     if not changed and not args.dry_run:
-        print("无需修改")
-    elif not args.dry_run:
-        print("请重启 Halo：docker restart halo")
-        print("然后硬刷新 /console/posts/editor，控制台应出现 RS Loader 日志")
+        print("globalHead 无需修改")
+    print("注意：后台 /console 须另运行 patch-halo-console-loader.py（Injector 2.0 跳过 /console/**）")
     return 0
 
 

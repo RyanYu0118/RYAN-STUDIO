@@ -52,6 +52,9 @@ window.RSConfig = {
     wikilink: {
         enabled: true,
         slugIndex: "/upload/wiki-data/wiki-slugs.json",
-        pathPrefix: "/archives/"
+        pathPrefix: "/archives/",
+        // 悬浮 UI：false = 仅用 Ctrl+K / 工具栏链环
+        showCornerButton: false,
+        showSelectionBubble: false
     }
 };

@@ -28,12 +28,11 @@ Halo **没有**内置红链。本站通过主题已加载的 `rs-redlinks.js` �
 - 正文里指向 `/archives/{slug}` 的内链，若 **Halo 尚未发布**该 slug（见 `wiki-slugs.json` 的 `slugs` + `redlinkTargets`，或前台 API 查 `rs.wiki/redlink-target-slug`），会显示为**红色虚线链接**。
 - `gitSlugs` 仅作规划参考；Git 里有 `prices.md` 但未发布时**不会**再误判为蓝链。
 - **已登录**且有发文权限的用户点击红链 → **继承当前文章页**的分类、标签、封面；标题取**红链文字**；**先发布**后在本标签页打开新建页。**新建 `spec.slug`**：`mcwws_` + 链接目标英文路径（`player/rules` → `mcwws_player_rules`），目标写入注解 `rs.wiki/redlink-target-slug`。**Shift+点击**跳过确认框；或在 `rs-config.js` 设 `redlinks.skipConfirm: true` 一律免确认。
-- **后台编辑器**：`/console` **不读主题 head**，须用已安装的 **Injector 插件** 注入脚本。本地执行：
+- **后台编辑器**：Injector 2.0 **无法**向 `/console/**` 注入（HEAD 仅主题、WebFilter 跳过 console）。须 patch jar 内 `ui/console.html`：
   ```powershell
-  python tools/mcwws-halo-preview/inject-rs-loader-global.py
-  docker restart halo
+  python tools/mcwws-halo-preview/patch-halo-console-loader.py
   ```
-  或在 **工具 → Injector** 手动添加规则：模式 `head`，路径 `/console/**` 与 `/ui/console.html`，代码 `<script src="/upload/wiki-data/rs-loader.js?v=110"></script>`。硬刷新后控制台应出现 `🚀 RS Loader` 与 `[rs-wikilink] 已就绪`。
+  硬刷新后控制台应出现 `RS Loader` 与 `[rs-wikilink] 已就绪`。选中文字 → 🔗 / Ctrl+K / 工具栏链环。
 - 未登录会跳转到登录页。
 - **后台编辑器**点「发布」后：需全站加载 `rs-loader.js`（Halo **系统 → 代码注入 → head/footer** 增加 `<script src="/upload/wiki-data/rs-loader.js"></script>`），成功后自动进入 `/archives/{slug}`，不再留在 `/console`。
 
