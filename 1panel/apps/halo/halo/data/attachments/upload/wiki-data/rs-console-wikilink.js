@@ -22,7 +22,9 @@
   var bubble = null;
   var popover = null;
   var selectionCtx = null;
+  var lastGoodCtx = null;
   var selHideTimer = null;
+  var nativeHooked = false;
 
   function normalizeTarget(raw) {
     var path = String(raw || "")
@@ -139,6 +141,22 @@
     return null;
   }
 
+  function rememberSelection(ctx) {
+    ctx = ctx || captureSelection();
+    if (ctx.text) {
+      lastGoodCtx = ctx;
+      selectionCtx = ctx;
+    }
+    return ctx;
+  }
+
+  function getSelectionForLink() {
+    var ctx = captureSelection();
+    if (ctx.text) return rememberSelection(ctx);
+    if (lastGoodCtx && lastGoodCtx.text) return lastGoodCtx;
+    return ctx;
+  }
+
   function captureSelection() {
     var editor = findEditor();
     if (editor && editor.type === "textarea") {
@@ -164,10 +182,23 @@
         range: null,
         rect: range.getBoundingClientRect(),
         selection: sel,
-        domRange: range,
+        domRange: range.cloneRange(),
       };
     }
     return { editor: editor, text: "", range: null, rect: null };
+  }
+
+  function restoreDomSelection(ctx) {
+    if (!ctx || !ctx.domRange) return false;
+    try {
+      var sel = ctx.selection || window.getSelection();
+      if (!sel) return false;
+      sel.removeAllRanges();
+      sel.addRange(ctx.domRange);
+      return true;
+    } catch (e) {
+      return false;
+    }
   }
 
   function replaceWithLink(target, label, ctx) {
@@ -189,8 +220,18 @@
       ta.focus();
       return true;
     }
-    if (editor.type === "prosemirror" && ctx.selection && !ctx.selection.isCollapsed) {
+    if (editor.type === "prosemirror" && ctx.text) {
       editor.el.focus();
+      restoreDomSelection(ctx);
+      var linkHtml = bracketToHtml(target, label);
+      try {
+        if (document.queryCommandSupported("insertHTML")) {
+          document.execCommand("insertHTML", false, linkHtml);
+          return true;
+        }
+      } catch (e0) {
+        /* ignore */
+      }
       try {
         if (document.queryCommandSupported("createLink")) {
           document.execCommand("createLink", false, href);
@@ -390,7 +431,8 @@
   function openLinkPopover(ctx, anchorRect) {
     hidePopover();
     hideBubble();
-    ctx = ctx || captureSelection();
+    hideNativeLinkPopover();
+    ctx = getSelectionForLink();
     selectionCtx = ctx;
     var initial = ctx.text || "";
 
@@ -470,23 +512,138 @@
   function onSelectionUpdated() {
     clearTimeout(selHideTimer);
     selHideTimer = setTimeout(function () {
+      rememberSelection();
       if (popover) return;
-      var ctx = captureSelection();
+      var ctx = getSelectionForLink();
       if (ctx.text && ctx.text.length >= 1) showBubbleForSelection(ctx);
       else hideBubble();
     }, 120);
   }
 
+  function isNativeLinkControl(el) {
+    if (!el || !el.closest) return false;
+    var btn = el.closest('button, [role="button"], .menu-item, [class*="toolbar"] button');
+    if (!btn) return false;
+    var text = (
+      btn.getAttribute("aria-label") ||
+      btn.getAttribute("title") ||
+      btn.getAttribute("data-tooltip") ||
+      btn.textContent ||
+      ""
+    ).toLowerCase();
+    if (/链接|link|hyperlink|internal link|wiki/.test(text)) return true;
+    if (btn.querySelector('[class*="link"], [data-icon="link"]')) return true;
+    var pm = document.querySelector(".ProseMirror");
+    if (!pm) return false;
+    var inEditorUi = btn.closest('[class*="editor"], [class*="richtext"], [class*="toolbar"], [class*="bubble"], [class*="menu-bar"]');
+    if (!inEditorUi) return false;
+    var svg = btn.querySelector("svg");
+    if (!svg) return false;
+    var paths = svg.innerHTML || "";
+    if (/link|chain|url/i.test(paths) || btn.className.toLowerCase().indexOf("link") >= 0) return true;
+    return false;
+  }
+
+  function hideNativeLinkPopover() {
+    document.querySelectorAll('input[placeholder*="链接"], input[placeholder*="Link"]').forEach(function (input) {
+      var root =
+        input.closest("[data-tippy-root]") ||
+        input.closest("[class*='tippy']") ||
+        input.closest("[class*='popover']") ||
+        input.closest("[class*='bubble-menu']") ||
+        input.closest("[class*='dropdown']") ||
+        input.closest("[role='dialog']") ||
+        input.parentElement;
+      if (root && root !== document.body) {
+        root.remove();
+      }
+    });
+  }
+
+  function prefillNativeLinkInput(input) {
+    if (!input || input.dataset.rsWikiFilled === "1") return;
+    var ctx = getSelectionForLink();
+    if (!ctx.text) return;
+    input.dataset.rsWikiFilled = "1";
+    input.value = ctx.text;
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+    input.dispatchEvent(new Event("change", { bubbles: true }));
+  }
+
+  function hookNativeLinkToolbar() {
+    if (nativeHooked) return;
+    nativeHooked = true;
+
+    document.addEventListener(
+      "mousedown",
+      function (e) {
+        rememberSelection();
+        if (findEditor() && findEditor().el && findEditor().el.contains(e.target)) {
+          rememberSelection(captureSelection());
+        }
+      },
+      true
+    );
+
+    document.addEventListener(
+      "click",
+      function (e) {
+        if (!isNativeLinkControl(e.target)) return;
+        e.preventDefault();
+        e.stopPropagation();
+        e.stopImmediatePropagation();
+        setTimeout(function () {
+          hideNativeLinkPopover();
+          openLinkPopover(getSelectionForLink());
+        }, 0);
+        return false;
+      },
+      true
+    );
+
+    document.addEventListener(
+      "keydown",
+      function (e) {
+        if (!(e.ctrlKey || e.metaKey) || e.key.toLowerCase() !== "k") return;
+        var t = e.target;
+        if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable)) {
+          var ed = findEditor();
+          if (ed && (ed.el === t || ed.el.contains(t))) {
+            e.preventDefault();
+            e.stopPropagation();
+            e.stopImmediatePropagation();
+            openLinkPopover(getSelectionForLink());
+          }
+        }
+      },
+      true
+    );
+
+    var obs = new MutationObserver(function () {
+      if (popover) return;
+      document.querySelectorAll('input[placeholder*="链接"], input[placeholder*="Link"]').forEach(function (input) {
+        if (input.closest("#rs-wikilink-pop")) return;
+        var ctx = getSelectionForLink();
+        if (ctx.text) {
+          hideNativeLinkPopover();
+          openLinkPopover(ctx);
+          return;
+        }
+        prefillNativeLinkInput(input);
+      });
+    });
+    obs.observe(document.body, { childList: true, subtree: true });
+  }
+
   function onEditorKeyDown(e) {
-    if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key.toLowerCase() === "k") {
-      e.preventDefault();
-      openLinkPopover(captureSelection());
-      return;
-    }
-    if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === "k") {
-      e.preventDefault();
-      openLinkPopover(captureSelection());
-      return;
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") {
+      var t = e.target;
+      var ed = findEditor();
+      if (ed && t && (ed.el === t || ed.el.contains(t) || t.closest(".ProseMirror"))) {
+        e.preventDefault();
+        e.stopPropagation();
+        openLinkPopover(getSelectionForLink());
+      }
     }
   }
 
@@ -552,7 +709,7 @@
     btn.title = "添加链接 (Ctrl+K)";
     btn.textContent = "🔗 添加链接";
     btn.addEventListener("click", function () {
-      openLinkPopover(captureSelection());
+      openLinkPopover(getSelectionForLink());
     });
     document.body.appendChild(btn);
   }
@@ -574,8 +731,12 @@
     hookSave();
     initToolbar();
     bindEditorListeners();
+    hookNativeLinkToolbar();
+    document.addEventListener("selectionchange", function () {
+      rememberSelection();
+    });
     loadIndex().then(function () {
-      console.log("[rs-wikilink] 选中文字 → 🔗 添加链接（MediaWiki 模式，Ctrl+K）");
+      console.log("[rs-wikilink] 已接管工具栏「链接」按钮；选中文字 → 添加链接（Ctrl+K）");
     });
   }
 

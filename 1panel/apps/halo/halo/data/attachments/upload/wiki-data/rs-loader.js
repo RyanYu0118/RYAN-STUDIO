@@ -16,7 +16,7 @@
         loadConsoleScript("/upload/wiki-data/rs-config.js", function () {
             loadConsoleScript("/upload/wiki-data/rs-console-publish-redirect.js?v=1.0");
             if (location.pathname.indexOf("/console/posts/editor") >= 0) {
-                loadConsoleScript("/upload/wiki-data/rs-console-wikilink.js?v=1.1");
+                loadConsoleScript("/upload/wiki-data/rs-console-wikilink.js?v=1.2");
             }
         });
         return;
