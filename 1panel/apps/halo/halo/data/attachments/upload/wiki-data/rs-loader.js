@@ -5,10 +5,20 @@
     console.log("🚀 RS Loader: 初始化中...");
 
     if (location.pathname.indexOf("/console") === 0) {
-        var consoleScript = document.createElement("script");
-        consoleScript.src = "/upload/wiki-data/rs-console-publish-redirect.js?v=1.0";
-        consoleScript.async = false;
-        document.head.appendChild(consoleScript);
+        function loadConsoleScript(url, cb) {
+            var s = document.createElement("script");
+            s.src = url;
+            s.async = false;
+            s.onload = function () { if (cb) cb(); };
+            s.onerror = function () { console.error("❌ 控制台脚本加载失败:", url); if (cb) cb(); };
+            document.head.appendChild(s);
+        }
+        loadConsoleScript("/upload/wiki-data/rs-config.js", function () {
+            loadConsoleScript("/upload/wiki-data/rs-console-publish-redirect.js?v=1.0");
+            if (location.pathname.indexOf("/console/posts/editor") >= 0) {
+                loadConsoleScript("/upload/wiki-data/rs-console-wikilink.js?v=1.0");
+            }
+        });
         return;
     }
 

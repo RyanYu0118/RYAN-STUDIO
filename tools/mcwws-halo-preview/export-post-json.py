@@ -97,7 +97,7 @@ def is_mixed_halo_page(body: str) -> bool:
 
 def compile_for_halo_publish(body: str, post_name: str) -> tuple[str, str, str]:
     """返回 (rawType, raw, content) 供 Halo draft / content-json。"""
-    body = body.strip()
+    body = expand_bracket_wiki_links(body.strip())
     if is_mixed_halo_page(body):
         html = build_halo_html(body, post_name)
         return "html", html, html
@@ -136,6 +136,26 @@ def md_href_to_archives(href: str) -> str:
         path = path[: -len("/index")]
     slug = path.strip("/")
     return f"/archives/{slug}"
+
+
+BRACKET_WIKI_LINK_RE = re.compile(r"\[\[([^\]|]+)(?:\|([^\]]+))?\]\]")
+
+
+def _default_wiki_label(target: str) -> str:
+    parts = target.strip("/").split("/")
+    last = parts[-1] if parts else target
+    return last.replace("-", " ").replace("_", " ")
+
+
+def expand_bracket_wiki_links(text: str) -> str:
+    """MediaWiki 语法 [[path|label]] → Markdown [label](/archives/path)"""
+
+    def repl(m: re.Match[str]) -> str:
+        target = m.group(1).strip()
+        label = (m.group(2) or "").strip() or _default_wiki_label(target)
+        return f"[{label}]({md_href_to_archives(target)})"
+
+    return BRACKET_WIKI_LINK_RE.sub(repl, text)
 
 
 def rewrite_wiki_links(text: str) -> str:
@@ -213,7 +233,7 @@ def section_to_html_edited(section: str) -> str:
 
 
 def build_halo_html(body: str, manual_id: str) -> str:
-    body = unescape_halo(body)
+    body = expand_bracket_wiki_links(unescape_halo(body))
     parts: list[str] = [
         html_edited(f'<div id="halo-manual-id" style="display:none;">{manual_id}</div>')
     ]

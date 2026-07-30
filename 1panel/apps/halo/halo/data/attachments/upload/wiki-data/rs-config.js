@@ -46,5 +46,12 @@ window.RSConfig = {
         defaultCategory: "category-f8bm8yzr",
         minecraftCategory: "category-1g9f80go",
         postOwner: "ryanyu"
+    },
+
+    // ✏️ 后台编辑器 Wiki 内链（见 rs-console-wikilink.js）
+    wikilink: {
+        enabled: true,
+        slugIndex: "/upload/wiki-data/wiki-slugs.json",
+        pathPrefix: "/archives/"
     }
 };
