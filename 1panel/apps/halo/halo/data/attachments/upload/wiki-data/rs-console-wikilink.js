@@ -5,7 +5,7 @@
   "use strict";
 
   window.RSWikiLink = window.RSWikiLink || {};
-  var RS_WIKILINK_VER = "2.5";
+  var RS_WIKILINK_VER = "2.6";
   if (window.RSWikiLink.__ver === RS_WIKILINK_VER) {
     return;
   }
@@ -80,7 +80,14 @@
   function bracketToHtml(target, label) {
     var href = archivesHref(target);
     var text = (label || "").trim() || defaultLabel(target);
-    return '<a href="' + href + '">' + escapeHtml(text) + "</a>";
+    var slug = normalizeTarget(target);
+    var red = slug && !isPublishedSlug(slug);
+    var extra = red
+      ? ' class="rs-wiki-redlink" data-rs-wiki-slug="' + escapeHtml(slug) + '" title="尚未发布 · 前台将显示为红链"'
+      : slug
+        ? ' data-rs-wiki-slug="' + escapeHtml(slug) + '"'
+        : "";
+    return "<a href=\"" + href + "\"" + extra + ">" + escapeHtml(text) + "</a>";
   }
 
   function isExternalUrl(raw) {
@@ -350,6 +357,7 @@
       if (label) pending.textContent = label;
       provisionalLinkActive = false;
       triggerEditorInput(editor.el);
+      decorateArchiveAnchor(pending);
       return true;
     }
     return false;
@@ -382,6 +390,7 @@
       try {
         if (document.queryCommandSupported("insertHTML")) {
           document.execCommand("insertHTML", false, bracketToHtml(target, label));
+          scheduleMarkEditorArchiveLinks();
           return true;
         }
       } catch (e0) {
@@ -390,6 +399,7 @@
       try {
         if (document.queryCommandSupported("createLink")) {
           document.execCommand("createLink", false, href);
+          scheduleMarkEditorArchiveLinks();
           return true;
         }
       } catch (e1) {
@@ -400,6 +410,7 @@
     editor.el.focus();
     try {
       document.execCommand("insertHTML", false, snippet2);
+      scheduleMarkEditorArchiveLinks();
       return true;
     } catch (e2) {
       return false;
@@ -409,6 +420,70 @@
   function isPublishedSlug(slug) {
     slug = normalizeTarget(slug);
     return !!(slug && publishedSlugs[slug]);
+  }
+
+  function decorateArchiveAnchor(a) {
+    if (!a || !a.getAttribute) return;
+    var href = a.getAttribute("href") || "";
+    if (href === PENDING_HREF) {
+      a.classList.add("rs-wiki-redlink");
+      return;
+    }
+    if (isExternalUrl(href) || (href.indexOf(PATH_PREFIX) < 0 && href.indexOf("/archives/") < 0)) {
+      a.classList.remove("rs-wiki-redlink");
+      a.removeAttribute("data-rs-wiki-slug");
+      return;
+    }
+    var slug = normalizeTarget(href);
+    if (!slug) return;
+    a.setAttribute("data-rs-wiki-slug", slug);
+    if (isPublishedSlug(slug)) {
+      a.classList.remove("rs-wiki-redlink");
+      a.removeAttribute("title");
+    } else {
+      a.classList.add("rs-wiki-redlink");
+      a.setAttribute("title", "尚未发布 · 前台将显示为红链");
+    }
+  }
+
+  function markEditorArchiveLinks() {
+    var editor = findEditor();
+    if (!editor || editor.type !== "prosemirror") return;
+    editor.el.querySelectorAll("a[href]").forEach(decorateArchiveAnchor);
+  }
+
+  var editorMarkTimer = null;
+  function scheduleMarkEditorArchiveLinks() {
+    clearTimeout(editorMarkTimer);
+    editorMarkTimer = setTimeout(markEditorArchiveLinks, 60);
+  }
+
+  function hookEditorRedlinkMarks() {
+    if (window.RSWikiLink.__editorMarkHooked) return;
+    var obs = new MutationObserver(function () {
+      scheduleMarkEditorArchiveLinks();
+    });
+    function attach() {
+      var editor = findEditor();
+      if (!editor || editor.type !== "prosemirror") return false;
+      if (window.RSWikiLink.__editorMarkObserved === editor.el) return true;
+      window.RSWikiLink.__editorMarkObserved = editor.el;
+      obs.observe(editor.el, {
+        childList: true,
+        subtree: true,
+        attributes: true,
+        attributeFilter: ["href", "class"],
+      });
+      scheduleMarkEditorArchiveLinks();
+      return true;
+    }
+    if (!attach()) {
+      var poll = setInterval(function () {
+        if (attach()) clearInterval(poll);
+      }, 800);
+    }
+    document.addEventListener("input", scheduleMarkEditorArchiveLinks, true);
+    window.RSWikiLink.__editorMarkHooked = true;
   }
 
   function searchPages(query) {
@@ -461,7 +536,9 @@
       "#rs-wikilink-pop .row .meta{font:11px/1.3 ui-monospace,monospace;color:#888;margin-top:2px}" +
       "#rs-wikilink-pop .hint{padding:8px 12px 10px;font:12px/1.45 system-ui,sans-serif;color:#666;border-top:1px solid #f0f0f0}" +
       "#rs-wikilink-backdrop{position:fixed;inset:0;z-index:10059;background:transparent}" +
-      "#rs-wikilink-btn{position:fixed;right:24px;bottom:24px;z-index:10050;padding:8px 14px;border-radius:8px;border:1px solid rgba(128,128,128,.35);background:rgba(255,255,255,.92);cursor:pointer;font:600 13px system-ui,sans-serif;box-shadow:0 4px 16px rgba(0,0,0,.12)}";
+      "#rs-wikilink-btn{position:fixed;right:24px;bottom:24px;z-index:10050;padding:8px 14px;border-radius:8px;border:1px solid rgba(128,128,128,.35);background:rgba(255,255,255,.92);cursor:pointer;font:600 13px system-ui,sans-serif;box-shadow:0 4px 16px rgba(0,0,0,.12)}" +
+      ".ProseMirror a.rs-wiki-redlink{color:#c62828!important;border-bottom:1px dashed currentColor;text-decoration:none!important}" +
+      ".ProseMirror a.rs-wiki-redlink:hover{color:#b71c1c!important}";
     document.head.appendChild(style);
   }
 
@@ -974,10 +1051,12 @@
     window.RSWikiLink.__editorReady = true;
     injectStyles();
     hookSave();
+    hookEditorRedlinkMarks();
     initToolbar();
     if (cfg.showSelectionBubble !== false) bindEditorListeners();
     loadIndex().then(function () {
-      console.log("[rs-wikilink] v" + RS_WIKILINK_VER + " 已就绪：添加链接 → Wiki 面板（v2.5 修复选区记忆）");
+      markEditorArchiveLinks();
+      console.log("[rs-wikilink] v" + RS_WIKILINK_VER + " 已就绪：编辑器内链红/蓝链着色已启用");
     });
   }
 
