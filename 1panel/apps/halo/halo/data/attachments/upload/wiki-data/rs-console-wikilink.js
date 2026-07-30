@@ -483,7 +483,7 @@
       '<div class="title">添加链接</div><button type="button" class="done">完成</button></div>' +
       '<div class="search"><input type="text" placeholder="Wiki 页面名，或 https:// 外部地址…" autocomplete="off"></div>' +
       '<div class="results"></div>' +
-      '<div class="hint">Wiki 内链请用 <b>Ctrl+K</b>；工具栏链环为 Halo 普通/外链。输入 <code>https://</code> 可插外链。点击框外或 Esc 关闭。</div>';
+      '<div class="hint">选中文字后：<b>链环</b> 或 <b>Ctrl+K</b> → Wiki 内链；无选中 → Halo 外链框。Esc / 点击框外关闭。</div>';
     document.body.appendChild(popover);
 
     var input = popover.querySelector("input");
@@ -529,6 +529,65 @@
     input.select();
   }
 
+  function getSelectionTextForWiki() {
+    var ctx = getSelectionForLink();
+    var text = (ctx.text || "").trim();
+    if (!text && lastGoodCtx) text = (lastGoodCtx.text || "").trim();
+    return { ctx: ctx, text: text };
+  }
+
+  function linkControlLabel(btn) {
+    return (
+      btn.getAttribute("aria-label") ||
+      btn.getAttribute("title") ||
+      btn.getAttribute("data-tooltip") ||
+      btn.getAttribute("data-tip") ||
+      btn.textContent ||
+      ""
+    )
+      .trim()
+      .toLowerCase();
+  }
+
+  function buttonHasUnlinkIcon(btn) {
+    var svg = btn && btn.querySelector("svg");
+    if (!svg) return false;
+    var inner = (svg.innerHTML || "") + (svg.outerHTML || "");
+    return inner.indexOf("10.232") >= 0 || inner.indexOf("8 17a1") >= 0;
+  }
+
+  function isSecondaryLinkAction(btn) {
+    var label = linkControlLabel(btn);
+    return /cancel link|取消链接|open link|打开链接|nofollow|在新窗口|new window/.test(label);
+  }
+
+  function buttonHasLinkIcon(btn) {
+    if (buttonHasUnlinkIcon(btn)) return false;
+    var svg = btn && btn.querySelector("svg");
+    if (!svg) return false;
+    var inner = (svg.innerHTML || "") + (svg.outerHTML || "");
+    return (
+      inner.indexOf("2.828-2.829") >= 0 &&
+      inner.indexOf("2.121-2.121") >= 0 &&
+      inner.indexOf("4.377-4.1") >= 0
+    );
+  }
+
+  function isWikiLinkTrigger(el) {
+    if (!el || !el.closest) return false;
+    var btn = el.closest("button, [role='button']");
+    if (!btn) return false;
+    if (
+      !btn.closest(
+        '[class*="editor"], [class*="richtext"], [class*="toolbar"], [class*="bubble"], [class*="menu"]'
+      )
+    ) {
+      return false;
+    }
+    if (isSecondaryLinkAction(btn)) return false;
+    return buttonHasLinkIcon(btn);
+  }
+
   function isNativeLinkInput(input) {
     if (!input || input.tagName !== "INPUT") return false;
     if (!onEditorPath()) return false;
@@ -561,15 +620,27 @@
       }
     }, true);
 
-    document.addEventListener("keydown", function (e) {
-      if (!(e.ctrlKey || e.metaKey) || e.key.toLowerCase() !== "k") return;
-      if (!onEditorPath()) return;
-      var ctx = getSelectionForLink();
-      if (!ctx.text) return;
+    document.addEventListener("click", function (e) {
+      if (!isWikiLinkTrigger(e.target)) return;
+      var sel = getSelectionTextForWiki();
+      if (!sel.text) return;
       e.preventDefault();
       e.stopPropagation();
       e.stopImmediatePropagation();
-      openLinkPopover(ctx);
+      setTimeout(function () {
+        openLinkPopover(sel.ctx);
+      }, 0);
+    }, true);
+
+    document.addEventListener("keydown", function (e) {
+      if (!(e.ctrlKey || e.metaKey) || e.key.toLowerCase() !== "k") return;
+      if (!onEditorPath()) return;
+      var sel = getSelectionTextForWiki();
+      if (!sel.text) return;
+      e.preventDefault();
+      e.stopPropagation();
+      e.stopImmediatePropagation();
+      openLinkPopover(sel.ctx);
     }, true);
 
     var obs = new MutationObserver(function () {
@@ -687,7 +758,7 @@
     if (cfg.showSelectionBubble !== false) bindEditorListeners();
     hookNativeLinkToolbar();
     loadIndex().then(function () {
-      console.log("[rs-wikilink] 已就绪：Ctrl+K + 选中文字 → Wiki；工具栏链环 → Halo 原生链接");
+      console.log("[rs-wikilink] 已就绪：选中文字 → 链环 / Ctrl+K；无选中 → Halo 原生链接");
     });
   }
 
