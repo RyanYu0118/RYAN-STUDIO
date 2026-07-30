@@ -20,6 +20,7 @@
   var pageIndex = [];
   var bubble = null;
   var popover = null;
+  var popoverBackdrop = null;
   var selectionCtx = null;
   var lastGoodCtx = null;
   var selHideTimer = null;
@@ -363,6 +364,7 @@
       "#rs-wikilink-pop .row.red .label{color:#c62828;font-weight:600}" +
       "#rs-wikilink-pop .row .meta{font:11px/1.3 ui-monospace,monospace;color:#888;margin-top:2px}" +
       "#rs-wikilink-pop .hint{padding:8px 12px 10px;font:12px/1.45 system-ui,sans-serif;color:#666;border-top:1px solid #f0f0f0}" +
+      "#rs-wikilink-backdrop{position:fixed;inset:0;z-index:10059;background:transparent}" +
       "#rs-wikilink-btn{position:fixed;right:24px;bottom:24px;z-index:10050;padding:8px 14px;border-radius:8px;border:1px solid rgba(128,128,128,.35);background:rgba(255,255,255,.92);cursor:pointer;font:600 13px system-ui,sans-serif;box-shadow:0 4px 16px rgba(0,0,0,.12)}";
     document.head.appendChild(style);
   }
@@ -372,6 +374,10 @@
   }
 
   function hidePopover() {
+    if (popoverBackdrop) {
+      popoverBackdrop.remove();
+      popoverBackdrop = null;
+    }
     if (popover) {
       popover.remove();
       popover = null;
@@ -463,6 +469,14 @@
     selectionCtx = ctx;
     var initial = ctx.text || "";
 
+    popoverBackdrop = document.createElement("div");
+    popoverBackdrop.id = "rs-wikilink-backdrop";
+    popoverBackdrop.addEventListener("mousedown", function (e) {
+      e.preventDefault();
+      hidePopover();
+    });
+    document.body.appendChild(popoverBackdrop);
+
     popover = document.createElement("div");
     popover.id = "rs-wikilink-pop";
     popover.innerHTML =
@@ -470,7 +484,7 @@
       '<div class="title">添加链接</div><button type="button" class="done">完成</button></div>' +
       '<div class="search"><input type="text" placeholder="Wiki 页面名，或 https:// 外部地址…" autocomplete="off"></div>' +
       '<div class="results"></div>' +
-      '<div class="hint">有选中文字时优先 Wiki 内链；输入 <code>https://</code> 为外部链接。无选中时工具栏/Ctrl+K 仍用 Halo 原生链接框。</div>';
+      '<div class="hint">有选中文字时优先 Wiki 内链；输入 <code>https://</code> 为外部链接。点击框外或按 Esc 关闭。</div>';
     document.body.appendChild(popover);
 
     var input = popover.querySelector("input");
