@@ -1,0 +1,3 @@
+﻿code uses 1
+(n.VDropdown),{class:`inline-flex`,triggers:[`click`],distance:10,onClick:s},{popper:(0,t.withCtx)(()=>[(0,t.createElementVNode)(`div`,nY,[(0,t.createVNode)(vO,{modelValue:i.value,"onUpdate:modelValue":c[0]||=e=>i.value=e,modelModifiers:{lazy:!0},"auto-focus":``,placeholder:(0,t.unref)(q).global.t(`editor.extensions.link.placeholder`)},null,8,[`modelValue`,`placeholder`]),(0,t.createElementVNode)(`label`,rY,[(0,t.withDirectives)((0,t.createElementVNode)(`input`,{"onUpdate:modelValue":c[1]||=e=>a
+---

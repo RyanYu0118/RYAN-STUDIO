@@ -1,0 +1,10 @@
+PAT name:`link`
+name:`link`,priority:1e3,keepOnSplit:!1,exitable:!0,onCreate(){this.options.validate&&!this.options.shouldAutoLink&&(this.options.shouldAutoLink=this.options.validate,console.warn("The `validate` option is deprecated. Rename to the `shouldAutoLink` option instead.")),this.options.protocols.forEach(e=>{if(typeof e==`string`){KK(e);return}KK(e.scheme,e.optionalSlashes)})},onDestroy(){GK()},inclusive(){return this.options.autolink},addOptions(){return{openOnClick:!0,enableClickSelection:!1,linkOnPaste:!0,autolink:!0,protocols:[],defaultProtocol:`http`,HTMLAttributes:{target:`_blank`,rel:`noopener noreferrer nofollow`,class:null},isAllowedUri:(e,t)=>!!aq(e,t.protocols),validate:e=>!!e,shouldAutoLink:e=>{let t=/^[a-z][a-z0-9+.-]*:\/\//i.test(e),n=/^[a-z][a-z0-9+.-]*:/i.test(e);if(t||n&&!e.inclu
+
+===
+
+PAT add_link
+add_link":{t:0,b:{t:2,i:[{t:3}],s:`Add link`}},"editor.extensions.link.edit_link":{t:0,b:{t:2,i:[{t:3}],s:`Edit link`}},"editor.extensions.link.placeholder":{t:0,b:{t:2,i:[{t:3}],s:`Link address`}},"editor.extensions.link.open_in_new_window":{t:0,b:{t:2,i:[{t:3}],s:`Open in new window`}},"editor.extensions.link.cancel_link":{t:0,b:{t:2,i:[{t:3}],s:`Cancel link`}},"editor.extensions.link.nofollow":{t:0,b:{t:2,i:[{t:3}],s:`Nofollow`}},"editor.extensions.audio.src_input_label":{t:0,b:{t:2,i:[{t:3}],s:`Audio link`}},"editor.extensions.audio.disable_autoplay":{t:0,b:{t:2,i:[{t:3}],s:`Disable auto play`}},"editor.extensions.audio.enable_autoplay":{t:0,b:{t:2,i:[{t:3}],s:`Enable auto play`}},"editor.extensions.audio.disable_loop":{t:0,b:{t:2,i:[{t:3}],s:`Disable loop`}},"editor.extensions.audio.e
+
+===
+

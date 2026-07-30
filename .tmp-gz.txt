@@ -1,0 +1,3 @@
+﻿ui/ui-assets/editor/editor.29a22067.js 1150518
+count 5
+var GZ=(0,t.markRaw)({name:`mingcute-add-circle-fill`,render:WZ}),KZ={class:`editor-header space-x-1 overflow-auto border-b bg-white px-1 py-1 text-center shadow-sm`},qZ={class:`inline-flex h-full items-center gap-1`},JZ={class:`relative max-h-96 w-56 overflow-hidden overflow-y-auto`},YZ={class:`relative max-h-96 w-56 overflow-hidden overflow-y-auto`},XZ=(0,t.defineComponent)({__name:`EditorHeader`,props:{editor:{type:NE,required:!0}},setup(e){let r=e;function i(){return(r.editor?.extensionManag

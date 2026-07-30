@@ -67,4 +67,4 @@ alwaysApply: true
 2. `git add` 核心路径，再 `git add -A` 纳入噪声与未跟踪文件；`git status` 确认工作区干净
 3. 用 HEREDOC 写入双语 commit message（噪声放末尾一条）
 4. `git commit` 后 `git status` 验证
-5. 用户选「提交并推送」或回复 `y` 时再 `git push`
+5. **默认** `git push`；用户本轮说过 `c` 则跳过 push

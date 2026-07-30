@@ -1,0 +1,12 @@
+﻿toggleLink().run() -1
+toggleLink() -1
+isActive(oq.name) 1053149
+0,t.markRaw)(PJ),title:q.global.t(`editor.common.subscript`),action:({editor:e})=>e.chain().focus().toggleSubscript().run()}},{priority:120,component:(0,t.markRaw)(sY),props:{isActive:({editor:e})=>e.isActive(oq.name)}},{priority:130,props:{isActive:()=>!1,visible:({editor:e})=>e.isActive(oq.name),icon:(0,t.markRaw)(qJ),title:q.global.t(`editor.extensions.link.cancel_link`),action:({editor:e})=>e.commands.unsetLink()}},{priority:140,props:{isActive:()=>!1,visible:({editor:e})=>e.isActive(oq.name),icon:(0,t.markRaw)(GD),title:q.global.t(`editor.common.tooltip.open_link`),action:({editor:e})=>{l
+---
+isActive(X.name) -1
+editor.extensions.link.add_link 352611
+editor.extensions.commands_menu.placeholder":{t:0,b:{t:2,i:[{t:3}],s:`Enter / to select input type`}},"editor.extensions.figure_caption.empty_placeholder":{t:0,b:{t:2,i:[{t:3}],s:`Add description`}},"editor.extensions.link.add_link":{t:0,b:{t:2,i:[{t:3}],s:`Add link`}},"editor.extensions.link.edit_link":{t:0,b:{t:2,i:[{t:3}],s:`Edit link`}},"editor.extensions.link.placeholder":{t:0,b:{t:2,i:[{t:3}],s:`Link address`}},"editor.extensions.link.open_in_new_window":{t:0,b:{t:2,i:[{t:3}],s:`Open in new window`}},"editor.extensions.link.cancel_link":{t:0,b:{t:2,i:[{t:3}],s:`Cancel link`}},"editor.ext
+---
+mingcute-link 601619
+.083l-2.121-2.121A3 3 0 0 0 5.147 9.38l.135.144l2.829 2.829a3 3 0 0 0 4.242 0a1 1 0 1 1 1.415 1.414a5 5 0 0 1-6.89.172l-.182-.172l-2.828-2.829a5 5 0 0 1 0-7.07Z`})],-1)]])}var zD=(0,t.markRaw)({name:`mingcute-link-line`,render:RD}),BD={viewBox:`0 0 24 24`,width:`1.2em`,height:`1.2em`};function VD(e,n){return(0,t.openBlock)(),(0,t.createElementBlock)(`svg`,BD,[...n[0]||=[(0,t.createElementVNode)(`g`,{fill:`none`,"fill-rule":`evenodd`},[(0,t.createElementVNode)(`path`,{d:`m12.593 23.258l-.011.002l-.071.035l-.02.004l-.014-.004l-.071-.035q-.016-.005-.024.005l-.004.01l-.017.428l.005.02l.01.013l.104
+---

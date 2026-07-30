@@ -1,0 +1,11 @@
+﻿FILE ui/ui-assets/MiniProgramSettingTab-DFr4_nA0.js
+app_secret_help`)}]}],k=[{label:D(`core.console_ecommerce.settings.mini_program.link_types.none`),value:`none`},{label:D(`core.console_ecommerce.settings.mini_program.link_types.product`),value:`produ
+`),"item-labels":[{type:`text`,label:`$value.title`},{type:`text`,label:`$value.linkType`},{type:`text`,label:`$value.priority`}]},{default:m(({value:e})=>[p(n,{type:`text`,label:a(D)(`core.console_ec
+FILE ui/ui-assets/en-CugoqBXq.js
+:`WeChat Mini Program App Secret`,"core.console_ecommerce.settings.mini_program.link_types.none":`No jump`,"core.console_ecommerce.settings.mini_program.link_types.product":`Product details`,"core.con
+FILE ui/ui-assets/es-CWAYv4Ob.js
+cret del Mini programa de WeChat`,"core.console_ecommerce.settings.mini_program.link_types.none":`No redirigir`,"core.console_ecommerce.settings.mini_program.link_types.product":`Detalles del producto
+FILE ui/ui-assets/zh-CN-Uy8Lc6kp.js
+p_secret_help":`微信小程序 App Secret`,"core.console_ecommerce.settings.mini_program.link_types.none":`不跳转`,"core.console_ecommerce.settings.mini_program.link_types.product":`商品详情`,"core.console_ecommerce.
+FILE ui/ui-assets/zh-TW-Ce7LFLwo.js
+p_secret_help":`微信小程序 App Secret`,"core.console_ecommerce.settings.mini_program.link_types.none":`不跳轉`,"core.console_ecommerce.settings.mini_program.link_types.product":`商品詳情`,"core.console_ecommerce.

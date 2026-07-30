@@ -1,0 +1,1 @@
+{"detail":"No static resource ui/ui-assets/editor/editor.29a22067.js.","instance":"http://127.0.0.1:8090/ui/ui-assets/editor/editor.29a22067.js","status":404,"title":"Not Found","requestId":"62bb1d4d-1973","timestamp":"2026-07-30T15:24:32.561106907Z"}

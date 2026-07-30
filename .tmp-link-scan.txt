@@ -1,0 +1,78 @@
+
+=== add_link ===
+editor.extensions.figure_caption.empty_placeholder":{t:0,b:{t:2,i:[{t:3}],s:`Add description`}},"editor.extensions.link.add_link":{t:0,b:{t:2,i:[{t:3}],s:`Add link`}},"editor.extensions.link.edit_link":{t:0,b:{t:2,i:[{t:3}],s:`Edit link`}},"editor.extensions.link.placeholder":{t:0,b:{t:2,i:[{t:3}],s:`Link address`}},"editor.extensions.link.open_in_new_window":{t:0,b:{t:2,i:[{t:3}],s:`Open in new w
+---
+tor.extensions.figure_caption.empty_placeholder":{t:0,b:{t:2,i:[{t:3}],s:`Añadir descripción`}},"editor.extensions.link.add_link":{t:0,b:{t:2,i:[{t:3}],s:`Añadir enlace`}},"editor.extensions.link.edit_link":{t:0,b:{t:2,i:[{t:3}],s:`Editar enlace`}},"editor.extensions.link.placeholder":{t:0,b:{t:2,i:[{t:3}],s:`Dirección del enlace`}},"editor.extensions.link.open_in_new_window":{t:0,b:{t:2,i:[{t:3}]
+---
+选择输入类型`}},"editor.extensions.figure_caption.empty_placeholder":{t:0,b:{t:2,i:[{t:3}],s:`添加描述`}},"editor.extensions.link.add_link":{t:0,b:{t:2,i:[{t:3}],s:`添加链接`}},"editor.extensions.link.edit_link":{t:0,b:{t:2,i:[{t:3}],s:`修改链接`}},"editor.extensions.link.placeholder":{t:0,b:{t:2,i:[{t:3}],s:`链接地址`}},"editor.extensions.link.open_in_new_window":{t:0,b:{t:2,i:[{t:3}],s:`在新窗口中打开`}},"editor.extensions.
+---
+:e.editor})?(0,t.unref)(q).global.t(`editor.extensions.link.edit_link`):(0,t.unref)(q).global.t(`editor.extensions.link.add_link`)]])]),_:1}))}}),cY=xf.create({name:`underline`,addOptions(){return{HTMLAttributes:{}}},parseHTML(){return[{tag:`u`},{style:`text-decoration`,consuming:!1,getAttrs:e=>e.includes(`underline`)?{}:!1}]},renderHTML({HTMLAttributes:e}){return[`u`,B(this.options.HTMLAttributes
+---
+
+=== toggleLink ===
+otocols,defaultProtocol:this.options.defaultProtocol})?t().setMark(this.name,e).setMeta(`preventAutolink`,!0).run():!1},toggleLink:e=>({chain:t})=>{let{href:n}=e||{};return n&&!this.options.isAllowedUri(n,{defaultValidate:e=>!!aq(e,this.options.protocols),protocols:this.options.protocols,defaultProtocol:this.options.defaultProtocol})?!1:t().toggleMark(this.name,e,{extendEmptyMarkRange:!0}).setMeta
+---
+
+=== setLink ===
+computed)({get:()=>n.editor.getAttributes(oq.name)?.href||n.editor.getAttributes(X.name).href,set:e=>{n.editor.commands.setLink({href:e,target:`_blank`})}}),i=(0,t.computed)({get(){return n.editor.getAttributes(oq.name)?.target===`_blank`},set(e){n.editor.commands.setLink({href:r.value,target:e?`_blank`:`_self`})}});return(a,o)=>((0,t.openBlock)(),(0,t.createElementBlock)(`div`,oH,[e.visible?.({ed
+---
+blank`})}}),i=(0,t.computed)({get(){return n.editor.getAttributes(oq.name)?.target===`_blank`},set(e){n.editor.commands.setLink({href:r.value,target:e?`_blank`:`_self`})}});return(a,o)=>((0,t.openBlock)(),(0,t.createElementBlock)(`div`,oH,[e.visible?.({editor:n.editor})?((0,t.openBlock)(),(0,t.createBlock)(vO,{key:0,modelValue:r.value,"onUpdate:modelValue":o[0]||=e=>r.value=e,"auto-focus":``,place
+---
+href??``,r=e.attrs?.title??``,i=t.renderChildren(e);return r?`[${i}](${n} "${r}")`:`[${i}](${n})`},addCommands(){return{setLink:e=>({chain:t})=>{let{href:n}=e;return this.options.isAllowedUri(n,{defaultValidate:e=>!!aq(e,this.options.protocols),protocols:this.options.protocols,defaultProtocol:this.options.defaultProtocol})?t().setMark(this.name,e).setMeta(`preventAutolink`,!0).run():!1},toggleLink
+---
+tions.defaultProtocol})?!1:t().toggleMark(this.name,e,{extendEmptyMarkRange:!0}).setMeta(`preventAutolink`,!0).run()},unsetLink:()=>({chain:e})=>e().unsetMark(this.name,{extendEmptyMarkRange:!0}).setMeta(`preventAutolink`,!0).run()}},addPasteRules(){return[ep({find:e=>{let t=[];if(e){let{protocols:n,defaultProtocol:r}=this.options,i=YK(e).filter(e=>e.isLink&&this.options.isAllowedUri(e.value,{defa
+---
+ction}},setup(e){let r=e,i=(0,t.computed)({get(){return r.editor.getAttributes(oq.name)?.href},set(e){r.editor.commands.setLink({href:e,target:a.value?`_blank`:`_self`,rel:o.value?`nofollow`:``})}}),a=(0,t.computed)({get(){return r.editor.getAttributes(oq.name)?.target===`_blank`},set(e){r.editor.commands.setLink({href:i.value,target:e?`_blank`:`_self`,rel:o.value?`nofollow`:``})}}),o=(0,t.compute
+---
+ow`:``})}}),a=(0,t.computed)({get(){return r.editor.getAttributes(oq.name)?.target===`_blank`},set(e){r.editor.commands.setLink({href:i.value,target:e?`_blank`:`_self`,rel:o.value?`nofollow`:``})}}),o=(0,t.computed)({get(){return r.editor.getAttributes(oq.name)?.rel===`nofollow`},set(e){r.editor.commands.setLink({href:i.value,target:a.value?`_blank`:`_self`,rel:e?`nofollow`:``})}}),s=()=>{if(r.isA
+---
+low`:``})}}),o=(0,t.computed)({get(){return r.editor.getAttributes(oq.name)?.rel===`nofollow`},set(e){r.editor.commands.setLink({href:i.value,target:a.value?`_blank`:`_self`,rel:e?`nofollow`:``})}}),s=()=>{if(r.isActive?.({editor:r.editor}))return;let{state:e}=r.editor,{selection:t}=e,{empty:n}=t;if(t instanceof N){if(n)return!1;let{content:e}=t.content();if(!e||e.childCount!==1)return!1;let i=e.f
+---
+ntent:e}=t.content();if(!e||e.childCount!==1)return!1;let i=e.firstChild?.textContent;i&&XK(i,`url`)&&r.editor.commands.setLink({href:i,target:`_self`,rel:``})}};return(r,c)=>((0,t.openBlock)(),(0,t.createBlock)((0,t.unref)(n.VDropdown),{class:`inline-flex`,triggers:[`click`],distance:10,onClick:s},{popper:(0,t.withCtx)(()=>[(0,t.createElementVNode)(`div`,nY,[(0,t.createVNode)(vO,{modelValue:i.val
+---
+
+=== LinkIcon ===
+
+=== link-icon ===
+
+=== name:\"link\" ===
+
+=== name:"link" ===
+
+=== extension.*link ===
+te.doc)}destroy(){this.destroyed||(this.destroyed=!0,this.emit(`destroy`),this.unmount(),this.removeAllListeners(),this.extensionManager.destroy(),this.extensionManager=null,this.schema=null,this.commandManager=null,this.extensionStorage={})}get isDestroyed(){return this.editorView?.isDestroyed??!0}$node(e,t){return this.$doc?.querySelector(e,t)||null}$nodes(e,t){return this.$doc?.querySelectorAll
+---
+:0,b:{t:2,i:[{t:3}],s:`Split cell`}},"editor.menus.table.delete_table":{t:0,b:{t:2,i:[{t:3}],s:`Delete table`}},"editor.extensions.commands_menu.columns":{t:0,b:{t:2,i:[{t:3}],s:`Column Card`}},"editor.extensions.commands_menu.iframe":{t:0,b:{t:2,i:[{t:3}],s:`Iframe`}},"editor.extensions.commands_menu.image":{t:0,b:{t:2,i:[{t:3}],s:`Image`}},"editor.extensions.commands_menu.video":{t:0,b:{t:2,i:[{
+---
+te())},state:{init:(e,{doc:t,schema:o})=>{let s=o.nodes[n];if(!s)throw Error(`Invalid node being used for trailing node extension: '${n}'`);return i=s,a=Object.values(o.nodes).map(e=>e).filter(e=>!r.has(e.name)),a.includes(t.lastChild?.type)},apply:(e,t)=>e.docChanged?a.includes(e.doc.lastChild?.type):t}})}function ME(e){return(0,t.customRef)((t,n)=>({get(){return t(),e},set(t){e=t,requestAnimatio
+---
+turn{priority:31,component:(0,t.markRaw)(D),props:{editor:e,isActive:!1,icon:(0,t.markRaw)(az),title:q.global.t(`editor.extensions.font_size.title`)},children:[{priority:0,component:(0,t.markRaw)(O),props:{editor:e,isActive:!1,title:q.global.t(`editor.common.text.default`),action:()=>e.chain().focus().unsetFontSize().run()}},...[8,10,12,14,16,18,20,24,30,36,48,60,72].map(n=>({priority:n,component:
+---
+n:e,storedMarks:i}=n;if(e.$from.parent.type.spec.isolating)return!1;let{keepMarks:a}=this.options,{splittableMarks:o}=r.extensionManager,s=i||e.$to.parentOffset&&e.$from.marks();return t().insertContent({type:this.name}).command(({tr:e,dispatch:t})=>{if(t&&s&&a){let t=s.filter(e=>o.includes(e.type.name));e.ensureMarks(t)}return!0}).run()})])}},addKeyboardShortcuts(){return{"Mod-Enter":()=>this.edi
+---
+list`,`youxuliebiao`],command:({editor:e,range:t})=>{e.chain().focus().deleteRange(t).toggleOrderedList().run()}}}}},addExtensions(){return[Yj]}}),mq=EM.extend({addOptions(){return{...this.parent?.(),getCommandMenuItems(){return{priority:150,icon:(0,t.markRaw)(lq),title:`editor.common.task_list`,keywords:[`tasklist`,`renwuliebiao`],command:({editor:e,range:t})=>{e.chain().focus().deleteRange(t).to
+---
+
+=== ToolbarItem ===
+-1)]])}var E=(0,t.markRaw)({name:`mingcute-down-small-fill`,render:T}),ee=[`disabled`],D=(0,t.defineComponent)({__name:`ToolbarItem`,props:{editor:{},isActive:{type:Boolean},disabled:{type:Boolean},icon:{},title:{},action:{type:Function},children:{}},setup(e){return(r,i)=>(0,t.withDirectives)(((0,t.openBlock)(),(0,t.createElementBlock)(`button`,{class:(0,t.normalizeClass)([[{"bg-gray-200/70":e.isA
+---
+renderHTML:e=>{let t=e.lineHeight;return t?{style:`line-height: ${t}`}:{}}}}},addOptions(){return{...this.parent?.(),getToolbarItems({editor:e}){return{priority:220,component:(0,t.markRaw)(D),props:{editor:e,isActive:!!e.getAttributes(PO.name)?.lineHeight,icon:(0,t.markRaw)(NO),title:q.global.t(`editor.common.line_height`)},children:[0,1,1.5,2,2.5,3].map(n=>({priority:n,component:(0,t.markRaw)(O),
+---
+gure`,group:`block`,content:`(image|video|audio)? figureCaption?`,isolating:!0,addOptions(){return{HTMLAttributes:{},getToolbarItems(){return[]}}},addAttributes(){return{contentType:{default:null,parseHTML:e=>e.getAttribute(`data-content-type`),renderHTML:e=>({"data-content-type":e.contentType})}}},parseHTML(){return[{tag:`figure`}]},renderHTML({HTMLAttributes:e}){return[`figure`,B(this.options.HT
+---
+)=>{if(e.isActive({alignItems:n})){t=r;return}}),t},Dk=V.create({name:`align`,addOptions(){return{...this.parent?.(),getToolbarItems({editor:e}){return{priority:180,component:(0,t.markRaw)(D),props:{editor:e,isActive:!1,icon:(0,t.markRaw)(Ek(e)),title:q.global.t(`editor.common.align_method`)},children:[{priority:0,component:(0,t.markRaw)(O),props:{editor:e,isActive:e.isActive({textAlign:`left`})||
+---
+r uj=(0,t.markRaw)({name:`mingcute-blockquote-line`,render:lj}),dj=sj.extend({addOptions(){return{...this.parent?.(),getToolbarItems({editor:e}){return{priority:90,component:(0,t.markRaw)(D),props:{editor:e,isActive:e.isActive(sj.name),icon:(0,t.markRaw)(uj),title:q.global.t(`editor.common.quote`),action:()=>{e.commands.toggleBlockquote()}}}}}}}),fj=/(?:^|\s)(\*\*(?!\s+\*\*)((?:[^*]+))\*\*(?!\s+\*
+---
+]])}var yj=(0,t.markRaw)({name:`mingcute-bold-line`,render:vj}),bj=gj.extend({addOptions(){return{...this.parent?.(),getToolbarItems({editor:e}){return{priority:40,component:(0,t.markRaw)(D),props:{editor:e,isActive:e.isActive(gj.name),icon:(0,t.markRaw)(yj),title:q.global.t(`editor.common.bold`),action:()=>{e.chain().focus().toggleBold().run()}}}}}}}),xj=Object.defineProperty,Sj=(e,t)=>{for(var n
+---
+])}var $M=(0,t.markRaw)({name:`mingcute-eraser-line`,render:QM}),eN=V.create({name:`clearFormat`,addOptions(){return{getToolbarItems({editor:e}){return{priority:23,component:(0,t.markRaw)(D),props:{editor:e,isActive:!1,icon:(0,t.markRaw)($M),title:q.global.t(`editor.common.clear_format`),action:()=>e.chain().focus().unsetAllMarks().run()}}}}},addKeyboardShortcuts(){return{"Mod-\\":()=>this.editor.
+---
+0,t.markRaw)({name:`mingcute-code-line`,render:aN}),sN=rN.extend({exitable:!0,addOptions(){return{...this.parent?.(),getToolbarItems({editor:e}){return{priority:100,component:(0,t.markRaw)(D),props:{editor:e,isActive:e.isActive(rN.name),icon:(0,t.markRaw)(oN),title:q.global.t(`editor.common.code`),action:()=>e.chain().focus().toggleCode().run()}}}}}}),cN=4,lN=/^```([a-z]+)?[\s\n]$/,uN=/^~~~([a-z]+
+---
+
+=== RichTextEditor ===
+var RichTextEditor=(function(e,t,n,r,i){Object.defineProperty(e,Symbol.toStringTag,{value:`Module`});var a=Object.create,o=Object.defineProperty,s=Object.getOwnPropertyDescriptor,c=Object.getOwnPropertyNames,l=Object.getPrototypeOf,u=Object.prototype.hasOwnProperty,d=(e,t)=>()=>(t||(
+---
+aceStep=Kt,e.ResizableNodeView=Zf,e.ResizableNodeview=Qf,e.ResizeState=gE,e.ResolvedPos=we,e.ResourceReplaceButton=EO,e.RichTextEditor=nQ,e.Schema=tt,e.Selection=M,e.SelectionRange=Vn,e.Slice=j,e.Span=w_,e.Step=zt,e.StepMap=It,e.StepResult=Bt,e.TABLE_BUBBLE_MENU_KEY=EW,e.TEXT_BUBBLE_MENU_KEY=pY,e.TableMap=J,e.TableView=fE,e.TextSelection=N,e.ToolbarItem=D,e.ToolbarSubItem=O,e.ToolboxItem=eO,e.Trac
+---

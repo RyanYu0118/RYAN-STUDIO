@@ -1,0 +1,12 @@
+﻿--- BubbleMenu
+BubbleMenu`),IN=dN.extend({allowGapCursor:!0,priority:101,fakeSelection:!0,addAttributes(){return{...this.parent?.(),collapsed:{default:!1,parseHTML:e=>!!e.getAttribute(`collapsed`),renderHTML:e=>e.collapsed?{collapsed:e.collapsed}:{}},theme:{default:this.options.defaultTheme,parseHTML:e=>e.getAttribute(`theme`)||null,renderHTML:e=>e.theme?{theme:e.theme}:{}}}},addCommands(){return{...this.parent?
+--- bubble-menu
+bubble-menu flex items-center space-x-1 rounded-md border bg-white p-1 shadow`},HZ=_((0,t.defineComponent)({__name:`EditorBubbleMenu`,props:{editor:{type:Object,required:!0}},setup(e){let n=e,r=()=>{let e=n.editor?.extensionManager,t=new Map,r=[];for(let i of e.extensions){let{getBubbleMenu:e}=i.options;if(!e)continue;let a=e({editor:n.editor});if(a.extendsKey){t.has(a.extendsKey)||t.set(a.extends
+--- bubbleMenu
+bubbleMenu`,updateDelay:i=250,resizeDelay:a=60,shouldShow:o,appendTo:s,getReferencedVirtualElement:c,options:l}){this.preventHide=!1,this.isVisible=!1,this.scrollTarget=window,this.floatingUIOptions={strategy:`absolute`,placement:`top`,offset:8,flip:{},shift:{},arrow:!1,size:!1,autoPlacement:!1,hide:!1,inline:!1,onShow:void 0,onHide:void 0,onUpdate:void 0,onDestroy:void 0},this.shouldShow=({view:e
+--- TEXT_BUBBLE
+TEXT_BUBBLE_MENU_KEY=pY,e.TableMap=J,e.TableView=fE,e.TextSelection=N,e.ToolbarItem=D,e.ToolbarSubItem=O,e.ToolboxItem=eO,e.Tracker=rp,e.Transaction=$n,e.Transform=zn,Object.defineProperty(e,"TransformError",{enumerable:!0,get:function(){return Rn}}),e.VIDEO_BUBBLE_MENU_KEY=eX,e.VueEditor=NE,e.VueMarkView=VE,e.VueMarkViewRenderer=HE,e.VueNodeViewRenderer=GE,e.VueRenderer=RE,e.__clipCells=ZT,e.__en
+--- pY,
+pY,shouldShow:({state:e,from:t,to:n})=>{let{doc:r,selection:i}=e,{empty:a}=i;return!(a||fY.some(t=>ed(e,t))||r.textBetween(t||0,n||0).length===0||!Sl(i)&&!(i instanceof LO))},items:[{priority:10,component:(0,t.markRaw)(dY)},{priority:20,component:(0,t.markRaw)(C)},{priority:30,props:{isActive:({editor:e})=>e.isActive(bj.name),icon:(0,t.markRaw)(yj),title:q.global.t(`editor.common.bold`),action:({e
+--- shouldShow
+shouldShow:({state:e})=>ed(e,dN.name),options:{placement:`top-start`},getReferencedVirtualElement(){let e=this.editor;if(!e)return null;let t=_u(e=>e.type.name===IN.name)(e.state.selection);if(t){let n=dd(e.view,t.pos,t.pos+t.node.nodeSize);return{getBoundingClientRect:()=>n,getClientRects:()=>[n]}}return null},items:[{priority:10,props:{icon:(0,t.markRaw)(YD),title:q.global.t(`editor.common.butto

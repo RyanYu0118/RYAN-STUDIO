@@ -1,0 +1,12 @@
+﻿--- permalink ---
+s.upload.attachment.title":{t:0,b:{t:2,i:[{t:3}],s:`Attachment Library`}},"editor.extensions.upload.permalink.title":{t:0,b:{t:2,i:[{t:3}],s:`Input link`}},"editor.extensions.upload.permalink.placeholder":{t:0,b:{t:2,i:[{t:3}],s:`Input link and press Enter to confirm`}},"editor.extensions.upload.ope
+--- permalink ---
+extensions.upload.permalink.title":{t:0,b:{t:2,i:[{t:3}],s:`Input link`}},"editor.extensions.upload.permalink.placeholder":{t:0,b:{t:2,i:[{t:3}],s:`Input link and press Enter to confirm`}},"editor.extensions.upload.operations.remove.button":{t:0,b:{t:2,i:[{t:3}],s:`Delete`}},"editor.extensions.uploa
+--- permalink ---
+load.attachment.title":{t:0,b:{t:2,i:[{t:3}],s:`Biblioteca de adjuntos`}},"editor.extensions.upload.permalink.title":{t:0,b:{t:2,i:[{t:3}],s:`Introducir enlace`}},"editor.extensions.upload.permalink.placeholder":{t:0,b:{t:2,i:[{t:3}],s:`Introduce el enlace y presiona Enter para confirmar`}},"editor.
+--- permalink ---
+ons.upload.permalink.title":{t:0,b:{t:2,i:[{t:3}],s:`Introducir enlace`}},"editor.extensions.upload.permalink.placeholder":{t:0,b:{t:2,i:[{t:3}],s:`Introduce el enlace y presiona Enter para confirmar`}},"editor.extensions.upload.operations.remove.button":{t:0,b:{t:2,i:[{t:3}],s:`Eliminar`}},"editor.
+--- permalink ---
+ditor.extensions.upload.attachment.title":{t:0,b:{t:2,i:[{t:3}],s:`附件库`}},"editor.extensions.upload.permalink.title":{t:0,b:{t:2,i:[{t:3}],s:`输入链接`}},"editor.extensions.upload.permalink.placeholder":{t:0,b:{t:2,i:[{t:3}],s:`输入链接，按回车确定`}},"editor.extensions.upload.operations.remove.button":{t:0,b:{t:
+--- 普通 ---
+.title":{t:0,b:{t:2,i:[{t:3}],s:`文本类型`}},"editor.common.heading.paragraph":{t:0,b:{t:2,i:[{t:3}],s:`普通文本`}},"editor.common.heading.heading1":{t:0,b:{t:2,i:[{t:3}],s:`一级标题`}},"editor.common.heading.heading2":{t:0,b:{t:2,i:[{t:3}],s:`二级标题`}},"editor.common.heading.heading3":{t:0,b:{t:2,i:[{t:3}],s:`三级

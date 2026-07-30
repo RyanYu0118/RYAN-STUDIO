@@ -1,0 +1,51 @@
+﻿link i18n keys:
+  editor.extensions.link.add_link
+  editor.extensions.link.cancel_link
+  editor.extensions.link.edit_link
+  editor.extensions.link.nofollow
+  editor.extensions.link.open_in_new_window
+  editor.extensions.link.placeholder
+
+uY context at 1048529
+uY={class:`relative max-h-72 w-56 overflow-hidden overflow-y-auto`},dY=(0,t.defineComponent)({__name:`BubbleItemTextType`,props:{editor:{},isActive:{type:Function},visible:{type:Function},icon:{},iconStyle:{},title:{},action:{type:Function}},setup(e){let r=e,i=[{text:q.global.t(`editor.common.heading.paragraph`),icon:jB,action:()=>r.editor.chain().focus().setParagraph().run(),isActive:()=>r.editor.isActive(PO.name)},{text:q.global.t(`editor.common.heading.heading1`),icon:pB,action:()=>r.editor.chain().focus().setHeading({level:1}).run(),isActive:()=>r.editor.isActive(MB.name,{level:1})},{text:q.global.t(`editor.common.heading.heading2`),icon:gB,action:()=>r.editor.chain().focus().setHeading({level:2}).run(),isActive:()=>r.editor.isActive(MB.name,{level:2})},{text:q.global.t(`editor.common.heading.heading3`),icon:yB,action:()=>r.editor.chain().focus().setHeading({level:3}).run(),isActive:()=>r.editor.isActive(MB.name,{level:3})},{text:q.global.t(`editor.common.heading.heading4`),icon:SB,action:()=>r.editor.chain().focus().setHeading({level:4}).run(),isActive:()=>r.editor.isActive(MB.name,{level:4})},{text:q.global.t(`editor.common.heading.heading5`),icon:TB,action:()=>r.editor.chain().focus().setHeading({level:5}).run(),isActive:()=>r.editor.isActive(MB.name,{level:5})},{text:q.global.t(`editor.common.heading.heading6`),icon:OB,action:()=>r.editor.chain().focus().setHeading({level:6}).run(),isActive:()=>r.editor.isActive(MB.name,{level:6})}],a=(0,t.computed)(()=>i.find(e=>e.isActive?.()));return(e,r)=>{let o=(0,t.resolveDirective)(`close-popper`);return(0,t.openBlock)(),(0,t.createBlock)((0,t.unref)(n.VDropdown),{class:`inline-flex`,"auto-hide":!0,distance:10},{popper:(0,t.withCtx)(()=>[(0,t.createElementVNode)(`div`,uY,[((0,t.openBlock)(),(0,t.createElementBlock)(t.Fragment,null,(0,t.renderList)(i,e=>(0,t.withDirectives)((0,t.createVNode)(ie,{key:e.text,"is-active":e.isActive?.(),onClick:t=>e.action?.()},{icon:(0,t.withCtx)(()=>[((0,t.openBlock)(),(0,t.createBlock)((0,t.resolveDynamicComponent)(e.icon)))]),default:(0,t.withCtx)(()=>[(0,t.createTextVNode)(` `+(0,t.toDisplayString)(e.text),1)]),_:2},1032,[`is-active`,`onClick`]),[[o]])),64))])]),default:(0,t.withCtx)(()=>[(0,t.createVNode)(bk,{title:(0,t.unref)(q).global.t(`editor.common.heading.title`),"show-more-indicator":``},{icon:(0,t.withCtx)(()=>[((0,t.openBlock)(),(0,t.createBlock)((0,t.resolveDynamicComponent)(a.value?.icon)))]),_:1},8,[`title`])]),_:1})}}}),fY=[`audio`,`video`,`image`,`iframe`,`codeBlock`],pY=new I(`textBubbleMenu`),mY=VJ.extend({addOptions(){return{...this.parent?.(),getBubbleMenu(){return{pluginKey:pY,shouldShow:({state:e,from:t,to:n})=>{let{doc:r,selection:i}=e,{empty:a}=i;return!(a||fY.some(t=>ed(e,t))||r.textBetween(t||0,n||0).length===0||!Sl(i)&&!(i instanceof LO))},items:[{priority:10,component:(0,t.markRaw)(dY)},{priority:20,component:(0,t.markRaw)(C)},{priority:30,props:{isActive:({editor:e})=>e.isActive(bj.name),icon:(0,t.markRaw)(yj),title:q.global.t(`editor.common.bold`),action:({editor:e})=>{e.chain().focus().toggleBold().run()}}},{priority:40,props:{isActive:({editor:e})=>e.isActive(GW.name),icon:(0,t.markRaw)(WW),title:q.global.t(`editor.common.italic`),action:({editor:e})=>{e.chain().focus().toggleItalic().run()}}},{priority:50,props:{isActive:({editor:e})=>e.isActive(lY.name),icon:(0,t.markRaw)(WJ),title:q.global.t(`editor.common.underline`),action:({editor:e})=>e.chain().focus().toggleUnderline().run()}},{priority:60,props:{isActive:({editor:e}
+
+zh key: "editor.extensions.link.add_link":{t:0,b:{t:2,i:[{t:3}],s:`添加链接`}
+
+zh key: "editor.extensions.link.edit_link":{t:0,b:{t:2,i:[{t:3}],s:`修改链接`}
+
+zh key: "editor.extensions.link.placeholder":{t:0,b:{t:2,i:[{t:3}],s:`链接地址`}
+
+zh key: "editor.extensions.link.cancel_link":{t:0,b:{t:2,i:[{t:3}],s:`取消链接`}
+
+zh key: "editor.extensions.link.nofollow":{t:0,b:{t:2,i:[{t:3}],s:`搜索引擎忽略链接关系`}
+
+zh key: "editor.extensions.audio.src_input_label":{t:0,b:{t:2,i:[{t:3}],s:`音频链接`}
+
+zh key: "editor.extensions.iframe.src_input_label":{t:0,b:{t:2,i:[{t:3}],s:`网页链接`}
+
+zh key: "editor.extensions.image.src_input_label":{t:0,b:{t:2,i:[{t:3}],s:`图片链接`}
+
+zh key: "editor.extensions.image.href_input_label":{t:0,b:{t:2,i:[{t:3}],s:`图片跳转链接`}
+
+zh key: "editor.extensions.image.edit_link":{t:0,b:{t:2,i:[{t:3}],s:`修改链接`}
+
+zh key: "editor.extensions.image.edit_href":{t:0,b:{t:2,i:[{t:3}],s:`修改图片跳转链接`}
+
+zh key: "editor.extensions.video.src_input_label":{t:0,b:{t:2,i:[{t:3}],s:`视频链接`}
+
+zh key: "editor.extensions.upload.permalink.title":{t:0,b:{t:2,i:[{t:3}],s:`输入链接`}
+
+zh key: "editor.extensions.upload.permalink.placeholder":{t:0,b:{t:2,i:[{t:3}],s:`输入链接，按回车确定`}
+
+zh key: "editor.extensions.upload.operations.transfer_in_batch.description":{t:0,b:{t:2,i:[{t:3}],s:`检测到外部链接，是否需要自动上传到附件库？`}
+
+zh key: "editor.common.tooltip.open_link":{t:0,b:{t:2,i:[{t:3}],s:`打开链接`}
+
+zh key: "editor.common.placeholder.link_input":{t:0,b:{t:2,i:[{t:3}],s:`输入链接，按回车确定`}
+
+zh key: "editor.common.placeholder.alt_href":{t:0,b:{t:2,i:[{t:3}],s:`输入图片跳转链接，按回车确认`}
+
+zh key: "editor.common.button.edit_link":{t:0,b:{t:2,i:[{t:3}],s:`修改链接`}
+
+BubbleItem at 1118177
+__name:`BubbleItem`,props:{editor:{},isActive:{type:Function,default:()=>!1},visible:{type:Function,default:()=>!0},icon:{},iconStyle:{},title:{},action:{}},setup(e){let r=e,i=(0,t.ref)(),a=e=>{if(!r.action)return;let t=r.action?.({editor:e});typeof t==`object`&&(i.value=t)};return(o,s)=>e.visible({editor:e.editor})?((0,t.openBlock)(),(0,t.createBlock)((0,t.unref)(n.VDropdown),{key:0,class:`inline-flex`,triggers:[],"auto-hide":!0,shown:!!i.value,distance:10,onHide:s[1]||=e=>i.value=void 0},{popper:(0,t.withCtx)(()=>[((0,t.openBlock)(),(0,t.createBlock)(t.KeepAlive,null,[((0,t.openBlock)(),(0,t.createBlock)((0,t.resolveDynamicComponent)(i.value),(0,t.normalizeProps)((0,t.guardReactiveProps)(r)),null,16))],1024))]),default:(0,t.withCtx)(()=>[(0,t.createVNode)(bk,{title:e.title,"is-active":e.isActive({editor:e.editor}),onClick:s[0]||=t=>a(e.editor)},{icon:(0,t.withCtx)(()=>[((0,t.openBlock)(),(0,t.createBlock)((0,t.resolveDynamicComponent)(e.icon),{style:(0,t.normalizeStyle)(e.iconStyle),class:`size-5`},null,8,[`style`]))]),_:1},8,[`title`,`is-active`])]),_:1},8,[`shown`])):(0,t.createCommentVNode)(``,!0)}});function FZ(e,t){let n=Math.min(e.top,t.top),r=Math.max(e.bottom,t.bottom),i=Math.min(e.left,t.left),a=Math.max(e.right,t.right)-i,o=r-n;return new DOMRect(i,n,a,o)}var IZ=class{constructor({editor:e,element:t,view:n,pluginKey:r=`bubbleMenu`,updateDelay:i=250,resizeDelay:a=60,shouldShow:o,appendTo:s,getReferencedVirtualElement:c,options:l}){this.preventHide=!1,this.isVisible
