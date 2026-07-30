@@ -78,6 +78,74 @@
     return '<a href="' + href + '">' + escapeHtml(text) + "</a>";
   }
 
+  function isExternalUrl(raw) {
+    var s = String(raw || "").trim();
+    return /^(https?:\/\/|mailto:|tel:|\/\/)/i.test(s) || /^www\./i.test(s);
+  }
+
+  function normalizeExternalUrl(raw) {
+    var s = String(raw || "").trim();
+    if (/^www\./i.test(s)) return "https://" + s;
+    return s;
+  }
+
+  function externalToMarkdown(href, label) {
+    var text = (label || "").trim() || href;
+    return "[" + text + "](" + href + ")";
+  }
+
+  function externalToHtml(href, label) {
+    var text = (label || "").trim() || href;
+    return '<a href="' + escapeHtml(href) + '">' + escapeHtml(text) + "</a>";
+  }
+
+  function replaceWithExternalLink(href, label, ctx) {
+    href = normalizeExternalUrl(href);
+    if (!href) return false;
+    label = (label || ctx.text || "").trim() || href;
+    var editor = ctx.editor || findEditor();
+    if (!editor) return false;
+
+    if (editor.type === "textarea" && ctx.range && ctx.range.start !== ctx.range.end) {
+      var ta = editor.el;
+      var snippet = externalToMarkdown(href, label);
+      var val = ta.value;
+      ta.value = val.slice(0, ctx.range.start) + snippet + val.slice(ctx.range.end);
+      ta.selectionStart = ta.selectionEnd = ctx.range.start + snippet.length;
+      ta.dispatchEvent(new Event("input", { bubbles: true }));
+      ta.focus();
+      return true;
+    }
+    if (editor.type === "prosemirror" && ctx.text) {
+      editor.el.focus();
+      restoreDomSelection(ctx);
+      try {
+        if (document.queryCommandSupported("createLink")) {
+          document.execCommand("createLink", false, href);
+          return true;
+        }
+      } catch (e1) {
+        /* ignore */
+      }
+      try {
+        if (document.queryCommandSupported("insertHTML")) {
+          document.execCommand("insertHTML", false, externalToHtml(href, label));
+          return true;
+        }
+      } catch (e0) {
+        /* ignore */
+      }
+    }
+    var snippet2 = editor.type === "textarea" ? externalToMarkdown(href, label) : externalToHtml(href, label);
+    editor.el.focus();
+    try {
+      document.execCommand("insertHTML", false, snippet2);
+      return true;
+    } catch (e2) {
+      return false;
+    }
+  }
+
   function expandWikiLinksInText(text, forceHtml) {
     if (!text || text.indexOf("[[") < 0) return text;
     var htmlMode = forceHtml === true || (forceHtml !== false && looksLikeHtml(text));
@@ -193,6 +261,7 @@
   }
 
   function replaceWithLink(target, label, ctx) {
+    if (isExternalUrl(target)) return replaceWithExternalLink(normalizeExternalUrl(target), label, ctx);
     target = normalizeTarget(target);
     if (!target) return false;
     label = (label || ctx.text || "").trim() || defaultLabel(target);
@@ -353,7 +422,14 @@
     var exact = exactPage(q);
     var results = searchPages(q);
     var html = "";
-    if (q && !exact) {
+    if (q && isExternalUrl(q)) {
+      html +=
+        '<div class="row active" data-target="' + escapeHtml(normalizeExternalUrl(q)) + '" data-label="' +
+        escapeHtml(q) + '" data-external="1">' +
+        '<div class="icon">↗</div><div><div class="label">外部链接</div><div class="meta">' +
+        escapeHtml(normalizeExternalUrl(q)) + "</div></div></div>";
+    }
+    if (q && !exact && !isExternalUrl(q)) {
       html +=
         '<div class="row red active" data-target="' + escapeHtml(q) + '" data-label="' + escapeHtml(q) + '">' +
         '<div class="icon">?</div><div><div class="label">' + escapeHtml(q) +
@@ -392,9 +468,9 @@
     popover.innerHTML =
       '<div class="head"><button type="button" class="close" aria-label="关闭">×</button>' +
       '<div class="title">添加链接</div><button type="button" class="done">完成</button></div>' +
-      '<div class="search"><input type="text" placeholder="搜索或新建页面…" autocomplete="off"></div>' +
+      '<div class="search"><input type="text" placeholder="Wiki 页面名，或 https:// 外部地址…" autocomplete="off"></div>' +
       '<div class="results"></div>' +
-      '<div class="hint">页面名称默认取选中文字；未发布页在前台为<span style="color:#c62828">红链</span>。</div>';
+      '<div class="hint">有选中文字时优先 Wiki 内链；输入 <code>https://</code> 为外部链接。无选中时工具栏/Ctrl+K 仍用 Halo 原生链接框。</div>';
     document.body.appendChild(popover);
 
     var input = popover.querySelector("input");
@@ -414,10 +490,14 @@
     });
 
     function finish() {
-      var target = normalizeTarget(input.value.trim() || picked.target);
-      var label = (ctx.text || picked.label || target).trim();
-      if (!target) return;
-      replaceWithLink(target, label, ctx);
+      var raw = input.value.trim() || picked.target;
+      if (!raw) return;
+      var label = (ctx.text || picked.label || raw).trim();
+      if (isExternalUrl(raw)) {
+        replaceWithExternalLink(normalizeExternalUrl(raw), label, ctx);
+      } else {
+        replaceWithLink(normalizeTarget(raw), label, ctx);
+      }
       hidePopover();
     }
     popover.querySelector(".done").addEventListener("click", finish);
@@ -505,12 +585,14 @@
 
     document.addEventListener("click", function (e) {
       if (!isNativeLinkControl(e.target)) return;
+      var ctx = getSelectionForLink();
+      if (!ctx.text) return;
       e.preventDefault();
       e.stopPropagation();
       e.stopImmediatePropagation();
       setTimeout(function () {
         hideNativeLinkPopover();
-        openLinkPopover(getSelectionForLink());
+        openLinkPopover(ctx);
       }, 0);
       return false;
     }, true);
@@ -518,10 +600,12 @@
     document.addEventListener("keydown", function (e) {
       if (!(e.ctrlKey || e.metaKey) || e.key.toLowerCase() !== "k") return;
       if (!onEditorPath()) return;
+      var ctx = getSelectionForLink();
+      if (!ctx.text) return;
       e.preventDefault();
       e.stopPropagation();
       e.stopImmediatePropagation();
-      openLinkPopover(getSelectionForLink());
+      openLinkPopover(ctx);
     }, true);
 
     var obs = new MutationObserver(function () {
@@ -639,7 +723,7 @@
     if (cfg.showSelectionBubble !== false) bindEditorListeners();
     hookNativeLinkToolbar();
     loadIndex().then(function () {
-      console.log("[rs-wikilink] 已就绪：Ctrl+K / 工具栏链环添加链接");
+      console.log("[rs-wikilink] 已就绪：有选中→Wiki/Ctrl+K；无选中→Halo 原生外部链接");
     });
   }
 
