@@ -464,7 +464,6 @@
   function openLinkPopover(ctx, anchorRect) {
     hidePopover();
     hideBubble();
-    hideNativeLinkPopover();
     ctx = getSelectionForLink();
     selectionCtx = ctx;
     var initial = ctx.text || "";
@@ -484,7 +483,7 @@
       '<div class="title">添加链接</div><button type="button" class="done">完成</button></div>' +
       '<div class="search"><input type="text" placeholder="Wiki 页面名，或 https:// 外部地址…" autocomplete="off"></div>' +
       '<div class="results"></div>' +
-      '<div class="hint">有选中文字时优先 Wiki 内链；输入 <code>https://</code> 为外部链接。点击框外或按 Esc 关闭。</div>';
+      '<div class="hint">Wiki 内链请用 <b>Ctrl+K</b>；工具栏链环为 Halo 普通/外链。输入 <code>https://</code> 可插外链。点击框外或 Esc 关闭。</div>';
     document.body.appendChild(popover);
 
     var input = popover.querySelector("input");
@@ -530,27 +529,6 @@
     input.select();
   }
 
-  function linkLabelMatches(label) {
-    label = (label || "").trim().toLowerCase();
-    if (!label) return false;
-    return (
-      /^(add link|edit link|insert link|cancel link|添加链接|修改链接|插入链接|取消链接|链接)$/.test(label) ||
-      /\b(add|edit|insert|cancel)\s+link\b/.test(label)
-    );
-  }
-
-  function buttonHasLinkIcon(btn) {
-    var svg = btn && btn.querySelector("svg");
-    if (!svg) return false;
-    var inner = (svg.innerHTML || "") + (svg.outerHTML || "");
-    // mingcute-link-line（Halo 2.25.x 链环按钮）
-    return (
-      inner.indexOf("2.828-2.829") >= 0 ||
-      inner.indexOf("2.121-2.121") >= 0 ||
-      inner.indexOf("4.377-4.1") >= 0
-    );
-  }
-
   function isNativeLinkInput(input) {
     if (!input || input.tagName !== "INPUT") return false;
     if (!onEditorPath()) return false;
@@ -561,65 +539,14 @@
     return /链接地址|link address|输入链接|enter the link/i.test(hay);
   }
 
-  function linkControlLabel(btn) {
-    return (
-      btn.getAttribute("aria-label") ||
-      btn.getAttribute("title") ||
-      btn.getAttribute("data-tooltip") ||
-      btn.getAttribute("data-tip") ||
-      btn.textContent ||
-      ""
-    )
-      .trim()
-      .toLowerCase();
-  }
-
-  function isNativeLinkControl(el) {
-    if (!el || !el.closest) return false;
-    var btn = el.closest("button, [role='button']");
-    if (!btn) return false;
-    if (
-      !btn.closest(
-        '[class*="editor"], [class*="richtext"], [class*="toolbar"], [class*="bubble"], [class*="menu"]'
-      )
-    ) {
-      return false;
-    }
-    var label = linkControlLabel(btn);
-    if (linkLabelMatches(label)) return true;
-    // Halo LinkBubbleButton：tooltip 在 vTooltip 上，按钮无 title/aria-label
-    if (buttonHasLinkIcon(btn)) return true;
-    return false;
-  }
-
-  function hideNativeLinkPopover() {
-    document.querySelectorAll("input").forEach(function (input) {
-      if (!isNativeLinkInput(input)) return;
-      var root =
-        input.closest("[data-tippy-root]") ||
-        input.closest("[class*='tippy']") ||
-        input.closest("[class*='popover']") ||
-        input.closest("[class*='bubble']") ||
-        input.closest("[role='dialog']");
-      if (root && root !== document.body && !root.contains(document.getElementById("rs-wikilink-pop"))) {
-        root.remove();
-      }
-    });
-  }
-
-  function prefillOrReplaceNative(input) {
+  function prefillNativeLinkInput(input) {
     if (!isNativeLinkInput(input) || input.closest("#rs-wikilink-pop")) return;
+    if (input.value) return;
     var ctx = getSelectionForLink();
-    var title = ctx.text || lastGoodCtx && lastGoodCtx.text || "";
-    if (title) {
-      hideNativeLinkPopover();
-      openLinkPopover(ctx);
-      return;
-    }
-    if (!input.value && title) {
-      input.value = title;
-      input.dispatchEvent(new Event("input", { bubbles: true }));
-    }
+    var title = ctx.text || (lastGoodCtx && lastGoodCtx.text) || "";
+    if (!title) return;
+    input.value = title;
+    input.dispatchEvent(new Event("input", { bubbles: true }));
   }
 
   function hookNativeLinkToolbar() {
@@ -632,20 +559,6 @@
       } else {
         rememberSelection();
       }
-    }, true);
-
-    document.addEventListener("click", function (e) {
-      if (!isNativeLinkControl(e.target)) return;
-      var ctx = getSelectionForLink();
-      if (!ctx.text) return;
-      e.preventDefault();
-      e.stopPropagation();
-      e.stopImmediatePropagation();
-      setTimeout(function () {
-        hideNativeLinkPopover();
-        openLinkPopover(ctx);
-      }, 0);
-      return false;
     }, true);
 
     document.addEventListener("keydown", function (e) {
@@ -662,7 +575,7 @@
     var obs = new MutationObserver(function () {
       if (popover) return;
       document.querySelectorAll("input").forEach(function (input) {
-        prefillOrReplaceNative(input);
+        prefillNativeLinkInput(input);
       });
     });
     obs.observe(document.body, { childList: true, subtree: true });
@@ -774,7 +687,7 @@
     if (cfg.showSelectionBubble !== false) bindEditorListeners();
     hookNativeLinkToolbar();
     loadIndex().then(function () {
-      console.log("[rs-wikilink] 已就绪：有选中→Wiki/Ctrl+K；无选中→Halo 原生外部链接");
+      console.log("[rs-wikilink] 已就绪：Ctrl+K + 选中文字 → Wiki；工具栏链环 → Halo 原生链接");
     });
   }
 
