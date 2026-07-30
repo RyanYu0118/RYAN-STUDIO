@@ -20,7 +20,7 @@
             function afterWiki() {
                 if (window.RSWikiLink && window.RSWikiLink.init) window.RSWikiLink.init();
             }
-            var WIKI_VER = "2.1";
+            var WIKI_VER = "2.2";
             var scriptsLoaded = window.__rsConsoleScriptsLoaded;
             var wikiVer = window.RSWikiLink && window.RSWikiLink.__ver;
             if (scriptsLoaded && wikiVer === WIKI_VER) {

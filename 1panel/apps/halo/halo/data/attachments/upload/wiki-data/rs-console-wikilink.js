@@ -5,7 +5,7 @@
   "use strict";
 
   window.RSWikiLink = window.RSWikiLink || {};
-  var RS_WIKILINK_VER = "2.1";
+  var RS_WIKILINK_VER = "2.2";
   if (window.RSWikiLink.__ver === RS_WIKILINK_VER) {
     return;
   }
@@ -562,40 +562,58 @@
     return /cancel link|取消链接|open link|打开链接|nofollow|在新窗口|new window/.test(label);
   }
 
-  function buttonHasLinkIcon(btn) {
-    if (buttonHasUnlinkIcon(btn)) return false;
-    var svg = btn && btn.querySelector("svg");
-    if (!svg) return false;
-    var inner = (svg.innerHTML || "") + (svg.outerHTML || "");
-    return inner.indexOf("2.828-2.829") >= 0 && inner.indexOf("10.232") < 0;
-  }
-
-  function isWikiLinkTrigger(el) {
+  function isLinkBubbleInsertButton(el) {
     if (!onEditorPath() || !el || !el.closest) return false;
-    var btn = el.closest("button, [role='button']");
+    var btn = el.closest("button");
     if (!btn) return false;
     if (isSecondaryLinkAction(btn) || buttonHasUnlinkIcon(btn)) return false;
-    if (!buttonHasLinkIcon(btn)) return false;
-    // Halo LinkBubbleButton：VDropdown.inline-flex > 链环 button
-    if (btn.closest(".inline-flex")) return true;
-    if (btn.closest(".bubble-menu")) return true;
-    return btn.closest(
-      '[class*="editor"], [class*="richtext"], [class*="toolbar"]'
-    );
+    var menu = btn.closest(".bubble-menu");
+    if (menu && btn.closest(".inline-flex")) return true;
+    return false;
+  }
+
+  function closeNativeLinkPanel(input) {
+    if (!input) return;
+    var panel = input.closest("[class*='w-96']") || input.closest(".relative");
+    var popper =
+      (panel && (panel.closest("[data-popper-placement]") || panel.closest("[class*='popper']"))) ||
+      input.closest("[data-popper-placement]");
+    if (popper && popper.parentElement) {
+      popper.parentElement.removeChild(popper);
+    }
   }
 
   function openWikiFromTrigger(e) {
     rememberSelection(captureSelection());
     var sel = getSelectionTextForWiki();
-    if (!sel.text) {
-      console.warn("[rs-wikilink] 请先选中文字再添加 Wiki 链接");
-      return;
+    if (!sel.text) return false;
+    window.RSWikiLink.__wantWikiPopover = true;
+    if (e && e.preventDefault) {
+      e.preventDefault();
+      e.stopPropagation();
+      e.stopImmediatePropagation();
     }
-    e.preventDefault();
-    e.stopPropagation();
-    e.stopImmediatePropagation();
     setTimeout(function () {
       openLinkPopover(sel.ctx);
+    }, 0);
+    return true;
+  }
+
+  function tryReplaceNativeLinkWithWiki(input) {
+    if (!isNativeLinkInput(input) || input.closest("#rs-wikilink-pop") || popover) return;
+    var sel = getSelectionTextForWiki();
+    if (!sel.text) {
+      prefillNativeLinkInput(input);
+      return;
+    }
+    if (!window.RSWikiLink.__wantWikiPopover) {
+      prefillNativeLinkInput(input);
+      return;
+    }
+    window.RSWikiLink.__wantWikiPopover = false;
+    closeNativeLinkPanel(input);
+    setTimeout(function () {
+      if (!popover) openLinkPopover(sel.ctx);
     }, 0);
   }
 
@@ -624,15 +642,26 @@
     window.RSWikiLink.__nativeHooked = true;
 
     document.addEventListener("mousedown", function (e) {
-      if (isWikiLinkTrigger(e.target)) {
-        openWikiFromTrigger(e);
-        return;
+      if (isLinkBubbleInsertButton(e.target)) {
+        var sel = getSelectionTextForWiki();
+        rememberSelection(captureSelection());
+        if (sel.text) {
+          openWikiFromTrigger(e);
+          return;
+        }
       }
       if (findEditor() && findEditor().el && findEditor().el.contains(e.target)) {
         rememberSelection(captureSelection());
       } else {
         rememberSelection();
       }
+    }, true);
+
+    document.addEventListener("click", function (e) {
+      if (!isLinkBubbleInsertButton(e.target)) return;
+      var sel = getSelectionTextForWiki();
+      if (!sel.text) return;
+      openWikiFromTrigger(e);
     }, true);
 
     document.addEventListener("keydown", function (e) {
@@ -650,7 +679,7 @@
     var obs = new MutationObserver(function () {
       if (popover) return;
       document.querySelectorAll("input").forEach(function (input) {
-        prefillNativeLinkInput(input);
+        tryReplaceNativeLinkWithWiki(input);
       });
     });
     obs.observe(document.body, { childList: true, subtree: true });
