@@ -13,12 +13,31 @@
             s.onerror = function () { console.error("❌ 控制台脚本加载失败:", url); if (cb) cb(); };
             document.head.appendChild(s);
         }
-        loadConsoleScript("/upload/wiki-data/rs-config.js", function () {
-            loadConsoleScript("/upload/wiki-data/rs-console-publish-redirect.js?v=1.0");
-            if (location.pathname.indexOf("/console/posts/editor") >= 0) {
-                loadConsoleScript("/upload/wiki-data/rs-console-wikilink.js?v=1.2");
+        function isEditorPath() {
+            return location.pathname.indexOf("/console/posts/editor") >= 0;
+        }
+        function bootConsoleWiki() {
+            function afterWiki() {
+                if (window.RSWikiLink && window.RSWikiLink.init) window.RSWikiLink.init();
             }
-        });
+            if (window.__rsConsoleScriptsLoaded) {
+                afterWiki();
+                return;
+            }
+            window.__rsConsoleScriptsLoaded = true;
+            loadConsoleScript("/upload/wiki-data/rs-config.js", function () {
+                loadConsoleScript("/upload/wiki-data/rs-console-publish-redirect.js?v=1.0");
+                loadConsoleScript("/upload/wiki-data/rs-console-wikilink.js?v=1.3", afterWiki);
+            });
+        }
+        bootConsoleWiki();
+        var lastRoute = location.pathname + location.search;
+        setInterval(function () {
+            var now = location.pathname + location.search;
+            if (now === lastRoute) return;
+            lastRoute = now;
+            if (isEditorPath()) bootConsoleWiki();
+        }, 800);
         return;
     }
 
