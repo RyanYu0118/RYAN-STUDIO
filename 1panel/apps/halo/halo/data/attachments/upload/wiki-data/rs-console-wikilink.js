@@ -530,19 +530,35 @@
     input.select();
   }
 
+  function linkLabelMatches(label) {
+    label = (label || "").trim().toLowerCase();
+    if (!label) return false;
+    return (
+      /^(add link|edit link|insert link|cancel link|添加链接|修改链接|插入链接|取消链接|链接)$/.test(label) ||
+      /\b(add|edit|insert|cancel)\s+link\b/.test(label)
+    );
+  }
+
+  function buttonHasLinkIcon(btn) {
+    var svg = btn && btn.querySelector("svg");
+    if (!svg) return false;
+    var inner = (svg.innerHTML || "") + (svg.outerHTML || "");
+    // mingcute-link-line（Halo 2.25.x 链环按钮）
+    return (
+      inner.indexOf("2.828-2.829") >= 0 ||
+      inner.indexOf("2.121-2.121") >= 0 ||
+      inner.indexOf("4.377-4.1") >= 0
+    );
+  }
+
   function isNativeLinkInput(input) {
     if (!input || input.tagName !== "INPUT") return false;
-    if (
-      !input.closest(
-        '[class*="editor"], [class*="richtext"], [class*="bubble"], [class*="toolbar"], [data-tippy-root], [class*="tippy"]'
-      )
-    ) {
-      return false;
-    }
+    if (!onEditorPath()) return false;
+    if (input.closest("#rs-wikilink-pop")) return false;
     var ph = (input.getAttribute("placeholder") || "").toLowerCase();
     var aria = (input.getAttribute("aria-label") || "").toLowerCase();
     var hay = ph + " " + aria;
-    return /链接地址|link address/.test(hay);
+    return /链接地址|link address|输入链接|enter the link/i.test(hay);
   }
 
   function linkControlLabel(btn) {
@@ -570,10 +586,10 @@
       return false;
     }
     var label = linkControlLabel(btn);
-    if (!label) return false;
-    return /^(add link|edit link|insert link|cancel link|添加链接|修改链接|插入链接|取消链接|链接)$/.test(
-      label
-    ) || /\b(add|edit|insert|cancel)\s+link\b/.test(label);
+    if (linkLabelMatches(label)) return true;
+    // Halo LinkBubbleButton：tooltip 在 vTooltip 上，按钮无 title/aria-label
+    if (buttonHasLinkIcon(btn)) return true;
+    return false;
   }
 
   function hideNativeLinkPopover() {
