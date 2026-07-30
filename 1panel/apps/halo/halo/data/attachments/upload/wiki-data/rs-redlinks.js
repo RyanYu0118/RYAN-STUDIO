@@ -311,7 +311,7 @@
       if (!slug) return;
       a.setAttribute("data-rs-wiki-slug", slug);
       a.classList.add("rs-wiki-redlink");
-      a.setAttribute("title", "尚未发布 · 点击将先发布并打开该页");
+      a.setAttribute("title", "尚未发布 · 点击发布并打开（Shift+点击 跳过确认）");
       a.setAttribute("href", PATH_PREFIX + slug);
     });
   }
@@ -583,30 +583,36 @@
         window.location.href = PATH_PREFIX + st.postSlug;
         return;
       }
-      startRedlinkCreate(a, slug);
+      startRedlinkCreate(a, slug, !!(e && e.shiftKey));
     });
   }
 
-  function startRedlinkCreate(a, slug) {
+  function shouldSkipRedlinkConfirm(shiftKey) {
+    return cfg.skipConfirm === true || shiftKey === true;
+  }
+
+  function startRedlinkCreate(a, slug, shiftKey) {
     var title = linkTitle(a);
     var sourceSlug = parseArchivesSlug(location.pathname);
     var postName = crypto.randomUUID();
 
     resolvePublishSlugUnique(slug, postName, title).then(function (resolved) {
       var publishSlug = resolved.publishSlug;
-      if (
-        !window.confirm(
-          "条目「" +
-            title +
-            "」尚未发布。\n\n将继承当前页的分类、标签与封面，" +
-            "新建文章并以别名 `" +
-            publishSlug +
-            "` 作为地址（链接目标 `" +
-            slug +
-            "` 写入注解），发布后在当前页打开？"
-        )
-      ) {
-        return;
+      if (!shouldSkipRedlinkConfirm(shiftKey)) {
+        if (
+          !window.confirm(
+            "条目「" +
+              title +
+              "」尚未发布。\n\n将继承当前页的分类、标签与封面，" +
+              "新建文章并以别名 `" +
+              publishSlug +
+              "` 作为地址（链接目标 `" +
+              slug +
+              "` 写入注解），发布后在当前页打开？\n\n（按住 Shift 再点可跳过本确认）"
+          )
+        ) {
+          return;
+        }
       }
       a.classList.add("rs-wiki-redlink--pending");
 
@@ -677,7 +683,7 @@
               a.setAttribute("href", PATH_PREFIX + r.linkTarget);
               a.classList.add("rs-wiki-redlink");
               a.removeAttribute("data-rs-wiki-post-slug");
-              a.setAttribute("title", "尚未发布 · 点击将先发布并打开该页");
+              a.setAttribute("title", "尚未发布 · 点击发布并打开（Shift+点击 跳过确认）");
             }
           });
         });

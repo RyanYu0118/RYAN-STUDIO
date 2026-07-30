@@ -36,6 +36,8 @@ window.RSConfig = {
         pathPrefix: "/archives/",
         cacheMs: 900000,
         createOnClick: true,
+        /** true = 普通点击也不弹确认；Shift+点击 始终跳过确认 */
+        skipConfirm: false,
         publishFirst: true,
         /** 红链新建 spec.slug：mcwws_ + 链接目标英文路径（player/rules → mcwws_player_rules） */
         slugPrefix: "mcwws_",
