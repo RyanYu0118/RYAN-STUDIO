@@ -6,7 +6,7 @@
 
   if (location.pathname.indexOf("/console") !== 0) return;
 
-  var RS_PUBLISH_REDIRECT_VER = "1.2";
+  var RS_PUBLISH_REDIRECT_VER = "1.3";
   if (window.RSPublishRedirect && window.RSPublishRedirect.__ver === RS_PUBLISH_REDIRECT_VER) {
     return;
   }
@@ -58,6 +58,9 @@
     if (navGuardTimer) {
       clearInterval(navGuardTimer);
       navGuardTimer = null;
+    }
+    if (window.RSEditScroll && window.RSEditScroll.saveReturnContext) {
+      window.RSEditScroll.saveReturnContext(lastPublishedPostName, slug);
     }
     window.location.replace(archivesPathFromSlug(slug));
   }
@@ -227,5 +230,5 @@
     if (bootName) lastPublishedPostName = bootName;
   }
 
-  console.log("[rs-publish-redirect] v" + RS_PUBLISH_REDIRECT_VER + " 已就绪：发布后跳转 /archives/{slug}");
+  console.log("[rs-publish-redirect] v" + RS_PUBLISH_REDIRECT_VER + " 已就绪：发布后跳转 /archives/{slug} 并恢复浏览位置");
 })();

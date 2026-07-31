@@ -7,10 +7,11 @@
 
   if (location.pathname.indexOf("/console/posts/editor") < 0) return;
 
-  var RS_EDIT_SCROLL_VER = "1.0.0";
+  var RS_EDIT_SCROLL_VER = "1.1.0";
   if (window.RSEditScroll && window.RSEditScroll.__ver === RS_EDIT_SCROLL_VER) return;
 
   var STORAGE_KEY = "rs-edit-scroll-context";
+  var RETURN_KEY = "rs-return-scroll-context";
   var cfg = (window.RSConfig && window.RSConfig.editScroll) || {};
   var RETRY_MS = Array.isArray(cfg.retryMs)
     ? cfg.retryMs
@@ -45,6 +46,160 @@
     } catch (e1) {
       /* ignore */
     }
+  }
+
+  function readStored(key) {
+    try {
+      var raw = sessionStorage.getItem(key);
+      if (!raw) return null;
+      return JSON.parse(raw);
+    } catch (e2) {
+      return null;
+    }
+  }
+
+  function writeReturnContext(payload) {
+    try {
+      sessionStorage.setItem(RETURN_KEY, JSON.stringify(payload));
+    } catch (e3) {
+      /* ignore */
+    }
+  }
+
+  function preserveReturnContext() {
+    var data = readStored(STORAGE_KEY);
+    if (data && data.ctx) writeReturnContext(data);
+    clearContext();
+  }
+
+  function pushNeedle(list, seen, n) {
+    if (!n || seen[n]) return;
+    seen[n] = true;
+    list.push(n);
+  }
+
+  function collectNeedlesFromEl(el, root) {
+    var out = [];
+    var seen = {};
+    var cur = el;
+    while (cur && cur !== root && cur !== document.body) {
+      if (cur.id) {
+        pushNeedle(out, seen, 'id="' + cur.id + '"');
+        pushNeedle(out, seen, cur.id);
+      }
+      var cls = cur.className;
+      if (typeof cls === "string" && cls.trim()) {
+        cls.trim().split(/\s+/).forEach(function (c) {
+          if (!c || c.length < 3) return;
+          pushNeedle(out, seen, c);
+          pushNeedle(out, seen, "." + c);
+        });
+      }
+      if (cur === el) {
+        var direct = (cur.textContent || "").replace(/\s+/g, " ").trim();
+        if (direct.length >= 4 && direct.length <= 80) pushNeedle(out, seen, direct);
+      }
+      cur = cur.parentElement;
+    }
+    return out;
+  }
+
+  function captureEditorReturnContext() {
+    var pm = document.querySelector(".ProseMirror");
+    if (!pm) return null;
+    var vh = window.innerHeight || 800;
+    var vw = window.innerWidth || 1200;
+    var anchorY = vh * 0.42;
+    var x = Math.max(0, Math.min(vw - 1, vw * 0.5));
+    var el = document.elementFromPoint(x, anchorY);
+    while (el && el !== pm && el !== document.body && !pm.contains(el)) {
+      el = el.parentElement;
+    }
+    if (!el || !pm.contains(el)) el = pm;
+
+    var needles = collectNeedlesFromEl(el, pm);
+    var headingId = "";
+    var cur = el;
+    while (cur && cur !== pm) {
+      var tag = cur.tagName ? cur.tagName.toUpperCase() : "";
+      if (/^H[1-6]$/.test(tag) && cur.id) {
+        headingId = cur.id;
+        break;
+      }
+      cur = cur.parentElement;
+    }
+
+    var blockSig = "";
+    var htmlEditedIdx = -1;
+    var blockRoots = findHtmlBlockRoots(pm);
+    var blockRoot = el.closest ? el.closest(".rs-html-block-root") : null;
+    if (blockRoot) {
+      htmlEditedIdx = blockRoots.indexOf(blockRoot);
+      var iframe = blockRoot.querySelector("[data-rs-html-iframe]");
+      try {
+        if (iframe && iframe.contentDocument && iframe.contentDocument.body) {
+          var idoc = iframe.contentDocument;
+          var marker = idoc.elementFromPoint(
+            Math.max(0, Math.min(iframe.clientWidth - 1, iframe.clientWidth * 0.5)),
+            Math.max(0, Math.min(iframe.clientHeight - 1, iframe.clientHeight * 0.42))
+          );
+          if (marker && marker.id) blockSig = marker.id;
+          if (!blockSig && marker) {
+            var m = String(marker.className || "").match(/wd-smart-card|wws-wb-card|nav-quote-box/);
+            if (m) blockSig = m[0];
+          }
+        }
+      } catch (e4) {
+        /* ignore */
+      }
+    }
+
+    var blockRatio = 0;
+    if (blockRoot) {
+      var bRect = blockRoot.getBoundingClientRect();
+      blockRatio = (anchorY - bRect.top) / Math.max(1, bRect.height);
+      blockRatio = Math.min(1, Math.max(0, blockRatio));
+    }
+
+    var container = findScrollContainer(pm);
+    var ratio = container.scrollTop / Math.max(1, container.scrollHeight - container.clientHeight);
+    ratio = Math.min(1, Math.max(0, ratio));
+
+    return {
+      scrollY: window.pageYOffset,
+      ratio: ratio,
+      blockRatio: blockRatio,
+      needles: needles,
+      headingId: headingId,
+      htmlEditedIdx: htmlEditedIdx,
+      blockSig: blockSig,
+      path: location.pathname,
+      ts: Date.now(),
+      source: "editor",
+    };
+  }
+
+  function saveReturnContext(postName, slug) {
+    var postId = postName || editorPostName();
+    var ctx = captureEditorReturnContext();
+    if (!ctx) {
+      var existing = readStored(RETURN_KEY) || readStored(STORAGE_KEY);
+      if (existing && existing.ctx) {
+        writeReturnContext({
+          postId: postId || existing.postId,
+          slug: slug || existing.slug,
+          ctx: existing.ctx,
+          ts: Date.now(),
+        });
+      }
+      return;
+    }
+    writeReturnContext({
+      postId: postId,
+      slug: slug || "",
+      ctx: ctx,
+      ts: Date.now(),
+    });
   }
 
   function cssEscape(id) {
@@ -203,15 +358,16 @@
     if (!ctx) return;
     if (!applyScroll(ctx)) return;
     applied = true;
-    clearContext();
+    preserveReturnContext();
     if (cfg.debug) console.log("[rs-edit-scroll] applied", ctx);
   }
 
   window.RSEditScroll.tryApply = tryApply;
+  window.RSEditScroll.saveReturnContext = saveReturnContext;
 
   RETRY_MS.forEach(function (ms) {
     setTimeout(tryApply, ms);
   });
 
-  console.log("[rs-edit-scroll] v" + RS_EDIT_SCROLL_VER + " 已就绪：前台浏览位置 → 编辑器定位");
+  console.log("[rs-edit-scroll] v" + RS_EDIT_SCROLL_VER + " 已就绪：前台浏览位置 ↔ 编辑器/发布后定位");
 })();
