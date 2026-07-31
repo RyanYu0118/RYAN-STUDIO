@@ -7,7 +7,7 @@
 
   if (location.pathname.indexOf("/console/posts/editor") < 0) return;
 
-  var RS_EDIT_SCROLL_VER = "1.1.1";
+  var RS_EDIT_SCROLL_VER = "1.1.2";
   if (window.RSEditScroll && window.RSEditScroll.__ver === RS_EDIT_SCROLL_VER) return;
 
   var STORAGE_KEY = "rs-edit-scroll-context";
@@ -18,8 +18,12 @@
     : [0, 200, 500, 1000, 1800, 3000, 5000, 8000, 12000];
   var MAX_AGE_MS = typeof cfg.maxAgeMs === "number" ? cfg.maxAgeMs : 600000;
 
-  function getExtraOffset() {
-    return typeof cfg.extraOffset === "number" ? cfg.extraOffset : 80;
+  function getAnchorScrollOffset() {
+    var anchorCfg = (window.RSConfig && window.RSConfig.anchorScroll) || {};
+    var extraGap = typeof anchorCfg.extraGap === "number" ? anchorCfg.extraGap : 8;
+    var navFallback = typeof anchorCfg.navFallback === "number" ? anchorCfg.navFallback : 80;
+    var nav = document.getElementById("navbar");
+    return (nav ? nav.getBoundingClientRect().height : navFallback) + extraGap;
   }
 
   window.RSEditScroll = { __ver: RS_EDIT_SCROLL_VER, tryApply: null };
@@ -234,13 +238,13 @@
       /* ignore */
     }
     var rect = el.getBoundingClientRect();
-    var extra = getExtraOffset();
-    var y = rect.top + window.pageYOffset - window.innerHeight * 0.38 - extra;
+    var offset = getAnchorScrollOffset();
+    var y = rect.top + window.pageYOffset - offset;
     window.scrollTo({ top: Math.max(0, y), behavior: "auto" });
     var container = findScrollContainer(el);
     if (container && container !== document.documentElement && container !== document.body) {
       var cRect = container.getBoundingClientRect();
-      var innerY = rect.top - cRect.top + container.scrollTop - container.clientHeight * 0.38 - extra;
+      var innerY = rect.top - cRect.top + container.scrollTop - offset;
       container.scrollTop = Math.max(0, innerY);
     }
   }

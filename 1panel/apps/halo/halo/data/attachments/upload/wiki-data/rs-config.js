@@ -17,18 +17,18 @@ window.RSConfig = {
     },
 
     // 📍 锚点 / 目录跳转（配合 theme-fluid tocbot，统一顶栏偏移）
+    // 偏移量 = 顶栏高度（默认 80）+ extraGap（默认 8）→ 约 88px
     anchorScroll: {
+        navFallback: 80,
         extraGap: 8,
         loadRetryMs: [0, 120, 400, 800, 1500, 3000, 5000]
     },
 
-    // 🎯 前台快速编辑 → 后台编辑器滚动定位（见 rs-console-edit-scroll.js）
+    // 🎯 前台快速编辑 → 后台编辑器滚动定位（偏移与 anchorScroll 一致）
     editScroll: {
         retryMs: [0, 200, 500, 1000, 1800, 3000, 5000, 8000, 12000],
         archiveRetryMs: [0, 120, 400, 800, 1500, 3000, 5000, 8000, 12000],
-        maxAgeMs: 600000,
-        /** 定位后再下移，避免被 Halo 顶栏挡住 */
-        extraOffset: 80
+        maxAgeMs: 600000
     },
 
     // 📖 Wiki 页（rs-loader 根据 urlIncludes 加载 rs-wiki.js）

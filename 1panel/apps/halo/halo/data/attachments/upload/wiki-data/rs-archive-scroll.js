@@ -8,7 +8,7 @@
   var PATH_PREFIX = "/archives/";
   if (location.pathname.indexOf(PATH_PREFIX) !== 0) return;
 
-  var RS_ARCHIVE_SCROLL_VER = "1.0.1";
+  var RS_ARCHIVE_SCROLL_VER = "1.0.2";
   if (window.RSArchiveScroll && window.RSArchiveScroll.__ver === RS_ARCHIVE_SCROLL_VER) return;
 
   var RETURN_KEY = "rs-return-scroll-context";
@@ -62,16 +62,11 @@
     if (window.RSAnchorScroll && window.RSAnchorScroll.getScrollOffset) {
       return window.RSAnchorScroll.getScrollOffset();
     }
+    var anchorCfg = (window.RSConfig && window.RSConfig.anchorScroll) || {};
+    var extraGap = typeof anchorCfg.extraGap === "number" ? anchorCfg.extraGap : 8;
+    var navFallback = typeof anchorCfg.navFallback === "number" ? anchorCfg.navFallback : 80;
     var nav = document.getElementById("navbar");
-    return (nav ? nav.getBoundingClientRect().height : 80) + 8;
-  }
-
-  function getExtraOffset() {
-    return typeof cfg.extraOffset === "number" ? cfg.extraOffset : 80;
-  }
-
-  function getLocateOffset() {
-    return getScrollOffset() + getExtraOffset();
+    return (nav ? nav.getBoundingClientRect().height : navFallback) + extraGap;
   }
 
   function scrollToY(y, behavior) {
@@ -80,7 +75,12 @@
 
   function scrollElementWithOffset(el, blockRatio) {
     if (!el) return false;
-    var offset = getLocateOffset();
+    if (blockRatio == null || blockRatio <= 0) {
+      if (window.RSAnchorScroll && window.RSAnchorScroll.scrollToElement) {
+        return window.RSAnchorScroll.scrollToElement(el, "auto");
+      }
+    }
+    var offset = getScrollOffset();
     var rect = el.getBoundingClientRect();
     var top = rect.top + window.pageYOffset - offset;
     if (blockRatio != null && blockRatio > 0) {
@@ -143,7 +143,7 @@
     var max = Math.max(0, body.scrollHeight - vh * 0.5);
     if (max <= 8) return false;
     var bodyTop = body.getBoundingClientRect().top + window.pageYOffset;
-    scrollToY(bodyTop + (ctx.ratio || 0) * max - getLocateOffset() * 0.5, "auto");
+    scrollToY(bodyTop + (ctx.ratio || 0) * max - getScrollOffset() * 0.5, "auto");
     return true;
   }
 
@@ -153,11 +153,8 @@
     if (!body || !ctx) return false;
     if ((body.textContent || "").replace(/\s+/g, "").length < 8) return false;
 
-    if (ctx.headingId) {
-      var heading = document.getElementById(ctx.headingId);
-      if (heading && body.contains(heading)) {
-        return scrollElementWithOffset(heading, null);
-      }
+    if (ctx.headingId && window.RSAnchorScroll && window.RSAnchorScroll.scrollToId) {
+      if (window.RSAnchorScroll.scrollToId(ctx.headingId, "auto")) return true;
     }
 
     var target = findArchiveTarget(ctx, body);

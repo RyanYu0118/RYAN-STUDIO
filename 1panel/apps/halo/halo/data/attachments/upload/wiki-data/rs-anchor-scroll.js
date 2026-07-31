@@ -7,6 +7,7 @@
 
     var cfg = (window.RSConfig && window.RSConfig.anchorScroll) || {};
     var EXTRA_GAP = typeof cfg.extraGap === 'number' ? cfg.extraGap : 8;
+    var NAV_FALLBACK = typeof cfg.navFallback === 'number' ? cfg.navFallback : 80;
     var RETRY_MS = Array.isArray(cfg.loadRetryMs)
         ? cfg.loadRetryMs
         : [0, 120, 400, 800, 1500, 3000, 5000];
@@ -14,7 +15,7 @@
     function getNavHeight() {
         var nav = document.getElementById('navbar');
         if (!nav) {
-            return 80;
+            return NAV_FALLBACK;
         }
         return nav.getBoundingClientRect().height;
     }
