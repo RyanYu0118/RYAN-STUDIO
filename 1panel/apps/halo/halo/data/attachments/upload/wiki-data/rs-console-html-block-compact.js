@@ -1,13 +1,13 @@
 /* =======================================================
    RS Console — HTML 编辑块默认预览高度（hybrid-edit-block）
-   默认退出分屏仅显示渲染预览；点「编辑」/「分屏」可正常写代码
+   默认仅渲染预览；编辑/分屏时代码区限高滚动
    ======================================================= */
 (function () {
   "use strict";
 
   if (location.pathname.indexOf("/console/posts/editor") < 0) return;
 
-  var RS_HTML_BLOCK_VER = "1.2";
+  var RS_HTML_BLOCK_VER = "1.3";
   if (window.RSHtmlBlockCompact && window.RSHtmlBlockCompact.__ver === RS_HTML_BLOCK_VER) {
     return;
   }
@@ -25,13 +25,19 @@
   function injectStyles() {
     if (styleInjected) return;
     styleInjected = true;
+    var h = EDIT_MAX_HEIGHT;
     var css =
-      ".ProseMirror .rs-html-block-root > div:last-child{min-height:0!important;height:auto!important}" +
+      ".ProseMirror .rs-html-block-root > div:last-child{min-height:0!important;height:auto!important;max-height:none!important}" +
       ".ProseMirror .rs-html-block-root .html-edited,.ProseMirror .rs-html-block-root .markdown-edited{min-height:0!important}" +
+      ".ProseMirror .rs-html-block-root div:has(> .cm-editor){max-height:" +
+      h +
+      "!important;min-height:0!important;overflow:hidden!important;flex:1 1 auto!important}" +
       ".ProseMirror .rs-html-block-root .cm-editor{max-height:" +
-      EDIT_MAX_HEIGHT +
-      "!important;height:auto!important;flex:none!important}" +
-      ".ProseMirror .rs-html-block-root .cm-editor .cm-scroller{overflow:auto!important;max-height:inherit!important}";
+      h +
+      "!important;height:" +
+      h +
+      "!important;min-height:8em!important;flex:none!important;display:flex!important;flex-direction:column!important}" +
+      ".ProseMirror .rs-html-block-root .cm-editor .cm-scroller{flex:1 1 auto!important;min-height:0!important;overflow:auto!important;max-height:100%!important}";
     var tag = document.createElement("style");
     tag.id = "rs-html-block-compact-style";
     tag.textContent = css;
@@ -109,12 +115,13 @@
     return false;
   }
 
-  function isCodeEditing(root) {
+  /** 仅「编辑」态：工具栏显示「预览」（分屏时左侧有 cm 但不算纯编辑态） */
+  function isEditOnlyMode(root) {
     var nodes = root.querySelectorAll("button, [role='button']");
     for (var i = 0; i < nodes.length; i++) {
       if (normText(nodes[i]) === "预览") return true;
     }
-    return !!root.querySelector(".cm-editor");
+    return false;
   }
 
   function allowEditing(root) {
@@ -131,7 +138,6 @@
   function shouldSkipCompact(root) {
     if (!root) return true;
     if (root.dataset.rsHtmlCompact === "off") return true;
-    if (isCodeEditing(root)) return true;
     if (root.querySelector(".cm-editor.cm-focused")) return true;
     return false;
   }
@@ -139,7 +145,11 @@
   function compactBlock(root) {
     if (shouldSkipCompact(root)) return;
     root.classList.add("rs-html-block-root");
-    if (isSplitMode(root)) clickByLabels(root, ["退出分屏"]);
+    if (isSplitMode(root)) {
+      clickByLabels(root, ["退出分屏"]);
+    } else if (isEditOnlyMode(root)) {
+      clickByLabels(root, ["预览"]);
+    }
     root.dataset.rsHtmlCompact = "1";
   }
 
@@ -161,6 +171,7 @@
         if (!btn) return;
         var root = findBlockFromTarget(pm, btn);
         if (!root) return;
+        root.classList.add("rs-html-block-root");
         var t = normText(btn);
         if (t === "编辑" || t === "分屏") allowEditing(root);
         if (t === "预览" || t === "退出分屏") allowPreview(root);
@@ -191,8 +202,7 @@
       });
       if (lastSelected && lastSelected !== selected && lastSelected.dataset.rsHtmlCompact !== "off") {
         setTimeout(function () {
-          if (isCodeEditing(lastSelected)) clickByLabels(lastSelected, ["预览"]);
-          else if (isSplitMode(lastSelected)) clickByLabels(lastSelected, ["退出分屏"]);
+          compactBlock(lastSelected);
         }, 0);
       }
       lastSelected = selected;
@@ -226,6 +236,6 @@
   console.log(
     "[rs-html-block-compact] v" +
       RS_HTML_BLOCK_VER +
-      " 已就绪：默认预览高度；点「编辑」或「分屏」写代码"
+      " 已就绪：默认预览；编辑时代码限高滚动"
   );
 })();
