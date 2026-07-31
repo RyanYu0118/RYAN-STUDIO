@@ -6,7 +6,7 @@
 
   if (location.pathname.indexOf("/console") !== 0) return;
 
-  var RS_PUBLISH_REDIRECT_VER = "1.1";
+  var RS_PUBLISH_REDIRECT_VER = "1.2";
   if (window.RSPublishRedirect && window.RSPublishRedirect.__ver === RS_PUBLISH_REDIRECT_VER) {
     return;
   }
@@ -19,6 +19,7 @@
   var redirecting = false;
   var publishArmedUntil = 0;
   var lastPublishedPostName = null;
+  var navGuardTimer = null;
 
   function onEditorPage() {
     return location.pathname.indexOf("/console/posts/editor") >= 0;
@@ -46,11 +47,23 @@
     return headers;
   }
 
+  function archivesPathFromSlug(slug) {
+    return PATH_PREFIX + encodeURIComponent(String(slug)).replace(/%2F/g, "/");
+  }
+
   function goToArchivesSlug(slug) {
     if (!slug || redirecting) return;
     redirecting = true;
     publishArmedUntil = 0;
-    window.location.replace(PATH_PREFIX + encodeURIComponent(slug).replace(/%2F/g, "/"));
+    if (navGuardTimer) {
+      clearInterval(navGuardTimer);
+      navGuardTimer = null;
+    }
+    window.location.replace(archivesPathFromSlug(slug));
+  }
+
+  function slugFromPostJson(data) {
+    return data && data.spec && data.spec.slug;
   }
 
   function fetchPostSlug(postName, cb) {
@@ -69,8 +82,7 @@
           return r.json();
         })
         .then(function (post) {
-          var slug = post && post.spec && post.spec.slug;
-          cb(slug || null);
+          cb(slugFromPostJson(post) || null);
         })
         .catch(function () {
           tryNext(i + 1);
@@ -79,16 +91,18 @@
     tryNext(0);
   }
 
-  function redirectToPublicPost(postName) {
+  function finishPublishRedirect(postName, slugHint) {
     if (!postName || redirecting) return;
     lastPublishedPostName = postName;
-    publishArmedUntil = Date.now() + 12000;
+    publishArmedUntil = Date.now() + 15000;
+    startNavGuard();
+    if (slugHint) {
+      goToArchivesSlug(slugHint);
+      return;
+    }
     fetchPostSlug(postName, function (slug) {
-      if (slug) {
-        goToArchivesSlug(slug);
-        return;
-      }
-      redirecting = false;
+      if (slug) goToArchivesSlug(slug);
+      else redirecting = false;
     });
   }
 
@@ -101,19 +115,27 @@
     return decodeURIComponent(m[1]);
   }
 
-  function maybePublishRedirect(url, method, ok) {
-    if (!ok) return;
-    var postName = extractPublishPostName(url, method);
-    if (postName) redirectToPublicPost(postName);
-  }
-
   function shouldBlockConsoleNav(url) {
     if (!publishArmedUntil || Date.now() > publishArmedUntil) return false;
     if (!lastPublishedPostName) return false;
     var s = String(url || "");
-    if (!s) return false;
-    if (s.indexOf("/archives/") >= 0) return false;
+    if (!s || s.indexOf("/archives/") >= 0) return false;
     return s.indexOf("/console/posts") >= 0 && s.indexOf("/console/posts/editor") < 0;
+  }
+
+  function onPathMaybeLeaveEditor() {
+    if (!publishArmedUntil || Date.now() > publishArmedUntil || redirecting) return;
+    if (!lastPublishedPostName) return;
+    var p = location.pathname;
+    if (p.indexOf("/console/posts/editor") >= 0) return;
+    if (p === "/console/posts" || p.indexOf("/console/posts/") === 0) {
+      finishPublishRedirect(lastPublishedPostName, null);
+    }
+  }
+
+  function startNavGuard() {
+    if (navGuardTimer) return;
+    navGuardTimer = setInterval(onPathMaybeLeaveEditor, 120);
   }
 
   function hookHistory() {
@@ -122,34 +144,32 @@
       var orig = history[method];
       history[method] = function (_state, _title, url) {
         if (shouldBlockConsoleNav(url)) {
-          redirectToPublicPost(lastPublishedPostName);
+          finishPublishRedirect(lastPublishedPostName, null);
           return;
         }
-        return orig.apply(this, arguments);
+        var ret = orig.apply(this, arguments);
+        setTimeout(onPathMaybeLeaveEditor, 0);
+        return ret;
       };
+    });
+    window.addEventListener("popstate", function () {
+      setTimeout(onPathMaybeLeaveEditor, 0);
     });
     history.__rsPublishHook = true;
   }
 
-  function hookLocationAssign() {
-    if (window.__rsPublishLocationHook) return;
-    var origAssign = window.location.assign.bind(window.location);
-    var origReplace = window.location.replace.bind(window.location);
-    window.location.assign = function (url) {
-      if (shouldBlockConsoleNav(url)) {
-        redirectToPublicPost(lastPublishedPostName);
-        return;
+  function handlePublishResponse(postName, responseBody) {
+    if (!postName) return;
+    var slug = null;
+    if (responseBody) {
+      try {
+        var data = typeof responseBody === "string" ? JSON.parse(responseBody) : responseBody;
+        slug = slugFromPostJson(data);
+      } catch (e) {
+        /* ignore */
       }
-      return origAssign(url);
-    };
-    window.location.replace = function (url) {
-      if (shouldBlockConsoleNav(url) && String(url).indexOf("/archives/") < 0) {
-        redirectToPublicPost(lastPublishedPostName);
-        return;
-      }
-      return origReplace(url);
-    };
-    window.__rsPublishLocationHook = true;
+    }
+    finishPublishRedirect(postName, slug);
   }
 
   function hookFetch() {
@@ -158,11 +178,17 @@
     window.fetch = function (input, init) {
       var url = typeof input === "string" ? input : input && input.url;
       var method = (init && init.method) || "GET";
+      var postName = extractPublishPostName(url, method);
       return nativeFetch.apply(this, arguments).then(function (res) {
-        try {
-          maybePublishRedirect(url, method, res && res.ok);
-        } catch (e) {
-          /* ignore */
+        if (postName && res && res.ok) {
+          res.clone()
+            .text()
+            .then(function (text) {
+              handlePublishResponse(postName, text);
+            })
+            .catch(function () {
+              handlePublishResponse(postName, null);
+            });
         }
         return res;
       });
@@ -181,12 +207,10 @@
     };
     XMLHttpRequest.prototype.send = function () {
       var xhr = this;
+      var postName = extractPublishPostName(xhr.__rsUrl, xhr.__rsMethod);
       xhr.addEventListener("load", function () {
-        try {
-          maybePublishRedirect(xhr.__rsUrl, xhr.__rsMethod, xhr.status >= 200 && xhr.status < 300);
-        } catch (e2) {
-          /* ignore */
-        }
+        if (!postName || xhr.status < 200 || xhr.status >= 300) return;
+        handlePublishResponse(postName, xhr.responseText || null);
       });
       return origSend.apply(this, arguments);
     };
@@ -194,9 +218,9 @@
   }
 
   hookHistory();
-  hookLocationAssign();
   hookFetch();
   hookXhr();
+  startNavGuard();
 
   if (onEditorPage()) {
     var bootName = editorPostNameFromUrl();
