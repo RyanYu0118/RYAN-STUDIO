@@ -7,7 +7,7 @@
 
   if (location.pathname.indexOf("/console/posts/editor") < 0) return;
 
-  var RS_EDIT_SCROLL_VER = "1.2.0";
+  var RS_EDIT_SCROLL_VER = "1.2.1";
   if (window.RSEditScroll && window.RSEditScroll.__ver === RS_EDIT_SCROLL_VER) return;
 
   var STORAGE_KEY = "rs-edit-scroll-context";
@@ -279,11 +279,16 @@
 
     if (ctx.headingText) {
       var heads = pm.querySelectorAll("h1,h2,h3,h4,h5,h6");
+      var target = ctx.headingText;
       var hi;
+      var partial = null;
       for (hi = 0; hi < heads.length; hi++) {
         var ht = (heads[hi].textContent || "").replace(/\s+/g, " ").trim();
-        if (ht && ht.indexOf(ctx.headingText) >= 0) return heads[hi];
+        if (ht === target) return heads[hi];
+        if (!partial && ht && target && ht.indexOf(target) >= 0) partial = heads[hi];
+        if (!partial && ht && target && target.indexOf(ht) >= 0) partial = heads[hi];
       }
+      if (partial) return partial;
     }
 
     var blockRoots = findHtmlBlockRoots(pm);

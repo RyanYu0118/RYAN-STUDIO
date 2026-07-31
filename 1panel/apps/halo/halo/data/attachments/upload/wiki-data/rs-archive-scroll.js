@@ -8,7 +8,7 @@
   var PATH_PREFIX = "/archives/";
   if (location.pathname.indexOf(PATH_PREFIX) !== 0) return;
 
-  var RS_ARCHIVE_SCROLL_VER = "1.1.0";
+  var RS_ARCHIVE_SCROLL_VER = "1.1.1";
 
   function getViewportAnchorY() {
     var vh = window.innerHeight || 800;
@@ -172,13 +172,17 @@
 
     if (ctx.headingText) {
       var heads = body.querySelectorAll("h1,h2,h3,h4,h5,h6");
+      var target = ctx.headingText;
       var hi;
+      var partial = null;
       for (hi = 0; hi < heads.length; hi++) {
         var ht = (heads[hi].textContent || "").replace(/\s+/g, " ").trim();
-        if (ht && ht.indexOf(ctx.headingText) >= 0) {
+        if (ht === target) {
           return scrollElementWithOffset(heads[hi], null);
         }
+        if (!partial && ht && target && ht.indexOf(target) >= 0) partial = heads[hi];
       }
+      if (partial) return scrollElementWithOffset(partial, null);
     }
 
     var target = findArchiveTarget(ctx, body);
