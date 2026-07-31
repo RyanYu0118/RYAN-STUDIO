@@ -26,7 +26,9 @@ window.RSConfig = {
     editScroll: {
         retryMs: [0, 200, 500, 1000, 1800, 3000, 5000, 8000, 12000],
         archiveRetryMs: [0, 120, 400, 800, 1500, 3000, 5000, 8000, 12000],
-        maxAgeMs: 600000
+        maxAgeMs: 600000,
+        /** 定位后再下移，避免被 Halo 顶栏挡住 */
+        extraOffset: 80
     },
 
     // 📖 Wiki 页（rs-loader 根据 urlIncludes 加载 rs-wiki.js）

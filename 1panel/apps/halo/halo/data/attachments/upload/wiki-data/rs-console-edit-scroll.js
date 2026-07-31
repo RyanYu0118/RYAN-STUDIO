@@ -7,7 +7,7 @@
 
   if (location.pathname.indexOf("/console/posts/editor") < 0) return;
 
-  var RS_EDIT_SCROLL_VER = "1.1.0";
+  var RS_EDIT_SCROLL_VER = "1.1.1";
   if (window.RSEditScroll && window.RSEditScroll.__ver === RS_EDIT_SCROLL_VER) return;
 
   var STORAGE_KEY = "rs-edit-scroll-context";
@@ -17,6 +17,10 @@
     ? cfg.retryMs
     : [0, 200, 500, 1000, 1800, 3000, 5000, 8000, 12000];
   var MAX_AGE_MS = typeof cfg.maxAgeMs === "number" ? cfg.maxAgeMs : 600000;
+
+  function getExtraOffset() {
+    return typeof cfg.extraOffset === "number" ? cfg.extraOffset : 80;
+  }
 
   window.RSEditScroll = { __ver: RS_EDIT_SCROLL_VER, tryApply: null };
 
@@ -230,12 +234,13 @@
       /* ignore */
     }
     var rect = el.getBoundingClientRect();
-    var y = rect.top + window.pageYOffset - window.innerHeight * 0.38;
+    var extra = getExtraOffset();
+    var y = rect.top + window.pageYOffset - window.innerHeight * 0.38 - extra;
     window.scrollTo({ top: Math.max(0, y), behavior: "auto" });
     var container = findScrollContainer(el);
     if (container && container !== document.documentElement && container !== document.body) {
       var cRect = container.getBoundingClientRect();
-      var innerY = rect.top - cRect.top + container.scrollTop - container.clientHeight * 0.38;
+      var innerY = rect.top - cRect.top + container.scrollTop - container.clientHeight * 0.38 - extra;
       container.scrollTop = Math.max(0, innerY);
     }
   }

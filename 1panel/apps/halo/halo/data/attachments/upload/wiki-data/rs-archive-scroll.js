@@ -8,7 +8,7 @@
   var PATH_PREFIX = "/archives/";
   if (location.pathname.indexOf(PATH_PREFIX) !== 0) return;
 
-  var RS_ARCHIVE_SCROLL_VER = "1.0.0";
+  var RS_ARCHIVE_SCROLL_VER = "1.0.1";
   if (window.RSArchiveScroll && window.RSArchiveScroll.__ver === RS_ARCHIVE_SCROLL_VER) return;
 
   var RETURN_KEY = "rs-return-scroll-context";
@@ -66,13 +66,21 @@
     return (nav ? nav.getBoundingClientRect().height : 80) + 8;
   }
 
+  function getExtraOffset() {
+    return typeof cfg.extraOffset === "number" ? cfg.extraOffset : 80;
+  }
+
+  function getLocateOffset() {
+    return getScrollOffset() + getExtraOffset();
+  }
+
   function scrollToY(y, behavior) {
     window.scrollTo({ top: Math.max(0, y), behavior: behavior || "auto" });
   }
 
   function scrollElementWithOffset(el, blockRatio) {
     if (!el) return false;
-    var offset = getScrollOffset();
+    var offset = getLocateOffset();
     var rect = el.getBoundingClientRect();
     var top = rect.top + window.pageYOffset - offset;
     if (blockRatio != null && blockRatio > 0) {
@@ -135,7 +143,7 @@
     var max = Math.max(0, body.scrollHeight - vh * 0.5);
     if (max <= 8) return false;
     var bodyTop = body.getBoundingClientRect().top + window.pageYOffset;
-    scrollToY(bodyTop + (ctx.ratio || 0) * max - getScrollOffset() * 0.5, "auto");
+    scrollToY(bodyTop + (ctx.ratio || 0) * max - getLocateOffset() * 0.5, "auto");
     return true;
   }
 
@@ -145,8 +153,11 @@
     if (!body || !ctx) return false;
     if ((body.textContent || "").replace(/\s+/g, "").length < 8) return false;
 
-    if (ctx.headingId && window.RSAnchorScroll && window.RSAnchorScroll.scrollToId) {
-      if (window.RSAnchorScroll.scrollToId(ctx.headingId, "auto")) return true;
+    if (ctx.headingId) {
+      var heading = document.getElementById(ctx.headingId);
+      if (heading && body.contains(heading)) {
+        return scrollElementWithOffset(heading, null);
+      }
     }
 
     var target = findArchiveTarget(ctx, body);
