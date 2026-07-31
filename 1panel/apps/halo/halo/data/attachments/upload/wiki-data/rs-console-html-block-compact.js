@@ -7,7 +7,7 @@
 
   if (location.pathname.indexOf("/console/posts/editor") < 0) return;
 
-  var RS_HTML_BLOCK_VER = "3.4";
+  var RS_HTML_BLOCK_VER = "3.4.1";
   if (window.RSHtmlBlockCompact && window.RSHtmlBlockCompact.__ver === RS_HTML_BLOCK_VER) {
     return;
   }
@@ -167,63 +167,101 @@
     return root ? root.querySelector("[data-rs-html-iframe]") : null;
   }
 
-  function needleFromElement(el, doc) {
-    if (!el || !doc || el === doc.body || el === doc.documentElement) return "";
-    if (el.id) return 'id="' + el.id + '"';
-    var cls = el.className;
-    if (typeof cls === "string" && cls.trim()) {
-      var parts = cls.trim().split(/\s+/);
-      for (var i = 0; i < parts.length; i++) {
-        var c = parts[i];
-        if (c && (c.indexOf("wd-") === 0 || c.indexOf("wander") === 0 || c.indexOf("nav-") === 0 || c.indexOf("font-") === 0)) {
-          return c;
-        }
+  function pushNeedle(list, seen, n) {
+    if (!n || seen[n]) return;
+    seen[n] = true;
+    list.push(n);
+  }
+
+  function collectNeedles(el, doc) {
+    var out = [];
+    var seen = {};
+    var cur = el;
+    while (cur && cur !== doc.body && cur !== doc.documentElement) {
+      if (cur.id) {
+        pushNeedle(out, seen, 'id="' + cur.id + '"');
+        pushNeedle(out, seen, cur.id);
       }
-      if (parts[0].length >= 3) return parts[0];
+      var cls = cur.className;
+      if (typeof cls === "string" && cls.trim()) {
+        cls.trim().split(/\s+/).forEach(function (c) {
+          if (!c || c.length < 3) return;
+          pushNeedle(out, seen, c);
+          pushNeedle(out, seen, "." + c);
+        });
+      }
+      var tag = cur.tagName ? cur.tagName.toLowerCase() : "";
+      if (tag === "style") pushNeedle(out, seen, "<style");
+      if (tag === "script") pushNeedle(out, seen, "<script");
+      if (cur === el) {
+        var direct = (cur.textContent || "").replace(/\s+/g, " ").trim();
+        if (direct.length >= 4 && direct.length <= 80) pushNeedle(out, seen, direct);
+      }
+      cur = cur.parentElement;
     }
-    var tag = el.tagName ? el.tagName.toLowerCase() : "";
-    if (tag === "style" || tag === "script") return "<" + tag;
-    var text = (el.textContent || "").replace(/\s+/g, " ").trim();
-    if (text.length >= 6 && text.length <= 48) return text;
-    return needleFromElement(el.parentElement, doc);
+    return out;
+  }
+
+  function captureBlockViewportRatio(root) {
+    var iframe = getPreviewIframe(root);
+    if (!iframe) return 0;
+    var rect = iframe.getBoundingClientRect();
+    var vh = window.innerHeight || document.documentElement.clientHeight || 800;
+    var anchorY = vh * 0.38;
+    var offsetInBlock = anchorY - rect.top;
+    if (offsetInBlock < 0) offsetInBlock = 0;
+    var ratio = offsetInBlock / Math.max(1, rect.height);
+    ratio = Math.min(1, Math.max(0, ratio));
+    root.dataset.rsHtmlPreviewScrollRatio = String(ratio);
+    return ratio;
   }
 
   function capturePreviewScrollRatio(root) {
-    var iframe = getPreviewIframe(root);
-    if (!iframe || !iframe.contentWindow) return;
-    try {
-      var doc = iframe.contentDocument;
-      var win = iframe.contentWindow;
-      var max = Math.max(1, (doc.documentElement.scrollHeight || 0) - (win.innerHeight || 0));
-      root.dataset.rsHtmlPreviewScrollRatio = String(Math.min(1, Math.max(0, (win.scrollY || 0) / max)));
-    } catch (e0) {
-      /* ignore */
-    }
+    captureBlockViewportRatio(root);
   }
 
   function attachPreviewInteraction(iframe, root) {
     try {
       var doc = iframe.contentDocument;
-      if (!doc || doc.__rsHtmlPreviewHook) return;
+      if (!doc) return;
+      if (doc.__rsHtmlPreviewHook) return;
       doc.__rsHtmlPreviewHook = true;
       doc.addEventListener(
-        "click",
+        "mousedown",
         function (e) {
-          var needle = needleFromElement(e.target, doc);
-          if (needle) root.dataset.rsHtmlPreviewNeedle = needle;
-          capturePreviewScrollRatio(root);
+          var needles = collectNeedles(e.target, doc);
+          if (needles.length) root.dataset.rsHtmlPreviewNeedles = JSON.stringify(needles);
+          captureBlockViewportRatio(root);
         },
         true
       );
-      iframe.contentWindow.addEventListener(
-        "scroll",
-        function () {
-          capturePreviewScrollRatio(root);
-        },
-        { passive: true }
-      );
     } catch (e1) {
       /* ignore */
+    }
+  }
+
+  function hookPreviewScroll() {
+    if (window.__rsHtmlBlockScrollHook) return;
+    window.__rsHtmlBlockScrollHook = true;
+    window.addEventListener(
+      "scroll",
+      function () {
+        findBlockRoots().forEach(function (root) {
+          captureBlockViewportRatio(root);
+        });
+      },
+      { passive: true, capture: true }
+    );
+  }
+
+  function readPreviewNeedles(root) {
+    try {
+      var raw = root.dataset.rsHtmlPreviewNeedles || "";
+      if (!raw) return [];
+      var parsed = JSON.parse(raw);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch (e0) {
+      return [];
     }
   }
 
@@ -233,19 +271,31 @@
     line = Math.max(0, Math.min(line, lines.length - 1));
     var pos = 0;
     for (var i = 0; i < line; i++) pos += lines[i].length + 1;
-    ta.focus();
-    ta.setSelectionRange(pos, pos);
-    var style = window.getComputedStyle(ta);
-    var lineHeight = parseFloat(style.lineHeight) || 20;
-    var paddingTop = parseFloat(style.paddingTop) || 0;
-    ta.scrollTop = Math.max(0, line * lineHeight - ta.clientHeight * 0.35 + paddingTop);
+    var computed = window.getComputedStyle(ta);
+    var fontSize = parseFloat(computed.fontSize) || 13;
+    var lineHeight = parseFloat(computed.lineHeight);
+    if (!lineHeight || lineHeight < fontSize) lineHeight = fontSize * 1.55;
+    var padTop = parseFloat(computed.paddingTop) || 0;
+    function applyScroll() {
+      ta.focus({ preventScroll: true });
+      ta.setSelectionRange(pos, pos);
+      ta.scrollTop = Math.max(0, line * lineHeight - ta.clientHeight * 0.38 + padTop);
+    }
+    applyScroll();
+    requestAnimationFrame(function () {
+      applyScroll();
+    });
   }
 
-  function scrollTextareaToNeedle(ta, needle) {
-    if (!ta || !needle) return false;
-    var idx = ta.value.indexOf(needle);
-    if (idx < 0) return false;
-    var line = ta.value.slice(0, idx).split("\n").length - 1;
+  function scrollTextareaToNeedles(ta, needles) {
+    if (!ta || !needles || !needles.length) return false;
+    var bestIdx = -1;
+    for (var i = 0; i < needles.length; i++) {
+      var idx = ta.value.indexOf(needles[i]);
+      if (idx >= 0 && (bestIdx < 0 || idx < bestIdx)) bestIdx = idx;
+    }
+    if (bestIdx < 0) return false;
+    var line = ta.value.slice(0, bestIdx).split("\n").length - 1;
     scrollTextareaToLine(ta, line);
     return true;
   }
@@ -259,12 +309,14 @@
 
   function focusTextareaAtPreviewContext(root, ta) {
     if (!ta || !root) return;
-    capturePreviewScrollRatio(root);
-    var needle = root.dataset.rsHtmlPreviewNeedle || "";
-    if (needle && scrollTextareaToNeedle(ta, needle)) return;
+    captureBlockViewportRatio(root);
+    var needles = readPreviewNeedles(root);
+    if (!needles.length && root.dataset.rsHtmlPreviewNeedle) {
+      needles = [root.dataset.rsHtmlPreviewNeedle];
+    }
+    if (needles.length && scrollTextareaToNeedles(ta, needles)) return;
     var ratio = parseFloat(root.dataset.rsHtmlPreviewScrollRatio || "0");
-    if (ratio > 0.01) scrollTextareaByRatio(ta, ratio);
-    else ta.focus();
+    scrollTextareaByRatio(ta, ratio);
   }
 
   function getBodyShell(root) {
@@ -305,6 +357,7 @@
     if (!iframe) return;
     var sig = fnv1a(source);
     if (!force && iframe.dataset.rsHtmlSig === sig) {
+      attachPreviewInteraction(iframe, root);
       return;
     }
     iframe.dataset.rsHtmlSig = sig;
@@ -1386,6 +1439,9 @@
     btn.type = "button";
     btn.dataset.rsHtmlFsBtn = "1";
     btn.textContent = "全屏编辑";
+    btn.addEventListener("mousedown", function () {
+      captureBlockViewportRatio(root);
+    });
     btn.addEventListener("click", function (e) {
       e.preventDefault();
       e.stopPropagation();
@@ -1496,7 +1552,7 @@
   function openFullscreen(root) {
     if (fsState) return;
     ensureOverlay();
-    capturePreviewScrollRatio(root);
+    captureBlockViewportRatio(root);
 
     fsState = { root: root, initial: "" };
     overlayTextarea.value = "";
@@ -1512,7 +1568,12 @@
         if (fsState && fsState.root === root) {
           focusTextareaAtPreviewContext(root, overlayTextarea);
         }
-      }, 120);
+      }, 360);
+      setTimeout(function () {
+        if (fsState && fsState.root === root) {
+          focusTextareaAtPreviewContext(root, overlayTextarea);
+        }
+      }, 720);
     });
   }
 
@@ -1643,6 +1704,7 @@
     hookPmUpdates();
     if (!pmHooked) {
       hookDocument();
+      hookPreviewScroll();
       watchNewBlocks(pm);
       pmHooked = true;
     }
