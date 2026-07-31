@@ -65,8 +65,10 @@ onMounted(async () => {
 })
 
 function pick(row: WikiPage) {
-  activeSlug.value = row.external ? row.slug : row.slug || row.title
-  query.value = activeSlug.value
+  const raw = row.external ? row.slug : row.slug || row.title
+  if (!raw) return
+  applyWikiLink(props.editor, raw, initialText.value)
+  window.dispatchEvent(new CustomEvent('mcwws-wikilink-close'))
 }
 
 function finish() {
@@ -74,6 +76,13 @@ function finish() {
   if (!raw) return
   applyWikiLink(props.editor, raw, initialText.value)
   window.dispatchEvent(new CustomEvent('mcwws-wikilink-close'))
+}
+
+function rowMeta(row: WikiPage) {
+  if (row.meta) return row.meta
+  if (row.external) return row.slug
+  if (!row.published) return `${row.slug} · 红链`
+  return row.slug
 }
 
 function onKeydown(e: KeyboardEvent) {
@@ -112,7 +121,7 @@ function onKeydown(e: KeyboardEvent) {
         <span class="icon">{{ row.external ? '↗' : row.published ? '✓' : '?' }}</span>
         <span class="body">
           <span class="label">{{ row.title }}</span>
-          <span class="meta">{{ row.meta || row.slug }}{{ row.published ? '' : row.external ? '' : ' · 红链' }}</span>
+          <span class="meta">{{ rowMeta(row) }}</span>
         </span>
       </button>
       <div v-if="!results.length" class="mcwws-wiki-panel__hint">输入页面名称，或从列表中选择</div>
@@ -222,8 +231,8 @@ function onKeydown(e: KeyboardEvent) {
 
 .mcwws-wiki-panel__row .meta {
   display: block;
-  font: 11px/1.3 ui-monospace, monospace;
-  color: #888;
+  font: 12px/1.45 system-ui, sans-serif;
+  color: #666;
   margin-top: 2px;
 }
 
