@@ -7,7 +7,7 @@
 
   if (location.pathname.indexOf("/console/posts/editor") < 0) return;
 
-  var RS_HTML_BLOCK_VER = "3.4.1";
+  var RS_HTML_BLOCK_VER = "3.4.2";
   if (window.RSHtmlBlockCompact && window.RSHtmlBlockCompact.__ver === RS_HTML_BLOCK_VER) {
     return;
   }
@@ -202,18 +202,56 @@
     return out;
   }
 
-  function captureBlockViewportRatio(root) {
+  function resolveEditorContext(root) {
+    var result = { ratio: 0, needles: [], docY: 0 };
     var iframe = getPreviewIframe(root);
-    if (!iframe) return 0;
-    var rect = iframe.getBoundingClientRect();
-    var vh = window.innerHeight || document.documentElement.clientHeight || 800;
-    var anchorY = vh * 0.38;
-    var offsetInBlock = anchorY - rect.top;
-    if (offsetInBlock < 0) offsetInBlock = 0;
-    var ratio = offsetInBlock / Math.max(1, rect.height);
-    ratio = Math.min(1, Math.max(0, ratio));
-    root.dataset.rsHtmlPreviewScrollRatio = String(ratio);
-    return ratio;
+    if (!iframe) return result;
+    try {
+      var doc = iframe.contentDocument;
+      if (!doc || !doc.body) return result;
+      var rect = iframe.getBoundingClientRect();
+      if (rect.height <= 1 || rect.width <= 1) return result;
+      var vh = window.innerHeight || document.documentElement.clientHeight || 800;
+      var x = Math.max(0, Math.min(rect.width - 1, rect.width * 0.5));
+      var anchors = [vh * 0.42, vh * 0.5, vh * 0.32, vh * 0.58];
+      var bestEl = null;
+      var bestDocY = 0;
+      var ai;
+      for (ai = 0; ai < anchors.length; ai++) {
+        var docY = anchors[ai] - rect.top;
+        if (docY < 0 || docY > rect.height) continue;
+        var el = doc.elementFromPoint(x, docY);
+        if (el && el !== doc.body && el !== doc.documentElement) {
+          bestEl = el;
+          bestDocY = docY;
+          break;
+        }
+      }
+      if (!bestEl) {
+        for (var fy = 0.08; fy <= 0.92; fy += 0.08) {
+          var docY2 = Math.max(0, Math.min(rect.height - 1, rect.height * fy));
+          var el2 = doc.elementFromPoint(x, docY2);
+          if (el2 && el2 !== doc.body && el2 !== doc.documentElement) {
+            bestEl = el2;
+            bestDocY = docY2;
+            break;
+          }
+        }
+      }
+      result.docY = bestDocY;
+      result.ratio = bestDocY / Math.max(1, rect.height);
+      if (bestEl) result.needles = collectNeedles(bestEl, doc);
+    } catch (e0) {
+      /* ignore */
+    }
+    return result;
+  }
+
+  function captureBlockViewportRatio(root) {
+    var ctx = resolveEditorContext(root);
+    root.dataset.rsHtmlPreviewScrollRatio = String(ctx.ratio);
+    if (ctx.needles.length) root.dataset.rsHtmlPreviewNeedles = JSON.stringify(ctx.needles);
+    return ctx.ratio;
   }
 
   function capturePreviewScrollRatio(root) {
@@ -229,9 +267,15 @@
       doc.addEventListener(
         "mousedown",
         function (e) {
-          var needles = collectNeedles(e.target, doc);
+          var rect = iframe.getBoundingClientRect();
+          var docY = Math.max(0, Math.min(rect.height - 1, e.clientY - rect.top));
+          var docX = Math.max(0, Math.min(rect.width - 1, e.clientX - rect.left));
+          var el = doc.elementFromPoint(docX, docY) || e.target;
+          var needles = collectNeedles(el, doc);
+          var ratio = docY / Math.max(1, rect.height);
+          root.__rsHtmlOpenCtx = { ratio: ratio, needles: needles, docY: docY };
+          root.dataset.rsHtmlPreviewScrollRatio = String(ratio);
           if (needles.length) root.dataset.rsHtmlPreviewNeedles = JSON.stringify(needles);
-          captureBlockViewportRatio(root);
         },
         true
       );
@@ -287,16 +331,29 @@
     });
   }
 
-  function scrollTextareaToNeedles(ta, needles) {
+  function scrollTextareaToNeedles(ta, needles, expectedRatio) {
     if (!ta || !needles || !needles.length) return false;
+    var lineCount = ta.value.split("\n").length;
+    var expectedLine = Math.round((expectedRatio || 0) * Math.max(0, lineCount - 1));
     var bestIdx = -1;
+    var bestLine = -1;
+    var bestDist = Infinity;
     for (var i = 0; i < needles.length; i++) {
-      var idx = ta.value.indexOf(needles[i]);
-      if (idx >= 0 && (bestIdx < 0 || idx < bestIdx)) bestIdx = idx;
+      var needle = needles[i];
+      if (!needle || needle.length < 3) continue;
+      var idx = ta.value.indexOf(needle);
+      if (idx < 0) continue;
+      var line = ta.value.slice(0, idx).split("\n").length - 1;
+      var dist = Math.abs(line - expectedLine);
+      if (bestIdx < 0 || dist < bestDist || (dist === bestDist && idx > bestIdx)) {
+        bestIdx = idx;
+        bestLine = line;
+        bestDist = dist;
+      }
     }
     if (bestIdx < 0) return false;
-    var line = ta.value.slice(0, bestIdx).split("\n").length - 1;
-    scrollTextareaToLine(ta, line);
+    if (expectedRatio > 0.08 && bestLine <= 2 && expectedLine > lineCount * 0.12) return false;
+    scrollTextareaToLine(ta, bestLine);
     return true;
   }
 
@@ -307,16 +364,11 @@
     scrollTextareaToLine(ta, Math.round(ratio * Math.max(0, lineCount - 1)));
   }
 
-  function focusTextareaAtPreviewContext(root, ta) {
+  function focusTextareaAtPreviewContext(root, ta, ctx) {
     if (!ta || !root) return;
-    captureBlockViewportRatio(root);
-    var needles = readPreviewNeedles(root);
-    if (!needles.length && root.dataset.rsHtmlPreviewNeedle) {
-      needles = [root.dataset.rsHtmlPreviewNeedle];
-    }
-    if (needles.length && scrollTextareaToNeedles(ta, needles)) return;
-    var ratio = parseFloat(root.dataset.rsHtmlPreviewScrollRatio || "0");
-    scrollTextareaByRatio(ta, ratio);
+    ctx = ctx || resolveEditorContext(root);
+    if (ctx.needles.length && scrollTextareaToNeedles(ta, ctx.needles, ctx.ratio)) return;
+    scrollTextareaByRatio(ta, ctx.ratio);
   }
 
   function getBodyShell(root) {
@@ -1440,7 +1492,7 @@
     btn.dataset.rsHtmlFsBtn = "1";
     btn.textContent = "全屏编辑";
     btn.addEventListener("mousedown", function () {
-      captureBlockViewportRatio(root);
+      root.__rsHtmlOpenCtx = resolveEditorContext(root);
     });
     btn.addEventListener("click", function (e) {
       e.preventDefault();
@@ -1552,9 +1604,10 @@
   function openFullscreen(root) {
     if (fsState) return;
     ensureOverlay();
-    captureBlockViewportRatio(root);
+    var openCtx = root.__rsHtmlOpenCtx || resolveEditorContext(root);
+    root.__rsHtmlOpenCtx = null;
 
-    fsState = { root: root, initial: "" };
+    fsState = { root: root, initial: "", openCtx: openCtx };
     overlayTextarea.value = "";
     overlayTextarea.placeholder = "正在加载完整源码…";
     showFullscreenOverlay();
@@ -1566,12 +1619,12 @@
       overlayTextarea.placeholder = "";
       setTimeout(function () {
         if (fsState && fsState.root === root) {
-          focusTextareaAtPreviewContext(root, overlayTextarea);
+          focusTextareaAtPreviewContext(root, overlayTextarea, fsState.openCtx);
         }
       }, 360);
       setTimeout(function () {
         if (fsState && fsState.root === root) {
-          focusTextareaAtPreviewContext(root, overlayTextarea);
+          focusTextareaAtPreviewContext(root, overlayTextarea, fsState.openCtx);
         }
       }, 720);
     });
@@ -1734,5 +1787,13 @@
       repairScheduled = false;
       if (n > 0) prepareAllBlocks();
     });
+  };
+
+  window.RSHtmlBlockCompact.previewContext = function (idx) {
+    var root =
+      typeof idx === "number" || typeof idx === "string"
+        ? document.querySelector('.rs-html-block-root[data-rs-html-block-idx="' + idx + '"]')
+        : idx;
+    return root ? resolveEditorContext(root) : null;
   };
 })();
