@@ -1,13 +1,13 @@
 /* =======================================================
-   RS Console — HTML 编辑块全屏编辑 v2.8
-   PM 直写源码，禁止 execCommand 截断；预览始终以 PM 为准
+   RS Console — HTML 编辑块全屏编辑 v2.9
+   PM 直写 + 从服务器草稿/content-json 自动修复截断块
    ======================================================= */
 (function () {
   "use strict";
 
   if (location.pathname.indexOf("/console/posts/editor") < 0) return;
 
-  var RS_HTML_BLOCK_VER = "2.8";
+  var RS_HTML_BLOCK_VER = "2.9";
   if (window.RSHtmlBlockCompact && window.RSHtmlBlockCompact.__ver === RS_HTML_BLOCK_VER) {
     return;
   }
@@ -26,6 +26,9 @@
   var previewAssetsReady = false;
   var prepareBlocksTimer = null;
   var iframeRefreshTimer = null;
+  var serverBlocksCache = null;
+  var serverRepairDone = false;
+  var repairScheduled = false;
 
   function isOurPreviewNode(n) {
     if (!n || n.nodeType !== 1) return false;
@@ -230,6 +233,8 @@
       ".ProseMirror .rs-html-block-root.rs-html-fs-sync div:has(> .cm-editor){display:flex!important;position:fixed!important;left:-99999px!important;top:0!important;width:900px!important;height:700px!important;visibility:hidden!important;opacity:0!important;pointer-events:none!important;max-height:none!important}" +
       ".ProseMirror .rs-html-block-root [data-rs-html-fs-btn]{margin-left:8px;border:1px solid #409eff;background:#409eff;color:#fff;border-radius:6px;padding:5px 12px;font-size:12px;cursor:pointer;line-height:1.4;font-weight:600}" +
       ".ProseMirror .rs-html-block-root [data-rs-html-fs-btn]:hover{filter:brightness(1.06)}" +
+      ".ProseMirror .rs-html-block-root [data-rs-html-repair-btn]{margin-left:6px;border:1px solid #e6a23c;background:#fdf6ec;color:#e6a23c;border-radius:6px;padding:5px 10px;font-size:12px;cursor:pointer;line-height:1.4;font-weight:600}" +
+      ".ProseMirror .rs-html-block-root [data-rs-html-repair-btn]:hover{filter:brightness(0.98)}" +
       "#rs-html-fs-overlay{position:fixed;inset:0;z-index:2147483000;display:flex;flex-direction:column;background:#1e1e1e;color:#d4d4d4}" +
       "#rs-html-fs-overlay.rs-html-fs-hidden{display:none!important}" +
       "#rs-html-fs-overlay .rs-html-fs-toolbar{display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid #333;background:#252526;flex-shrink:0}" +
@@ -423,6 +428,252 @@
     return null;
   }
 
+  function editorPostNameFromUrl() {
+    try {
+      return new URLSearchParams(location.search).get("name") || "";
+    } catch (e0) {
+      return "";
+    }
+  }
+
+  function getCookie(name) {
+    var m = document.cookie.match(
+      new RegExp("(?:^|; )" + name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "=([^;]*)")
+    );
+    return m ? decodeURIComponent(m[1]) : "";
+  }
+
+  function apiHeaders() {
+    var headers = { Accept: "application/json" };
+    var xsrf = getCookie("XSRF-TOKEN");
+    if (xsrf) headers["X-XSRF-TOKEN"] = xsrf;
+    return headers;
+  }
+
+  function repairMinDiff() {
+    return typeof cfg.repairMinDiff === "number" ? cfg.repairMinDiff : 64;
+  }
+
+  function parseHtmlEditedBlocks(raw) {
+    if (!raw) return [];
+    var blocks = [];
+    var re = /<div\s+class=(?:"html-edited"|'html-edited')[^>]*>/gi;
+    var m;
+    while ((m = re.exec(raw)) !== null) {
+      var start = m.index + m[0].length;
+      var depth = 1;
+      var i = start;
+      while (i < raw.length && depth > 0) {
+        var nextOpen = raw.indexOf("<div", i);
+        var nextClose = raw.indexOf("</div>", i);
+        if (nextClose === -1) break;
+        if (nextOpen !== -1 && nextOpen < nextClose) {
+          depth++;
+          i = nextOpen + 4;
+        } else {
+          depth--;
+          if (depth === 0) {
+            blocks.push(raw.slice(start, nextClose));
+            break;
+          }
+          i = nextClose + 6;
+        }
+      }
+    }
+    return blocks;
+  }
+
+  function mergeBlockLists(lists) {
+    var maxLen = 0;
+    for (var li = 0; li < lists.length; li++) {
+      maxLen = Math.max(maxLen, lists[li].length);
+    }
+    var merged = [];
+    for (var i = 0; i < maxLen; i++) {
+      var best = "";
+      for (var lj = 0; lj < lists.length; lj++) {
+        var part = lists[lj][i];
+        if (part && part.length > best.length) best = part;
+      }
+      merged.push(best);
+    }
+    return merged;
+  }
+
+  function rawFromPostJson(data) {
+    if (!data) return null;
+    if (typeof data.raw === "string" && data.raw) return data.raw;
+    var ann = data.metadata && data.metadata.annotations;
+    if (!ann) return null;
+    var cj = ann["content.halo.run/content-json"];
+    if (!cj) return null;
+    try {
+      var parsed = JSON.parse(cj);
+      return parsed.raw || parsed.content || null;
+    } catch (e1) {
+      return null;
+    }
+  }
+
+  function fetchJson(url) {
+    return fetch(url, { credentials: "include", headers: apiHeaders() }).then(function (r) {
+      if (!r.ok) throw new Error("http " + r.status);
+      return r.json();
+    });
+  }
+
+  function fetchAllServerRawHtml(cb) {
+    var postName = editorPostNameFromUrl();
+    if (!postName) {
+      cb([], "no-post-name");
+      return;
+    }
+    var enc = encodeURIComponent(postName);
+    var urls = [
+      "/apis/uc.api.content.halo.run/v1alpha1/posts/" + enc + "/draft",
+      "/apis/uc.api.content.halo.run/v1alpha1/posts/" + enc,
+      "/apis/api.console.halo.run/v1alpha1/posts/" + enc,
+    ];
+    var raws = [];
+    var pending = urls.length;
+    urls.forEach(function (url) {
+      fetchJson(url)
+        .then(function (data) {
+          var raw = rawFromPostJson(data);
+          if (raw) raws.push(raw);
+        })
+        .catch(function () {
+          /* ignore */
+        })
+        .finally(function () {
+          pending--;
+          if (pending === 0) cb(raws, raws.length ? null : "fetch-failed");
+        });
+    });
+  }
+
+  function fetchServerHtmlBlocks(cb) {
+    if (serverBlocksCache) {
+      cb(serverBlocksCache, null);
+      return;
+    }
+    fetchAllServerRawHtml(function (raws, err) {
+      if (!raws.length) {
+        cb(null, err);
+        return;
+      }
+      var lists = raws.map(parseHtmlEditedBlocks);
+      serverBlocksCache = mergeBlockLists(lists);
+      cb(serverBlocksCache, null);
+    });
+  }
+
+  function needsRepair(pmText, serverText) {
+    if (!serverText) return false;
+    pmText = pmText || "";
+    var minDiff = repairMinDiff();
+    if (serverText.length <= pmText.length + minDiff) return false;
+    if (!pmText.length) return true;
+    if (serverText.indexOf(pmText) === 0) return true;
+    if (pmText.length < serverText.length * 0.85) return true;
+    return false;
+  }
+
+  function repairBlockFromServer(root, serverText, cb) {
+    var pmText = readSourceFromPm(root) || "";
+    if (!needsRepair(pmText, serverText)) {
+      if (cb) cb(false);
+      return;
+    }
+    writeSourceToPm(root, serverText, cb);
+  }
+
+  function repairAllFromServer(cb) {
+    if (cfg.autoRepairFromServer === false) {
+      if (cb) cb(0);
+      return;
+    }
+    if (!getPmView()) {
+      if (cb) cb(0);
+      return;
+    }
+    fetchServerHtmlBlocks(function (blocks, err) {
+      if (!blocks || !blocks.length) {
+        if (err) {
+          console.warn("[rs-html-block-compact] 服务器块读取失败:", err);
+        }
+        if (cb) cb(0);
+        return;
+      }
+      var roots = findBlockRoots();
+      assignBlockIndices(roots);
+      if (!roots.length) {
+        if (cb) cb(0);
+        return;
+      }
+      var repaired = 0;
+      var pending = roots.length;
+      roots.forEach(function (root, i) {
+        var serverText = blocks[i];
+        if (!serverText) {
+          pending--;
+          if (pending === 0 && cb) cb(repaired);
+          return;
+        }
+        repairBlockFromServer(root, serverText, function (ok) {
+          if (ok) repaired++;
+          pending--;
+          if (pending === 0) {
+            if (repaired > 0) {
+              console.log(
+                "[rs-html-block-compact] 已从服务器自动修复 " + repaired + " 个截断 HTML 块"
+              );
+            }
+            if (cb) cb(repaired);
+          }
+        });
+      });
+    });
+  }
+
+  function injectRepairButton(root) {
+    if (cfg.showRepairButton === false) return;
+    if (root.querySelector("[data-rs-html-repair-btn]")) return;
+    var header = getHeader(root);
+    if (!header) return;
+    var actions = header.children[header.children.length - 1];
+    if (!actions) return;
+    var btn = document.createElement("button");
+    btn.type = "button";
+    btn.dataset.rsHtmlRepairBtn = "1";
+    btn.textContent = "从服务器恢复";
+    btn.title = "用服务器草稿中的完整 HTML 覆盖当前块（修复截断）";
+    btn.addEventListener("click", function (e) {
+      e.preventDefault();
+      e.stopPropagation();
+      serverBlocksCache = null;
+      var idx = blockIndex(root);
+      fetchServerHtmlBlocks(function (blocks) {
+        if (!blocks || !blocks[idx]) {
+          alert("无法从服务器读取该块的完整内容");
+          return;
+        }
+        if (!confirm("确定用服务器上的完整内容覆盖当前块？未保存的本地修改将丢失。")) return;
+        writeSourceToPm(root, blocks[idx], function (ok) {
+          if (ok) {
+            ensurePreviewOnly(root);
+            console.log("[rs-html-block-compact] 已手动恢复块 #" + idx);
+          } else {
+            alert("恢复失败，请刷新后重试");
+          }
+        });
+      });
+    });
+    var fsBtn = actions.querySelector("[data-rs-html-fs-btn]");
+    if (fsBtn) actions.insertBefore(btn, fsBtn);
+    else actions.appendChild(btn);
+  }
+
   function getHeader(root) {
     return root && root.children && root.children[0];
   }
@@ -515,6 +766,7 @@
     if (!root || (fsState && fsState.root === root)) return;
     root.classList.add("rs-html-block-root");
     hideNativeActions(root);
+    injectRepairButton(root);
     injectFullscreenButton(root);
 
     var pmText = readBestSource(root);
@@ -710,6 +962,17 @@
       watchNewBlocks(pm);
       pmHooked = true;
     }
+    if (!serverRepairDone && cfg.autoRepairFromServer !== false && getPmView()) {
+      if (!repairScheduled) {
+        repairScheduled = true;
+        repairAllFromServer(function () {
+          serverRepairDone = true;
+          prepareAllBlocks();
+        });
+        return true;
+      }
+      return true;
+    }
     prepareAllBlocks();
     return true;
   }
@@ -723,6 +986,6 @@
   console.log(
     "[rs-html-block-compact] v" +
       RS_HTML_BLOCK_VER +
-      " 已就绪：iframe 预览 v2.8（PM 直写防截断），全屏即时打开"
+      " 已就绪：iframe 预览 + 服务器截断块自动修复，全屏即时打开"
   );
 })();

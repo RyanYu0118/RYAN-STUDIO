@@ -66,6 +66,10 @@ window.RSConfig = {
         // 后台预览注入与前台相同的字体/工具类（fronts.css）
         previewStyles: ["/upload/wiki-data/fronts.css"],
         previewDocClass: "my-wiki-page markdown-body",
-        previewSandbox: "allow-scripts allow-same-origin"
+        previewSandbox: "allow-scripts allow-same-origin",
+        // 打开编辑器时从 draft/content-json 自动修复被截断的 HTML 块
+        autoRepairFromServer: true,
+        repairMinDiff: 64,
+        showRepairButton: true
     }
 };
