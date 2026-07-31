@@ -62,6 +62,6 @@ window.RSConfig = {
     htmlBlockCompact: {
         enabled: true,
         types: ["html_edited"],
-        editMaxHeight: "min(42vh, 420px)"
+        editMaxHeight: "min(55vh, 560px)"
     }
 };
