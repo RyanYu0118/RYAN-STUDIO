@@ -1,13 +1,13 @@
 /* =======================================================
-   RS Console — HTML 编辑块全屏编辑 v2.7
-   iframe 预览：稳定高度 + 阻断 MO/resize 反馈环
+   RS Console — HTML 编辑块全屏编辑 v2.8
+   PM 直写源码，禁止 execCommand 截断；预览始终以 PM 为准
    ======================================================= */
 (function () {
   "use strict";
 
   if (location.pathname.indexOf("/console/posts/editor") < 0) return;
 
-  var RS_HTML_BLOCK_VER = "2.7";
+  var RS_HTML_BLOCK_VER = "2.8";
   if (window.RSHtmlBlockCompact && window.RSHtmlBlockCompact.__ver === RS_HTML_BLOCK_VER) {
     return;
   }
@@ -344,23 +344,69 @@
     return roots.indexOf(root);
   }
 
+  function findHtmlEditedAt(view, idx) {
+    var hit = null;
+    var n = 0;
+    view.state.doc.descendants(function (node, pos) {
+      if (node.type.name !== "html_edited") return;
+      if (n === idx) {
+        hit = { pos: pos, node: node };
+        return false;
+      }
+      n++;
+    });
+    return hit;
+  }
+
   function readSourceFromPm(root) {
     var view = getPmView();
     if (!view) return null;
     var idx = blockIndex(root);
     if (idx < 0) return null;
-    var n = 0;
-    var text = null;
-    view.state.doc.descendants(function (node) {
-      if (node.type.name === "html_edited") {
-        if (n === idx) {
-          text = node.textContent;
-          return false;
-        }
-        n++;
-      }
-    });
-    return text;
+    var hit = findHtmlEditedAt(view, idx);
+    return hit ? hit.node.textContent : null;
+  }
+
+  function writeSourceToPm(root, text, cb) {
+    var view = getPmView();
+    if (!view) {
+      if (cb) cb(false);
+      return;
+    }
+    var idx = blockIndex(root);
+    if (idx < 0) {
+      if (cb) cb(false);
+      return;
+    }
+    var hit = findHtmlEditedAt(view, idx);
+    if (!hit) {
+      if (cb) cb(false);
+      return;
+    }
+    var from = hit.pos + 1;
+    var to = hit.pos + hit.node.nodeSize - 1;
+    try {
+      var tr = view.state.tr.replaceWith(from, to, view.state.schema.text(text));
+      view.dispatch(tr);
+      cacheSource(root, text);
+      root.dataset.rsHtmlPreviewSig = "";
+      refreshIframePreview(root, true);
+      if (cb) cb(true);
+    } catch (e0) {
+      console.error("[rs-html-block-compact] PM 写入失败", e0);
+      if (cb) cb(false);
+    }
+  }
+
+  function readBestSource(root) {
+    var pmText = readSourceFromPm(root);
+    if (pmText != null && pmText.length > 0) return pmText;
+    if (root.querySelector(".cm-editor .cm-line")) {
+      var cmText = readCmText(root);
+      if (cmText) return cmText;
+    }
+    var cached = getCachedSource(root);
+    return cached != null ? cached : "";
   }
 
   function cacheSource(root, text) {
@@ -471,13 +517,7 @@
     hideNativeActions(root);
     injectFullscreenButton(root);
 
-    var pmText = null;
-    if (root.querySelector(".cm-editor .cm-line")) {
-      pmText = readCmText(root);
-    } else {
-      pmText = readSourceFromPm(root);
-    }
-    if (pmText == null) pmText = getCachedSource(root) || "";
+    var pmText = readBestSource(root);
     cacheSource(root, pmText);
 
     var sig = fnv1a(pmText);
@@ -517,37 +557,7 @@
   }
 
   function setInlineEditorText(root, text, cb) {
-    root.classList.add("rs-html-fs-sync");
-    if (!isInlineEditMode(root)) clickHeaderButton(root, "编辑");
-    waitFor(
-      function () {
-        return root.querySelector(".cm-editor .cm-content");
-      },
-      function () {
-        var content = root.querySelector(".cm-editor .cm-content");
-        if (content) {
-          content.focus();
-          try {
-            document.execCommand("selectAll", false, null);
-            document.execCommand("insertText", false, text);
-          } catch (e1) {
-            /* ignore */
-          }
-        }
-        waitFor(
-          function () {
-            return readCmText(root).length > 0;
-          },
-          function () {
-            cacheSource(root, readCmText(root));
-            root.classList.remove("rs-html-fs-sync");
-            root.dataset.rsHtmlPreviewSig = "";
-            refreshIframePreview(root, true);
-            if (cb) cb();
-          }
-        );
-      }
-    );
+    writeSourceToPm(root, text, cb);
   }
 
   function openFullscreen(root) {
@@ -713,6 +723,6 @@
   console.log(
     "[rs-html-block-compact] v" +
       RS_HTML_BLOCK_VER +
-      " 已就绪：iframe 预览 v2.7（稳定高度），全屏即时打开"
+      " 已就绪：iframe 预览 v2.8（PM 直写防截断），全屏即时打开"
   );
 })();
