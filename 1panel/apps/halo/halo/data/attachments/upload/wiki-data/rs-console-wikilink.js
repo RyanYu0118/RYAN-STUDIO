@@ -5,9 +5,14 @@
   "use strict";
 
   window.RSWikiLink = window.RSWikiLink || {};
-  var RS_WIKILINK_VER = "2.8";
+  var RS_WIKILINK_VER = "3.0";
   if (window.RSWikiLink.__ver === RS_WIKILINK_VER) {
     return;
+  }
+  if (window.RSWikiLink.__ver) {
+    window.RSWikiLink.__nativeHooked = false;
+    window.RSWikiLink.__selMemBound = false;
+    window.RSWikiLink.__editorReady = false;
   }
   window.RSWikiLink.__ver = RS_WIKILINK_VER;
 
@@ -30,6 +35,11 @@
   var provisionalLinkActive = false;
   var outsideWikiHandler = null;
   var PENDING_HREF = "#rs-wikilink-pending";
+
+  function wikiDebug() {
+    if (!cfg.debug) return;
+    console.log.apply(console, ["[rs-wikilink]"].concat(Array.prototype.slice.call(arguments)));
+  }
 
   function onEditorPath() {
     return location.pathname.indexOf("/console/posts/editor") >= 0;
@@ -221,6 +231,7 @@
   function rememberSelection(ctx) {
     ctx = ctx || captureSelection();
     if (ctx.text) {
+      ctx._ts = Date.now();
       lastGoodCtx = ctx;
       selectionCtx = ctx;
     }
@@ -536,7 +547,8 @@
   }
 
   function injectStyles() {
-    if (document.getElementById("rs-wikilink-style")) return;
+    var old = document.getElementById("rs-wikilink-style");
+    if (old) old.remove();
     var style = document.createElement("style");
     style.id = "rs-wikilink-style";
     style.textContent =
@@ -556,6 +568,8 @@
       "#rs-wikilink-pop .row.red .icon{background:#ffebee;color:#c62828}" +
       "#rs-wikilink-pop .row.red .label{color:#c62828;font-weight:600}" +
       "#rs-wikilink-pop .row .meta{font:11px/1.3 ui-monospace,monospace;color:#888;margin-top:2px}" +
+      "#rs-wikilink-pop.rs-wikilink-docked{position:relative!important;width:100%!important;max-width:none;margin-top:8px;box-shadow:none;border-radius:0;border:0;border-top:1px solid #eee;z-index:auto}" +
+      "#rs-wikilink-pop.rs-wikilink-docked .results{max-height:160px}" +
       "#rs-wikilink-pop .hint{padding:8px 12px 10px;font:12px/1.45 system-ui,sans-serif;color:#666;border-top:1px solid #f0f0f0}" +
       "#rs-wikilink-backdrop{position:fixed;inset:0;z-index:10059;background:transparent;pointer-events:none}" +
       "#rs-wikilink-btn{position:fixed;right:24px;bottom:24px;z-index:10050;padding:8px 14px;border-radius:8px;border:1px solid rgba(128,128,128,.35);background:rgba(255,255,255,.92);cursor:pointer;font:600 13px system-ui,sans-serif;box-shadow:0 4px 16px rgba(0,0,0,.12)}" +
@@ -666,6 +680,39 @@
     });
   }
 
+  function findVisibleNativeLinkPopper() {
+    var poppers = document.querySelectorAll(".v-popper--theme-dropdown, [data-popper-placement]");
+    for (var i = 0; i < poppers.length; i++) {
+      var popper = poppers[i];
+      if (popper.classList && popper.classList.contains("v-popper__popper--hidden")) continue;
+      if (popper.closest && popper.closest("#rs-wikilink-pop")) continue;
+      var inp = popper.querySelector(
+        "input[placeholder*='链接'], input[placeholder*='link' i], input[placeholder*='Link' i]"
+      );
+      if (inp && !inp.closest("#rs-wikilink-pop")) return popper;
+    }
+    return null;
+  }
+
+  function dockWikiPopoverInNative(popoverEl) {
+    var popper = findVisibleNativeLinkPopper();
+    if (!popper) return false;
+    var inner = popper.querySelector(".v-popper__inner") || popper;
+    if (!inner) return false;
+    popoverEl.classList.add("rs-wikilink-docked");
+    popoverEl.style.position = "relative";
+    popoverEl.style.top = "";
+    popoverEl.style.left = "";
+    popoverEl.style.width = "100%";
+    popoverEl.style.maxWidth = "none";
+    popoverEl.style.marginTop = "8px";
+    popoverEl.style.zIndex = "auto";
+    popoverEl.style.boxShadow = "none";
+    inner.appendChild(popoverEl);
+    wikiDebug("Wiki 面板已嵌入 Halo 原生链接下拉");
+    return true;
+  }
+
   function positionWikiPopoverAsideNative(popoverEl, fallbackRect) {
     var bubbleRect = getBubbleMenuRect();
     var nativePopper =
@@ -713,14 +760,20 @@
       '<div class="hint">Halo 原生气泡（普通链接 / 取消 / 打开）保持可用；此处填写 Wiki 目标后点完成。</div>';
     document.body.appendChild(popover);
 
+    popover.addEventListener("mousedown", function (e) {
+      e.stopPropagation();
+    });
+
     outsideWikiHandler = function (e) {
       if (!popover) return;
       if (popover.contains(e.target)) return;
       if (!e.target.closest) return hidePopover(true);
       if (
         e.target.closest(".bubble-menu") ||
+        e.target.closest(".v-popper--theme-dropdown") ||
         e.target.closest("[data-popper-placement]") ||
         e.target.closest(".v-popper__inner") ||
+        e.target.closest(".v-popper__popper") ||
         e.target.closest("[role='tooltip']")
       ) {
         return;
@@ -767,7 +820,10 @@
     if (!rect && ctx.editor && ctx.editor.el) rect = ctx.editor.el.getBoundingClientRect();
     rect = rect || { top: window.innerHeight / 2, left: window.innerWidth / 2, width: 0, height: 0, bottom: window.innerHeight / 2 };
     if (alongsideNative) {
-      positionWikiPopoverAsideNative(popover, rect);
+      if (!options.dockInNative || !dockWikiPopoverInNative(popover)) {
+        positionWikiPopoverAsideNative(popover, rect);
+        wikiDebug("Wiki 面板浮动于原生链接旁");
+      }
     } else {
       popover.style.top = Math.min(rect.bottom + 8, window.innerHeight - 320) + "px";
       popover.style.left = Math.min(Math.max(rect.left, 12), window.innerWidth - 380) + "px";
@@ -852,51 +908,80 @@
     openLinkPopover(ctx || getSelectionForLink(), getBubbleMenuRect());
   }
 
-  /** 不拦截 Halo 原生事件，仅并行打开 Wiki 弹层 */
+  /** 不拦截 Halo 原生事件，仅并行打开 Wiki 弹层（重试等待 v-popper 渲染） */
   function openWikiAlongsideNative(ctx) {
     ctx = ctx || getSelectionForLink();
     var text = (ctx.text || (lastGoodCtx && lastGoodCtx.text) || "").trim();
-    if (!text) return false;
+    if (!text) {
+      wikiDebug("跳过 Wiki 面板：无选中文字");
+      return false;
+    }
     window.RSWikiLink.__lastAddLinkClick = Date.now();
+    function tryOpen(attempt) {
+      if (popover) return;
+      var popper = findVisibleNativeLinkPopper();
+      if (!popper && attempt < 8) {
+        setTimeout(function () {
+          tryOpen(attempt + 1);
+        }, 60);
+        return;
+      }
+      openLinkPopover(ctx, getBubbleMenuRect(), { alongsideNative: true, dockInNative: !!popper });
+    }
     setTimeout(function () {
-      if (!popover) openLinkPopover(ctx, getBubbleMenuRect(), { alongsideNative: true });
-    }, 80);
+      tryOpen(0);
+    }, 40);
     return true;
   }
 
-  function isLinkBubbleInsertButton(el) {
+  function isBubbleMenuLinkIntent(el) {
     if (!onEditorPath() || !el || !el.closest) return false;
     if (isHyperlinkCardTypeDropdown(el)) return false;
-    var btn = el.closest(".bubble-menu button");
-    if (!btn || !isInBubbleMenu(btn)) return false;
+    var menu = el.closest(".bubble-menu");
+    if (!menu) return false;
+    var btn = el.closest("button");
+    if (!btn || !menu.contains(btn)) return false;
     if (isSecondaryLinkAction(btn) || buttonHasUnlinkIcon(btn)) return false;
     var label = (btn.textContent || "").replace(/\s+/g, " ").trim();
-    if (/普通链接|行内卡片|链接卡片/.test(label)) return false;
+    if (/普通链接|行内卡片|链接卡片|取消链接|打开链接/.test(label)) return false;
     if (buttonHasLinkIcon(btn)) return true;
-    var wrap = btn.closest(".inline-flex");
-    if (wrap && isIconOnlyLinkBubbleButton(btn)) return true;
-    if (wrap && !label && btn.querySelector("svg")) return true;
-    if (/\bh-8\b/.test(btn.className || "") && btn.querySelector("svg") && !label) return true;
+    if (btn.closest(".inline-flex") && menu.contains(btn.closest(".inline-flex"))) {
+      if (isIconOnlyLinkBubbleButton(btn)) return true;
+      if (btn.querySelector("svg") && (!label || label.length <= 2)) return true;
+    }
     return false;
   }
 
-  function scanAndPrefillNativeLinkPanels() {
-    var sawNative = false;
-    document.querySelectorAll("input").forEach(function (input) {
-      if (!isNativeLinkInput(input)) return;
-      sawNative = true;
-      prefillNativeLinkInput(input);
+  function isLinkBubbleInsertButton(el) {
+    return isBubbleMenuLinkIntent(el);
+  }
+
+  function bindEditorShortcuts(editor) {
+    if (!editor || !editor.el || editor.el.__rsWikiShortcuts) return;
+    editor.el.__rsWikiShortcuts = true;
+    editor.el.addEventListener("keydown", function (e) {
+      if (!(e.ctrlKey || e.metaKey) || e.key.toLowerCase() !== "k") return;
+      rememberSelection(captureSelection());
+      var sel = getSelectionTextForWiki();
+      if (!sel.text) return;
+      e.preventDefault();
+      e.stopPropagation();
+      wikiDebug("Ctrl+K 在编辑器内 → Wiki 面板");
+      openWikiImmediate(sel.ctx);
     });
-    if (
-      sawNative &&
-      !popover &&
-      window.RSWikiLink.__lastAddLinkClick &&
-      Date.now() - window.RSWikiLink.__lastAddLinkClick < 2500 &&
-      getSelectionTextForWiki().text
-    ) {
-      window.RSWikiLink.__lastAddLinkClick = 0;
-      openLinkPopover(getSelectionForLink(), getBubbleMenuRect(), { alongsideNative: true });
-    }
+  }
+
+  function scanNativeLinkPanels() {
+    if (popover) return;
+    if (!findVisibleNativeLinkPopper()) return;
+    var sel = getSelectionTextForWiki();
+    if (!sel.text) return;
+    var recentLinkClick =
+      window.RSWikiLink.__lastAddLinkClick && Date.now() - window.RSWikiLink.__lastAddLinkClick < 8000;
+    var recentSelection = lastGoodCtx && lastGoodCtx._ts && Date.now() - lastGoodCtx._ts < 8000;
+    if (!recentLinkClick && !recentSelection) return;
+    wikiDebug("原生链接面板出现 → 嵌入 Wiki");
+    openLinkPopover(getSelectionForLink(), getBubbleMenuRect(), { alongsideNative: true, dockInNative: true });
   }
 
   function isNativeLinkInput(input) {
@@ -917,11 +1002,15 @@
   function prefillNativeLinkInput(input) {
     if (!isNativeLinkInput(input) || input.closest("#rs-wikilink-pop")) return;
     if (input.value) return;
-    var ctx = getSelectionForLink();
-    var title = ctx.text || (lastGoodCtx && lastGoodCtx.text) || "";
+    var title = (getSelectionForLink().text || (lastGoodCtx && lastGoodCtx.text) || "").trim();
     if (!title) return;
-    input.value = title;
-    input.dispatchEvent(new Event("input", { bubbles: true }));
+    try {
+      var setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value");
+      if (setter && setter.set) setter.set.call(input, title);
+      else input.value = title;
+    } catch (e0) {
+      input.value = title;
+    }
   }
 
   function hookNativeLinkToolbar() {
@@ -929,10 +1018,11 @@
     window.RSWikiLink.__nativeHooked = true;
 
     document.addEventListener("mousedown", function (e) {
-      if (isLinkBubbleInsertButton(e.target)) {
+      if (e.target.closest && e.target.closest(".bubble-menu")) {
         rememberSelection(captureSelection());
-        if (getSelectionTextForWiki().text) {
+        if (isBubbleMenuLinkIntent(e.target) && getSelectionTextForWiki().text) {
           window.RSWikiLink.__lastAddLinkClick = Date.now();
+          wikiDebug("链环 mousedown，已保留选区");
         }
         return;
       }
@@ -943,28 +1033,19 @@
       }
     }, true);
 
-    document.addEventListener("keydown", function (e) {
-      if (!(e.ctrlKey || e.metaKey) || e.key.toLowerCase() !== "k") return;
-      if (!onEditorPath()) return;
-      rememberSelection(captureSelection());
-      var sel = getSelectionTextForWiki();
-      if (!sel.text) return;
-      e.preventDefault();
-      if (window.RSWikiLink.__wikiArmTimer) {
-        clearTimeout(window.RSWikiLink.__wikiArmTimer);
-        window.RSWikiLink.__wikiArmTimer = null;
-      }
-      openWikiImmediate(sel.ctx);
-    }, true);
-
     document.addEventListener("click", function (e) {
       if (!isLinkBubbleInsertButton(e.target)) return;
       rememberSelection(captureSelection());
-      openWikiAlongsideNative(getSelectionTextForWiki().ctx);
+      if (!getSelectionTextForWiki().text) {
+        console.warn("[rs-wikilink] 请先选中正文中的文字（需在编辑器正文区，非 HTML 块预览 iframe 内）");
+        return;
+      }
+      wikiDebug("链环 click → 并行打开 Wiki");
+      openWikiAlongsideNative(getSelectionForLink());
     }, true);
 
     var obs = new MutationObserver(function () {
-      scanAndPrefillNativeLinkPanels();
+      scanNativeLinkPanels();
     });
     obs.observe(document.body, { childList: true, subtree: true });
   }
@@ -1087,11 +1168,12 @@
     injectStyles();
     hookSave();
     hookEditorRedlinkMarks();
+    bindEditorShortcuts(findEditor());
     initToolbar();
     if (cfg.showSelectionBubble !== false) bindEditorListeners();
     loadIndex().then(function () {
       markEditorArchiveLinks();
-      console.log("[rs-wikilink] v" + RS_WIKILINK_VER + " 已就绪：选中文字 → Halo 链环并行 Wiki 面板 / Ctrl+K");
+      console.log("[rs-wikilink] v" + RS_WIKILINK_VER + " 已就绪：正文选中 → 链环/Ctrl+K 打开 Wiki（嵌入原生下拉）");
     });
   }
 
