@@ -1,13 +1,13 @@
 /* =======================================================
-   RS Console — HTML 编辑块全屏编辑 v2.2
-   默认仅渲染预览；点「全屏编辑」→ 独立全屏 textarea；禁用分屏
+   RS Console — HTML 编辑块全屏编辑 v2.3
+   默认仅渲染预览（CSS 隐藏代码）；全屏即时打开；PM 直读源码
    ======================================================= */
 (function () {
   "use strict";
 
   if (location.pathname.indexOf("/console/posts/editor") < 0) return;
 
-  var RS_HTML_BLOCK_VER = "2.2";
+  var RS_HTML_BLOCK_VER = "2.3";
   if (window.RSHtmlBlockCompact && window.RSHtmlBlockCompact.__ver === RS_HTML_BLOCK_VER) {
     return;
   }
@@ -18,8 +18,11 @@
   if (cfg.enabled === false) return;
 
   var BLOCK_LABEL_RE = cfg.labelRe || /HTML\s*编辑块/;
+  var sourceCache = new WeakMap();
   var fsState = null;
   var pmHooked = false;
+  var overlay = null;
+  var overlayTextarea = null;
 
   function injectStyles() {
     if (document.getElementById("rs-html-block-fs-style")) return;
@@ -27,6 +30,10 @@
       ".ProseMirror .rs-html-block-root > div:last-child{min-height:0!important;height:auto!important}" +
       ".ProseMirror .rs-html-block-root .html-edited,.ProseMirror .rs-html-block-root .markdown-edited{min-height:0!important}" +
       ".ProseMirror .rs-html-block-root .rs-html-hide-native{display:none!important}" +
+      ".ProseMirror .rs-html-block-root .cm-editor," +
+      ".ProseMirror .rs-html-block-root div:has(> .cm-editor){display:none!important;height:0!important;min-height:0!important;max-height:0!important;overflow:hidden!important;visibility:hidden!important;margin:0!important;padding:0!important;border:0!important}" +
+      ".ProseMirror .rs-html-block-root.rs-html-fs-sync .cm-editor," +
+      ".ProseMirror .rs-html-block-root.rs-html-fs-sync div:has(> .cm-editor){display:flex!important;position:fixed!important;left:-99999px!important;top:0!important;width:900px!important;height:700px!important;visibility:hidden!important;opacity:0!important;pointer-events:none!important;max-height:none!important}" +
       ".ProseMirror .rs-html-block-root [data-rs-html-fs-btn]{margin-left:8px;border:1px solid #409eff;background:#409eff;color:#fff;border-radius:6px;padding:5px 12px;font-size:12px;cursor:pointer;line-height:1.4;font-weight:600}" +
       ".ProseMirror .rs-html-block-root [data-rs-html-fs-btn]:hover{filter:brightness(1.06)}" +
       "#rs-html-fs-overlay{position:fixed;inset:0;z-index:2147483000;display:flex;flex-direction:column;background:#1e1e1e;color:#d4d4d4}" +
@@ -43,9 +50,6 @@
     tag.textContent = css;
     document.head.appendChild(tag);
   }
-
-  var overlay = null;
-  var overlayTextarea = null;
 
   function ensureOverlay() {
     if (overlay) return;
@@ -101,6 +105,18 @@
     return document.querySelector(".ProseMirror");
   }
 
+  function getPmView() {
+    var el = getPm();
+    if (!el) return null;
+    if (el.pmViewDesc && el.pmViewDesc.view) return el.pmViewDesc.view;
+    var cur = el.firstElementChild;
+    while (cur) {
+      if (cur.pmViewDesc && cur.pmViewDesc.view) return cur.pmViewDesc.view;
+      cur = cur.firstElementChild;
+    }
+    return null;
+  }
+
   function findBlockRoots() {
     var pm = getPm();
     if (!pm) return [];
@@ -122,6 +138,44 @@
     }
     pm.querySelectorAll(".html-edited, .cm-editor, [contenteditable='false'], node-view-wrapper").forEach(add);
     return out;
+  }
+
+  function blockIndex(root) {
+    var roots = findBlockRoots();
+    return roots.indexOf(root);
+  }
+
+  function readSourceFromPm(root) {
+    var view = getPmView();
+    if (!view) return null;
+    var idx = blockIndex(root);
+    if (idx < 0) return null;
+    var n = 0;
+    var text = null;
+    view.state.doc.descendants(function (node) {
+      if (node.type.name === "html_edited") {
+        if (n === idx) {
+          text = node.textContent;
+          return false;
+        }
+        n++;
+      }
+    });
+    return text;
+  }
+
+  function cacheSource(root, text) {
+    if (typeof text === "string") sourceCache.set(root, text);
+  }
+
+  function getCachedSource(root) {
+    if (sourceCache.has(root)) return sourceCache.get(root);
+    var pmText = readSourceFromPm(root);
+    if (pmText != null) {
+      cacheSource(root, pmText);
+      return pmText;
+    }
+    return null;
   }
 
   function getHeader(root) {
@@ -188,16 +242,6 @@
     actions.appendChild(btn);
   }
 
-  function ensurePreviewOnly(root) {
-    if (!root || root.dataset.rsHtmlPrepared === "1" || (fsState && fsState.root === root)) return;
-    root.classList.add("rs-html-block-root");
-    hideNativeActions(root);
-    injectFullscreenButton(root);
-    if (isSplitMode(root)) clickHeaderButton(root, "退出分屏");
-    if (isInlineEditMode(root)) clickHeaderButton(root, "预览");
-    root.dataset.rsHtmlPrepared = "1";
-  }
-
   function readCmText(root) {
     var lines = root.querySelectorAll(".cm-editor .cm-line");
     if (!lines.length) return "";
@@ -206,65 +250,91 @@
     return parts.join("\n");
   }
 
-  function waitFor(fn, cb, n) {
+  function waitFor(fn, cb, n, interval) {
     n = n || 0;
+    interval = interval || 30;
     if (fn()) {
       cb();
       return;
     }
-    if (n > 80) {
+    if (n > 50) {
       cb();
       return;
     }
     setTimeout(function () {
-      waitFor(fn, cb, n + 1);
-    }, 50);
+      waitFor(fn, cb, n + 1, interval);
+    }, interval);
   }
 
-  function withInlineEditor(root, work, done) {
-    root.dataset.rsHtmlPrepared = "0";
+  function ensurePreviewOnly(root) {
+    if (!root || (fsState && fsState.root === root)) return;
+    root.classList.add("rs-html-block-root");
+    hideNativeActions(root);
+    injectFullscreenButton(root);
+
+    if (root.querySelector(".cm-editor .cm-line")) {
+      cacheSource(root, readCmText(root));
+    } else {
+      var pmText = readSourceFromPm(root);
+      if (pmText != null) cacheSource(root, pmText);
+    }
+
+    if (isSplitMode(root)) clickHeaderButton(root, "退出分屏");
+    if (isInlineEditMode(root)) clickHeaderButton(root, "预览");
+  }
+
+  function syncReadSource(root, cb) {
+    var pmText = readSourceFromPm(root);
+    if (pmText != null) {
+      cacheSource(root, pmText);
+      cb(pmText);
+      return;
+    }
+    root.classList.add("rs-html-fs-sync");
     if (!isInlineEditMode(root)) clickHeaderButton(root, "编辑");
     waitFor(
       function () {
-        return isInlineEditMode(root) && root.querySelector(".cm-editor .cm-line");
+        return root.querySelector(".cm-editor .cm-line");
       },
       function () {
-        try {
-          work(readCmText(root));
-        } finally {
-          if (typeof done === "function") done();
-        }
+        var text = readCmText(root);
+        cacheSource(root, text);
+        if (isInlineEditMode(root)) clickHeaderButton(root, "预览");
+        root.classList.remove("rs-html-fs-sync");
+        cb(text);
       }
     );
   }
 
-  function setInlineEditorText(root, text) {
+  function setInlineEditorText(root, text, cb) {
+    root.classList.add("rs-html-fs-sync");
+    if (!isInlineEditMode(root)) clickHeaderButton(root, "编辑");
     waitFor(
       function () {
         return root.querySelector(".cm-editor .cm-content");
       },
       function () {
         var content = root.querySelector(".cm-editor .cm-content");
-        if (!content) return;
-        content.focus();
-        try {
-          document.execCommand("selectAll", false, null);
-          document.execCommand("insertText", false, text);
-        } catch (e1) {
-          /* fallback below */
-        }
-        if (readCmText(root) !== text) {
+        if (content) {
+          content.focus();
           try {
-            var sel = window.getSelection();
-            var range = document.createRange();
-            range.selectNodeContents(content);
-            sel.removeAllRanges();
-            sel.addRange(range);
+            document.execCommand("selectAll", false, null);
             document.execCommand("insertText", false, text);
-          } catch (e2) {
+          } catch (e1) {
             /* ignore */
           }
         }
+        waitFor(
+          function () {
+            return readCmText(root).length > 0;
+          },
+          function () {
+            cacheSource(root, readCmText(root));
+            if (isInlineEditMode(root)) clickHeaderButton(root, "预览");
+            root.classList.remove("rs-html-fs-sync");
+            if (cb) cb();
+          }
+        );
       }
     );
   }
@@ -272,21 +342,23 @@
   function openFullscreen(root) {
     if (fsState) return;
     ensureOverlay();
-    root.dataset.rsHtmlPrepared = "0";
-    withInlineEditor(
-      root,
-      function (source) {
-        fsState = { root: root, initial: source };
-        overlayTextarea.value = source;
-        overlay.classList.remove("rs-html-fs-hidden");
-        overlayTextarea.focus();
-        overlayTextarea.setSelectionRange(0, 0);
-      },
-      function () {
-        clickHeaderButton(root, "预览");
-        root.dataset.rsHtmlPrepared = "1";
-      }
-    );
+
+    var cached = getCachedSource(root);
+    fsState = { root: root, initial: cached != null ? cached : "" };
+
+    overlayTextarea.value = cached != null ? cached : "";
+    overlayTextarea.placeholder = cached != null ? "" : "正在加载源码…";
+    overlay.classList.remove("rs-html-fs-hidden");
+    overlayTextarea.focus();
+
+    if (cached != null) return;
+
+    syncReadSource(root, function (source) {
+      if (!fsState || fsState.root !== root) return;
+      fsState.initial = source;
+      overlayTextarea.value = source;
+      overlayTextarea.placeholder = "";
+    });
   }
 
   function closeFullscreen(save) {
@@ -302,25 +374,10 @@
       return;
     }
 
-    root.dataset.rsHtmlPrepared = "0";
-    if (!isInlineEditMode(root)) clickHeaderButton(root, "编辑");
-    waitFor(
-      function () {
-        return isInlineEditMode(root) && root.querySelector(".cm-editor .cm-content");
-      },
-      function () {
-        setInlineEditorText(root, next);
-        waitFor(
-          function () {
-            return readCmText(root) === next || readCmText(root).length > 0;
-          },
-          function () {
-            clickHeaderButton(root, "预览");
-            ensurePreviewOnly(root);
-          }
-        );
-      }
-    );
+    cacheSource(root, next);
+    setInlineEditorText(root, next, function () {
+      ensurePreviewOnly(root);
+    });
   }
 
   function prepareAllBlocks() {
@@ -367,8 +424,15 @@
           var n = m.addedNodes[j];
           if (n.nodeType !== 1) continue;
           if (
-            (n.matches && (n.matches(".html-edited") || n.matches("[contenteditable='false']") || n.matches("node-view-wrapper"))) ||
-            (n.querySelector && (n.querySelector(".html-edited") || n.querySelector("[contenteditable='false']")))
+            (n.matches &&
+              (n.matches(".html-edited") ||
+                n.matches(".cm-editor") ||
+                n.matches("[contenteditable='false']") ||
+                n.matches("node-view-wrapper"))) ||
+            (n.querySelector &&
+              (n.querySelector(".html-edited") ||
+                n.querySelector(".cm-editor") ||
+                n.querySelector("[contenteditable='false']")))
           ) {
             hit = true;
             break;
@@ -378,7 +442,7 @@
       }
       if (!hit) return;
       if (timer) clearTimeout(timer);
-      timer = setTimeout(prepareAllBlocks, 300);
+      timer = setTimeout(prepareAllBlocks, 150);
     });
     mo.observe(pm, { childList: true, subtree: true });
     pm.__rsHtmlBlockNewMo = true;
@@ -400,9 +464,11 @@
 
   window.RSHtmlBlockCompact.init = boot;
 
-  [0, 200, 600, 1200, 2500, 5000, 9000].forEach(function (ms) {
+  [0, 50, 150, 350, 700, 1200, 2500, 5000].forEach(function (ms) {
     setTimeout(boot, ms);
   });
 
-  console.log("[rs-html-block-compact] v" + RS_HTML_BLOCK_VER + " 已就绪：全屏 textarea 编辑，原生分屏已隐藏");
+  console.log(
+    "[rs-html-block-compact] v" + RS_HTML_BLOCK_VER + " 已就绪：默认仅预览，全屏即时打开"
+  );
 })();
