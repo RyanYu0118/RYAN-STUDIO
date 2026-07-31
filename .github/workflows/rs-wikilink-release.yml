@@ -1,0 +1,47 @@
+name: RS_WikiLink Release
+
+on:
+  push:
+    tags:
+      - 'RS_WikiLink-v*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: tools/halo-plugin-wikilink/ui/package-lock.json
+
+      - name: Build plugin
+        working-directory: tools/halo-plugin-wikilink
+        run: |
+          chmod +x gradlew
+          ./gradlew build -x test
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: RS_WikiLink ${{ github.ref_name }}
+          body_path: tools/halo-plugin-wikilink/RELEASE.md
+          files: tools/halo-plugin-wikilink/build/libs/plugin-RS_WikiLink-*.jar
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

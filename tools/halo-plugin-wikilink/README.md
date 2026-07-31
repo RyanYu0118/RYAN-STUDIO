@@ -25,7 +25,7 @@ cd tools/halo-plugin-wikilink
 .\build.ps1
 ```
 
-产物：`build/libs/plugin-RS_WikiLink-<version>.jar`（当前 1.0.2）
+产物：`build/libs/plugin-RS_WikiLink-<version>.jar`（当前 1.0.3）
 
 或手动：
 
@@ -57,6 +57,12 @@ wikilink: { enabled: false }
 - 前台 `rs-redlinks.js`（红链点击建页）
 - `wiki-slugs.json` 索引
 - `export-post-json.py` 的 `[[wiki]]` 语法
+
+## Release
+
+GitHub Release：[RS_WikiLink-v1.0.3](https://github.com/RyanYu0118/RYAN-STUDIO/releases/tag/RS_WikiLink-v1.0.3)（直接下载 JAR，无需本地构建）
+
+打新标签 `RS_WikiLink-v*` 推送后会自动构建并发布（见仓库根目录 `.github/workflows/rs-wikilink-release.yml`）。
 
 ## 本地调试
 
