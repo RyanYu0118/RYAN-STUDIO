@@ -33,7 +33,7 @@
             window.__rsConsoleScriptsLoaded = true;
             loadConsoleScript("/upload/wiki-data/rs-config.js?v=2", function () {
                 loadConsoleScript("/upload/wiki-data/rs-console-publish-redirect.js?v=1.2");
-                loadConsoleScript("/upload/wiki-data/rs-console-html-block-compact.js?v=1.3");
+                loadConsoleScript("/upload/wiki-data/rs-console-html-block-compact.js?v=2.0");
                 loadConsoleScript("/upload/wiki-data/rs-console-wikilink.js?v=" + WIKI_VER, afterWiki);
             });
         }

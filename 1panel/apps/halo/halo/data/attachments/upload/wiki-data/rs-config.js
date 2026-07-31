@@ -58,10 +58,10 @@ window.RSConfig = {
         showSelectionBubble: false
     },
 
-    // 📦 hybrid-edit-block：HTML 编辑块默认按渲染预览高度显示（见 rs-console-html-block-compact.js）
+    // 📦 hybrid-edit-block：HTML 编辑块全屏编辑（见 rs-console-html-block-compact.js）
     htmlBlockCompact: {
         enabled: true,
-        types: ["html_edited"],
-        editMaxHeight: "min(55vh, 560px)"
+        labelRe: null,
+        types: ["html_edited"]
     }
 };
