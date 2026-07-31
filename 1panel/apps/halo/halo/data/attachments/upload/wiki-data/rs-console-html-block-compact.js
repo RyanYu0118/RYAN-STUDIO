@@ -1,13 +1,13 @@
 /* =======================================================
-   RS Console — HTML 编辑块全屏编辑 v3.2
-   完整源码缓存（Snapshot）驱动预览/全屏；PM+CM 双写同步
+   RS Console — HTML 编辑块全屏编辑 v3.3
+   Snapshot 完整源码 + 全屏编辑过渡动画
    ======================================================= */
 (function () {
   "use strict";
 
   if (location.pathname.indexOf("/console/posts/editor") < 0) return;
 
-  var RS_HTML_BLOCK_VER = "3.2.1";
+  var RS_HTML_BLOCK_VER = "3.3";
   if (window.RSHtmlBlockCompact && window.RSHtmlBlockCompact.__ver === RS_HTML_BLOCK_VER) {
     return;
   }
@@ -247,8 +247,12 @@
       ".ProseMirror .rs-html-block-root [data-rs-html-fs-btn]:hover{filter:brightness(1.06)}" +
       ".ProseMirror .rs-html-block-root [data-rs-html-repair-btn]{margin-left:6px;border:1px solid #e6a23c;background:#fdf6ec;color:#e6a23c;border-radius:6px;padding:5px 10px;font-size:12px;cursor:pointer;line-height:1.4;font-weight:600}" +
       ".ProseMirror .rs-html-block-root [data-rs-html-repair-btn]:hover{filter:brightness(0.98)}" +
-      "#rs-html-fs-overlay{position:fixed;inset:0;z-index:2147483000;display:flex;flex-direction:column;background:#1e1e1e;color:#d4d4d4}" +
-      "#rs-html-fs-overlay.rs-html-fs-hidden{display:none!important}" +
+      "#rs-html-fs-overlay{position:fixed;inset:0;z-index:2147483000;display:flex;flex-direction:column;background:rgba(10,10,12,.72);backdrop-filter:blur(4px);color:#d4d4d4;opacity:0;visibility:hidden;pointer-events:none;transition:opacity .26s ease,visibility .26s ease,background .26s ease}" +
+      "#rs-html-fs-overlay.rs-html-fs-open{opacity:1;visibility:visible;pointer-events:auto;background:rgba(10,10,12,.88)}" +
+      "#rs-html-fs-overlay.rs-html-fs-hidden{display:flex!important;opacity:0!important;visibility:hidden!important;pointer-events:none!important}" +
+      "#rs-html-fs-overlay .rs-html-fs-panel{display:flex;flex-direction:column;flex:1;min-height:0;background:#1e1e1e;box-shadow:0 18px 60px rgba(0,0,0,.45);transform:translateY(16px) scale(.985);opacity:0;transition:transform .32s cubic-bezier(.22,1,.36,1),opacity .28s ease}" +
+      "#rs-html-fs-overlay.rs-html-fs-open .rs-html-fs-panel{transform:none;opacity:1}" +
+      "@media (prefers-reduced-motion:reduce){#rs-html-fs-overlay,#rs-html-fs-overlay .rs-html-fs-panel{transition:none!important;transform:none!important}}" +
       "#rs-html-fs-overlay .rs-html-fs-toolbar{display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid #333;background:#252526;flex-shrink:0}" +
       "#rs-html-fs-overlay .rs-html-fs-title{font-size:14px;font-weight:600;color:#fff}" +
       "#rs-html-fs-overlay .rs-html-fs-actions{display:flex;gap:8px}" +
@@ -262,19 +266,56 @@
     document.head.appendChild(tag);
   }
 
+  function isOverlayOpen() {
+    return overlay && overlay.classList.contains("rs-html-fs-open");
+  }
+
+  function showFullscreenOverlay() {
+    overlay.classList.remove("rs-html-fs-hidden");
+    void overlay.offsetWidth;
+    overlay.classList.add("rs-html-fs-open");
+  }
+
+  function hideFullscreenOverlay(cb) {
+    if (!overlay || overlay.classList.contains("rs-html-fs-hidden")) {
+      if (cb) cb();
+      return;
+    }
+    if (overlay.__rsHtmlFsClosing) return;
+    overlay.__rsHtmlFsClosing = true;
+    overlay.classList.remove("rs-html-fs-open");
+    var done = false;
+    function finish() {
+      if (done) return;
+      done = true;
+      overlay.removeEventListener("transitionend", onEnd);
+      overlay.classList.add("rs-html-fs-hidden");
+      overlay.__rsHtmlFsClosing = false;
+      if (cb) cb();
+    }
+    function onEnd(e) {
+      if (e.target !== overlay) return;
+      finish();
+    }
+    overlay.addEventListener("transitionend", onEnd);
+    setTimeout(finish, 320);
+  }
+
   function ensureOverlay() {
     if (overlay) return;
     overlay = document.createElement("div");
     overlay.id = "rs-html-fs-overlay";
     overlay.className = "rs-html-fs-hidden";
     overlay.innerHTML =
+      '<div class="rs-html-fs-panel">' +
       '<div class="rs-html-fs-toolbar">' +
       '<span class="rs-html-fs-title">HTML 全屏编辑</span>' +
       '<div class="rs-html-fs-actions">' +
       '<button type="button" data-rs-html-fs-cancel>取消</button>' +
       '<button type="button" class="primary" data-rs-html-fs-done>完成</button>' +
       "</div></div>" +
-      '<div class="rs-html-fs-body"><textarea class="rs-html-fs-textarea" spellcheck="false"></textarea></div>';
+      '<div class="rs-html-fs-body"><textarea class="rs-html-fs-textarea" spellcheck="false"></textarea></div>' +
+      "</div>";
     document.body.appendChild(overlay);
     overlayTextarea = overlay.querySelector(".rs-html-fs-textarea");
     overlay.querySelector("[data-rs-html-fs-done]").addEventListener("click", function () {
@@ -284,7 +325,7 @@
       closeFullscreen(false);
     });
     document.addEventListener("keydown", function (e) {
-      if (!fsState || overlay.classList.contains("rs-html-fs-hidden")) return;
+      if (!fsState || !isOverlayOpen()) return;
       if (e.key === "Escape") {
         e.preventDefault();
         closeFullscreen(false);
@@ -1354,8 +1395,10 @@
     fsState = { root: root, initial: "" };
     overlayTextarea.value = "";
     overlayTextarea.placeholder = "正在加载完整源码…";
-    overlay.classList.remove("rs-html-fs-hidden");
-    overlayTextarea.focus();
+    showFullscreenOverlay();
+    setTimeout(function () {
+      if (fsState && fsState.root === root) overlayTextarea.focus();
+    }, 80);
 
     resolveFullSource(root, function (full) {
       if (!fsState || fsState.root !== root) return;
@@ -1366,22 +1409,23 @@
   }
 
   function closeFullscreen(save) {
-    if (!fsState) return;
+    if (!fsState || overlay.__rsHtmlFsClosing) return;
     var root = fsState.root;
     var initial = fsState.initial;
     var next = save ? overlayTextarea.value : initial;
-    fsState = null;
-    overlay.classList.add("rs-html-fs-hidden");
 
-    if (!save || next === initial) {
-      ensurePreviewOnly(root);
-      return;
-    }
+    hideFullscreenOverlay(function () {
+      fsState = null;
+      if (!save || next === initial) {
+        ensurePreviewOnly(root);
+        return;
+      }
 
-    cacheSource(root, next);
-    fullSourceCache.set(root, next);
-    setInlineEditorText(root, next, function () {
-      ensurePreviewOnly(root);
+      cacheSource(root, next);
+      fullSourceCache.set(root, next);
+      setInlineEditorText(root, next, function () {
+        ensurePreviewOnly(root);
+      });
     });
   }
 
@@ -1508,7 +1552,7 @@
   console.log(
     "[rs-html-block-compact] v" +
       RS_HTML_BLOCK_VER +
-      " 已就绪：Snapshot 完整源码驱动预览/全屏，PM+CM 双写"
+      " 已就绪：Snapshot 完整源码 + 全屏编辑过渡动画"
   );
 
   window.RSHtmlBlockCompact.repairNow = function () {
