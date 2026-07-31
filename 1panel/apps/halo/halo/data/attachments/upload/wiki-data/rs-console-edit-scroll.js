@@ -7,7 +7,7 @@
 
   if (location.pathname.indexOf("/console/posts/editor") < 0) return;
 
-  var RS_EDIT_SCROLL_VER = "1.1.2";
+  var RS_EDIT_SCROLL_VER = "1.1.3";
   if (window.RSEditScroll && window.RSEditScroll.__ver === RS_EDIT_SCROLL_VER) return;
 
   var STORAGE_KEY = "rs-edit-scroll-context";
@@ -232,21 +232,18 @@
 
   function scrollElIntoEditorView(el) {
     if (!el) return;
-    try {
-      el.scrollIntoView({ block: "center", behavior: "auto" });
-    } catch (e2) {
-      /* ignore */
-    }
-    var rect = el.getBoundingClientRect();
     var offset = getAnchorScrollOffset();
-    var y = rect.top + window.pageYOffset - offset;
-    window.scrollTo({ top: Math.max(0, y), behavior: "auto" });
     var container = findScrollContainer(el);
     if (container && container !== document.documentElement && container !== document.body) {
       var cRect = container.getBoundingClientRect();
+      var rect = el.getBoundingClientRect();
       var innerY = rect.top - cRect.top + container.scrollTop - offset;
       container.scrollTop = Math.max(0, innerY);
+      return;
     }
+    var rect = el.getBoundingClientRect();
+    var y = rect.top + window.pageYOffset - offset;
+    window.scrollTo({ top: Math.max(0, y), behavior: "auto" });
   }
 
   function findTextHost(root, needle) {

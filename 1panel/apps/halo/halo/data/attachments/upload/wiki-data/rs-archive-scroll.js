@@ -8,7 +8,12 @@
   var PATH_PREFIX = "/archives/";
   if (location.pathname.indexOf(PATH_PREFIX) !== 0) return;
 
-  var RS_ARCHIVE_SCROLL_VER = "1.0.2";
+  var RS_ARCHIVE_SCROLL_VER = "1.0.3";
+
+  function getViewportAnchorY() {
+    var vh = window.innerHeight || 800;
+    return vh * 0.42;
+  }
   if (window.RSArchiveScroll && window.RSArchiveScroll.__ver === RS_ARCHIVE_SCROLL_VER) return;
 
   var RETURN_KEY = "rs-return-scroll-context";
@@ -75,18 +80,23 @@
 
   function scrollElementWithOffset(el, blockRatio) {
     if (!el) return false;
-    if (blockRatio == null || blockRatio <= 0) {
-      if (window.RSAnchorScroll && window.RSAnchorScroll.scrollToElement) {
-        return window.RSAnchorScroll.scrollToElement(el, "auto");
+
+    if (blockRatio != null && blockRatio > 0) {
+      var rect = el.getBoundingClientRect();
+      var visibleH = rect.height;
+      if (visibleH > 8) {
+        var blockTop = rect.top + window.pageYOffset;
+        var pointY = blockTop + visibleH * blockRatio;
+        scrollToY(pointY - getViewportAnchorY(), "auto");
+        return true;
       }
     }
-    var offset = getScrollOffset();
-    var rect = el.getBoundingClientRect();
-    var top = rect.top + window.pageYOffset - offset;
-    if (blockRatio != null && blockRatio > 0) {
-      top += Math.max(0, el.offsetHeight * blockRatio - window.innerHeight * 0.38);
+
+    if (window.RSAnchorScroll && window.RSAnchorScroll.scrollToElement) {
+      return window.RSAnchorScroll.scrollToElement(el, "auto");
     }
-    scrollToY(top, "auto");
+    var rect2 = el.getBoundingClientRect();
+    scrollToY(rect2.top + window.pageYOffset - getScrollOffset(), "auto");
     return true;
   }
 
@@ -139,11 +149,9 @@
 
   function scrollByArticleRatio(ctx, body) {
     if (!body) return false;
-    var vh = window.innerHeight || 800;
-    var max = Math.max(0, body.scrollHeight - vh * 0.5);
-    if (max <= 8) return false;
     var bodyTop = body.getBoundingClientRect().top + window.pageYOffset;
-    scrollToY(bodyTop + (ctx.ratio || 0) * max - getScrollOffset() * 0.5, "auto");
+    var y = bodyTop + (ctx.ratio || 0) * body.scrollHeight - getViewportAnchorY();
+    scrollToY(y, "auto");
     return true;
   }
 
@@ -160,7 +168,12 @@
     var target = findArchiveTarget(ctx, body);
     if (target) {
       var blockRatio = null;
-      if (target.classList && target.classList.contains("html-edited") && ctx.blockRatio != null) {
+      if (
+        ctx.blockRatio > 0 &&
+        target.classList &&
+        target.classList.contains("html-edited") &&
+        !ctx.blockSig
+      ) {
         blockRatio = ctx.blockRatio;
       }
       return scrollElementWithOffset(target, blockRatio);
