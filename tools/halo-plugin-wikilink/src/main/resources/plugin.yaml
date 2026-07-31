@@ -1,0 +1,22 @@
+# Refer https://docs.halo.run/developer-guide/plugin/basics/manifest
+
+apiVersion: plugin.halo.run/v1alpha1
+kind: Plugin
+metadata:
+  # The name defines how the plugin is invoked, A unique name
+  name: mcwws-wikilink
+spec:
+  enabled: true
+  requires: ">=2.25.0"
+  author:
+    name: MCWWS
+    website: https://github.com/MCWWS
+  logo: logo.png
+  homepage: https://github.com/MCWWS/mcwws-wikilink#readme
+  repo: https://github.com/MCWWS/mcwws-wikilink
+  issues: https://github.com/MCWWS/mcwws-wikilink/issues
+  displayName: "MCWWS Wiki 链接"
+  description: "后台编辑器：选中文字 → 气泡栏 Wiki 链接（slug 搜索、红链）· 与 Halo 原生链环并存"
+  license:
+    - name: "GPL-3.0"
+      url: "https://github.com/MCWWS/mcwws-wikilink/blob/main/LICENSE"

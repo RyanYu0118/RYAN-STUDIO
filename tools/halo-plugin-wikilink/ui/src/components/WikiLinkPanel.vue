@@ -1,0 +1,237 @@
+<script setup lang="ts">
+import { applyWikiLink, getSelectedText } from '@/lib/wiki-link-commands'
+import { loadWikiIndex, getWikiIndexState } from '@/lib/wiki-index'
+import {
+  exactPage,
+  isExternalUrl,
+  normalizeExternalUrl,
+  normalizeTarget,
+  searchPages,
+  type WikiPage,
+} from '@/lib/wiki-utils'
+import type { WikiBubbleItemProps } from '@/lib/editor-types'
+import { computed, onMounted, ref } from 'vue'
+
+const props = withDefaults(defineProps<WikiBubbleItemProps>(), {
+  isActive: () => false,
+  visible: () => true,
+  action: undefined,
+})
+
+const query = ref('')
+const activeSlug = ref('')
+const loading = ref(false)
+
+const { pageIndex, suggestPaths, publishedSlugs } = getWikiIndexState()
+
+const initialText = computed(() => getSelectedText(props.editor))
+
+const results = computed(() => {
+  const q = query.value.trim()
+  if (q && isExternalUrl(q)) {
+    const href = normalizeExternalUrl(q)
+    return [
+      {
+        slug: href,
+        title: '外部链接',
+        published: true,
+        external: true,
+        meta: href,
+      },
+    ]
+  }
+  const list = searchPages(q, pageIndex, suggestPaths, publishedSlugs)
+  if (q && !exactPage(q, pageIndex, publishedSlugs) && !isExternalUrl(q)) {
+    return [
+      {
+        slug: q,
+        title: q,
+        published: false,
+        red: true,
+        meta: '此页面尚未创建 · 将插入红链',
+      },
+      ...list,
+    ]
+  }
+  return list
+})
+
+onMounted(async () => {
+  loading.value = true
+  query.value = initialText.value
+  activeSlug.value = query.value
+  await loadWikiIndex()
+  loading.value = false
+})
+
+function pick(row: WikiPage) {
+  activeSlug.value = row.external ? row.slug : row.slug || row.title
+  query.value = activeSlug.value
+}
+
+function finish() {
+  const raw = query.value.trim() || activeSlug.value
+  if (!raw) return
+  applyWikiLink(props.editor, raw, initialText.value)
+  window.dispatchEvent(new CustomEvent('mcwws-wikilink-close'))
+}
+
+function onKeydown(e: KeyboardEvent) {
+  if (e.key === 'Enter') {
+    e.preventDefault()
+    finish()
+  }
+}
+</script>
+
+<template>
+  <div class="mcwws-wiki-panel">
+    <div class="mcwws-wiki-panel__head">
+      <span class="mcwws-wiki-panel__title">Wiki 链接</span>
+      <button type="button" class="mcwws-wiki-panel__done" @click="finish">完成</button>
+    </div>
+    <div class="mcwws-wiki-panel__search">
+      <input
+        v-model="query"
+        type="text"
+        placeholder="Wiki 页面名，或 https:// 外部地址…"
+        autocomplete="off"
+        @keydown="onKeydown"
+      />
+    </div>
+    <div v-if="loading" class="mcwws-wiki-panel__hint">加载页面索引…</div>
+    <div v-else class="mcwws-wiki-panel__results">
+      <button
+        v-for="row in results"
+        :key="row.slug + row.title"
+        type="button"
+        class="mcwws-wiki-panel__row"
+        :class="{ red: row.red || (!row.published && !row.external) }"
+        @click="pick(row)"
+      >
+        <span class="icon">{{ row.external ? '↗' : row.published ? '✓' : '?' }}</span>
+        <span class="body">
+          <span class="label">{{ row.title }}</span>
+          <span class="meta">{{ row.meta || row.slug }}{{ row.published ? '' : row.external ? '' : ' · 红链' }}</span>
+        </span>
+      </button>
+      <div v-if="!results.length" class="mcwws-wiki-panel__hint">输入页面名称，或从列表中选择</div>
+    </div>
+    <div class="mcwws-wiki-panel__foot">原生链环（普通链接 / 取消 / 打开）仍可使用 · Ctrl+Shift+K</div>
+  </div>
+</template>
+
+<style scoped lang="scss">
+.mcwws-wiki-panel {
+  width: min(360px, calc(100vw - 24px));
+  background: #fff;
+  border-radius: 10px;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.18);
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  overflow: hidden;
+}
+
+.mcwws-wiki-panel__head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border-bottom: 1px solid #eee;
+}
+
+.mcwws-wiki-panel__title {
+  flex: 1;
+  font: 600 14px system-ui, sans-serif;
+  text-align: center;
+}
+
+.mcwws-wiki-panel__done {
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  font: 500 13px system-ui, sans-serif;
+  color: #1976d2;
+}
+
+.mcwws-wiki-panel__search {
+  padding: 10px 12px;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.mcwws-wiki-panel__search input {
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  padding: 9px 10px;
+  font: 14px system-ui, sans-serif;
+}
+
+.mcwws-wiki-panel__results {
+  max-height: 240px;
+  overflow: auto;
+}
+
+.mcwws-wiki-panel__row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  border: 0;
+  background: transparent;
+  text-align: left;
+  padding: 8px 12px;
+  cursor: pointer;
+}
+
+.mcwws-wiki-panel__row:hover {
+  background: #f5f5f5;
+}
+
+.mcwws-wiki-panel__row.red .label {
+  color: #c62828;
+  font-weight: 600;
+}
+
+.mcwws-wiki-panel__row .icon {
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  background: #eee;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font: 600 14px sans-serif;
+  color: #666;
+  flex-shrink: 0;
+}
+
+.mcwws-wiki-panel__row.red .icon {
+  background: #ffebee;
+  color: #c62828;
+}
+
+.mcwws-wiki-panel__row .body {
+  min-width: 0;
+}
+
+.mcwws-wiki-panel__row .label {
+  display: block;
+  font: 14px system-ui, sans-serif;
+}
+
+.mcwws-wiki-panel__row .meta {
+  display: block;
+  font: 11px/1.3 ui-monospace, monospace;
+  color: #888;
+  margin-top: 2px;
+}
+
+.mcwws-wiki-panel__hint,
+.mcwws-wiki-panel__foot {
+  padding: 8px 12px 10px;
+  font: 12px/1.45 system-ui, sans-serif;
+  color: #666;
+  border-top: 1px solid #f0f0f0;
+}
+</style>

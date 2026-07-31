@@ -1,0 +1,33 @@
+plugins {
+    id 'base'
+    id "com.github.node-gradle.node" version "7.1.0"
+}
+
+group 'run.mcwws.mcwwswikilink.ui'
+
+tasks.register('npmBuild', NpmTask) {
+    group = 'build'
+    description = 'Build the UI project using npm'
+    args = ['run', 'build']
+    dependsOn tasks.named('npmInstall')
+    inputs.dir(layout.projectDirectory.dir('src'))
+    inputs.files(fileTree(
+        dir: layout.projectDirectory,
+        includes: ['*.cjs', '*.ts', '*.js', '*.json', '*.yaml']))
+    outputs.dir(layout.buildDirectory.dir('dist'))
+}
+
+tasks.register('npmCheck', NpmTask) {
+    group = 'verification'
+    description = 'Run unit tests for the UI project using npm'
+    args = ['run', 'test:unit']
+    dependsOn tasks.named('npmInstall')
+}
+
+tasks.named('check') {
+    dependsOn tasks.named('npmCheck')
+}
+
+tasks.named('assemble') {
+    dependsOn tasks.named('npmBuild')
+}

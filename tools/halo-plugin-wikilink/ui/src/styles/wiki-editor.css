@@ -1,0 +1,9 @@
+.ProseMirror a.rs-wiki-redlink {
+  color: #c62828 !important;
+  border-bottom: 1px dashed currentColor;
+  text-decoration: none !important;
+}
+
+.ProseMirror a.rs-wiki-redlink:hover {
+  color: #b71c1c !important;
+}
