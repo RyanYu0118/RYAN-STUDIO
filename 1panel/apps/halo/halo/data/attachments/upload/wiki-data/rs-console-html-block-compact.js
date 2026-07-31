@@ -1,13 +1,13 @@
 /* =======================================================
-   RS Console — HTML 编辑块全屏编辑 v2.6
-   iframe 预览：document.write + 脚本转义 + 高度/路径修复
+   RS Console — HTML 编辑块全屏编辑 v2.7
+   iframe 预览：稳定高度 + 阻断 MO/resize 反馈环
    ======================================================= */
 (function () {
   "use strict";
 
   if (location.pathname.indexOf("/console/posts/editor") < 0) return;
 
-  var RS_HTML_BLOCK_VER = "2.6";
+  var RS_HTML_BLOCK_VER = "2.7";
   if (window.RSHtmlBlockCompact && window.RSHtmlBlockCompact.__ver === RS_HTML_BLOCK_VER) {
     return;
   }
@@ -24,7 +24,25 @@
   var overlay = null;
   var overlayTextarea = null;
   var previewAssetsReady = false;
+  var prepareBlocksTimer = null;
   var iframeRefreshTimer = null;
+
+  function isOurPreviewNode(n) {
+    if (!n || n.nodeType !== 1) return false;
+    if (n.matches && (n.matches("[data-rs-html-iframe-wrap]") || n.matches("[data-rs-html-iframe]"))) {
+      return true;
+    }
+    if (n.closest && n.closest("[data-rs-html-iframe-wrap]")) return true;
+    return false;
+  }
+
+  function debouncedPrepareAllBlocks() {
+    if (prepareBlocksTimer) clearTimeout(prepareBlocksTimer);
+    prepareBlocksTimer = setTimeout(function () {
+      prepareBlocksTimer = null;
+      prepareAllBlocks();
+    }, 200);
+  }
 
   function previewSheets() {
     return cfg.previewStyles || ["/upload/wiki-data/fronts.css"];
@@ -70,7 +88,7 @@
       '/">' +
       links +
       "<style>" +
-      "html,body{margin:0;padding:0;background:transparent;color:inherit;}" +
+      "html,body{margin:0;padding:0;background:transparent;color:inherit;overflow:hidden!important;height:auto!important;}" +
       "body{font-size:16px;line-height:1.75;box-sizing:border-box;}" +
       "*,*::before,*::after{box-sizing:inherit;}" +
       "img,video,svg{max-width:100%;height:auto;}" +
@@ -85,22 +103,15 @@
     );
   }
 
-  function scheduleIframeResize(iframe, wrap) {
-    if (!iframe) return;
-    var delays = [0, 80, 250, 600, 1200];
-    for (var i = 0; i < delays.length; i++) {
-      (function (ms) {
-        setTimeout(function () {
-          resizeIframe(iframe);
-        }, ms);
-      })(delays[i]);
-    }
-    if (wrap && !wrap.__rsHtmlRo && typeof ResizeObserver !== "undefined") {
-      wrap.__rsHtmlRo = new ResizeObserver(function () {
+  function scheduleIframeResize(iframe) {
+    if (!iframe || iframe.__rsHtmlResizeQueued) return;
+    iframe.__rsHtmlResizeQueued = true;
+    [0, 120, 400].forEach(function (ms) {
+      setTimeout(function () {
         resizeIframe(iframe);
-      });
-      wrap.__rsHtmlRo.observe(wrap);
-    }
+        if (ms === 400) iframe.__rsHtmlResizeQueued = false;
+      }, ms);
+    });
   }
 
   function writeIframeDoc(iframe, html) {
@@ -122,18 +133,17 @@
     if (!iframe || !iframe.contentDocument) return;
     try {
       var doc = iframe.contentDocument;
-      var card = doc.querySelector(".wd-smart-card");
-      var h = Math.max(
-        doc.body ? doc.body.scrollHeight : 0,
-        doc.documentElement ? doc.documentElement.scrollHeight : 0
-      );
-      if (card) {
-        var rect = card.getBoundingClientRect();
-        if (rect.height > 0) {
-          h = Math.max(h, Math.ceil(rect.bottom + (doc.body.scrollTop || 0) + 16));
-        }
+      if (!doc.body) return;
+      var prev = parseInt(iframe.dataset.rsHtmlHeight || "0", 10) || 0;
+      iframe.style.height = "0px";
+      var h = Math.max(doc.body.scrollHeight || 0, doc.documentElement.scrollHeight || 0);
+      h = Math.max(96, Math.min(h + 12, 12000));
+      if (prev && Math.abs(h - prev) <= 2) {
+        iframe.style.height = prev + "px";
+        return;
       }
-      iframe.style.height = Math.max(96, h + 20) + "px";
+      iframe.dataset.rsHtmlHeight = String(h);
+      iframe.style.height = h + "px";
     } catch (e1) {
       /* ignore */
     }
@@ -167,7 +177,6 @@
       var iframe = document.createElement("iframe");
       iframe.setAttribute("data-rs-html-iframe", "1");
       iframe.setAttribute("title", "HTML 块预览");
-      iframe.setAttribute("title", "HTML 块预览");
       iframe.setAttribute("sandbox", cfg.previewSandbox || "allow-scripts allow-same-origin");
       wrap.appendChild(iframe);
       shell.appendChild(wrap);
@@ -177,10 +186,10 @@
     if (!iframe) return;
     var sig = fnv1a(source);
     if (!force && iframe.dataset.rsHtmlSig === sig) {
-      scheduleIframeResize(iframe, wrap);
       return;
     }
     iframe.dataset.rsHtmlSig = sig;
+    iframe.dataset.rsHtmlHeight = "";
     writeIframeDoc(iframe, source);
     iframe.onload = function () {
       if (root.querySelector(".mcwws-web-public-home-root")) {
@@ -193,9 +202,9 @@
           /* ignore */
         }
       }
-      scheduleIframeResize(iframe, wrap);
+      scheduleIframeResize(iframe);
     };
-    scheduleIframeResize(iframe, wrap);
+    scheduleIframeResize(iframe);
   }
 
   function assignBlockIndices(roots) {
@@ -213,7 +222,7 @@
       ".ProseMirror .rs-html-block-root .rs-html-preview-shell>.uno-xqe6dm," +
       ".ProseMirror .rs-html-block-root .rs-html-preview-shell>div:not(.rs-html-iframe-wrap){display:none!important;height:0!important;min-height:0!important;max-height:0!important;overflow:hidden!important;visibility:hidden!important;margin:0!important;padding:0!important;border:0!important}" +
       ".ProseMirror .rs-html-block-root .rs-html-iframe-wrap{width:100%;min-height:72px;background:transparent}" +
-      ".ProseMirror .rs-html-block-root .rs-html-iframe-wrap iframe{width:100%;border:0;display:block;background:transparent;min-height:72px}" +
+      ".ProseMirror .rs-html-block-root .rs-html-iframe-wrap iframe{width:100%;border:0;display:block;background:transparent;min-height:96px;max-height:12000px;overflow:hidden!important}" +
       ".ProseMirror .rs-html-block-root .rs-html-hide-native{display:none!important}" +
       ".ProseMirror .rs-html-block-root .cm-editor," +
       ".ProseMirror .rs-html-block-root div:has(> .cm-editor){display:none!important;height:0!important;min-height:0!important;max-height:0!important;overflow:hidden!important;visibility:hidden!important;margin:0!important;padding:0!important;border:0!important}" +
@@ -462,13 +471,20 @@
     hideNativeActions(root);
     injectFullscreenButton(root);
 
+    var pmText = null;
     if (root.querySelector(".cm-editor .cm-line")) {
-      cacheSource(root, readCmText(root));
+      pmText = readCmText(root);
     } else {
-      var pmText = readSourceFromPm(root);
-      if (pmText != null) cacheSource(root, pmText);
+      pmText = readSourceFromPm(root);
     }
+    if (pmText == null) pmText = getCachedSource(root) || "";
+    cacheSource(root, pmText);
 
+    var sig = fnv1a(pmText);
+    if (root.dataset.rsHtmlPreviewSig === sig && root.querySelector("[data-rs-html-iframe-wrap]")) {
+      return;
+    }
+    root.dataset.rsHtmlPreviewSig = sig;
     refreshIframePreview(root, false);
   }
 
@@ -525,6 +541,7 @@
           function () {
             cacheSource(root, readCmText(root));
             root.classList.remove("rs-html-fs-sync");
+            root.dataset.rsHtmlPreviewSig = "";
             refreshIframePreview(root, true);
             if (cb) cb();
           }
@@ -619,6 +636,7 @@
         for (var j = 0; j < m.addedNodes.length; j++) {
           var n = m.addedNodes[j];
           if (n.nodeType !== 1) continue;
+          if (isOurPreviewNode(n)) continue;
           if (
             (n.matches &&
               (n.matches(".html-edited") ||
@@ -638,7 +656,9 @@
       }
       if (!hit) return;
       if (timer) clearTimeout(timer);
-      timer = setTimeout(prepareAllBlocks, 150);
+      timer = setTimeout(function () {
+        debouncedPrepareAllBlocks();
+      }, 150);
     });
     mo.observe(pm, { childList: true, subtree: true });
     pm.__rsHtmlBlockNewMo = true;
@@ -655,12 +675,13 @@
         iframeRefreshTimer = setTimeout(function () {
           findBlockRoots().forEach(function (root) {
             var pmText = readSourceFromPm(root);
-            if (pmText != null) {
-              cacheSource(root, pmText);
-              refreshIframePreview(root, true);
-            }
+            var cached = getCachedSource(root);
+            if (pmText == null || pmText === cached) return;
+            cacheSource(root, pmText);
+            root.dataset.rsHtmlPreviewSig = "";
+            refreshIframePreview(root, true);
           });
-        }, 200);
+        }, 300);
       }
       return ret;
     };
@@ -692,6 +713,6 @@
   console.log(
     "[rs-html-block-compact] v" +
       RS_HTML_BLOCK_VER +
-      " 已就绪：iframe 预览 v2.6（脚本/卡片高度已修复），全屏即时打开"
+      " 已就绪：iframe 预览 v2.7（稳定高度），全屏即时打开"
   );
 })();
