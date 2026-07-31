@@ -1,13 +1,13 @@
 /* =======================================================
-   RS Console — HTML 编辑块全屏编辑 v2.3
-   默认仅渲染预览（CSS 隐藏代码）；全屏即时打开；PM 直读源码
+   RS Console — HTML 编辑块全屏编辑 v2.4
+   默认仅渲染预览；全屏即时打开；注入 fronts.css 贴近前台效果
    ======================================================= */
 (function () {
   "use strict";
 
   if (location.pathname.indexOf("/console/posts/editor") < 0) return;
 
-  var RS_HTML_BLOCK_VER = "2.3";
+  var RS_HTML_BLOCK_VER = "2.4";
   if (window.RSHtmlBlockCompact && window.RSHtmlBlockCompact.__ver === RS_HTML_BLOCK_VER) {
     return;
   }
@@ -23,12 +23,32 @@
   var pmHooked = false;
   var overlay = null;
   var overlayTextarea = null;
+  var previewAssetsReady = false;
+
+  function ensurePreviewAssets() {
+    if (previewAssetsReady) return;
+    previewAssetsReady = true;
+    document.body.classList.add("my-wiki-page", "rs-console-wiki-preview");
+    var sheets = cfg.previewStyles || ["/upload/wiki-data/fronts.css"];
+    for (var i = 0; i < sheets.length; i++) {
+      var href = sheets[i];
+      if (!href || document.querySelector('link[data-rs-preview-css="' + href + '"]')) continue;
+      var link = document.createElement("link");
+      link.rel = "stylesheet";
+      link.href = href + (href.indexOf("?") >= 0 ? "" : "?v=1");
+      link.setAttribute("data-rs-preview-css", href);
+      document.head.appendChild(link);
+    }
+  }
 
   function injectStyles() {
     if (document.getElementById("rs-html-block-fs-style")) return;
     var css =
-      ".ProseMirror .rs-html-block-root > div:last-child{min-height:0!important;height:auto!important}" +
-      ".ProseMirror .rs-html-block-root .html-edited,.ProseMirror .rs-html-block-root .markdown-edited{min-height:0!important}" +
+      ".ProseMirror .rs-html-block-root > div:last-child{min-height:0!important;height:auto!important;max-width:none!important;width:100%!important}" +
+      ".ProseMirror .rs-html-block-root .rs-html-preview-host,.ProseMirror .rs-html-block-root .html-edited,.ProseMirror .rs-html-block-root .markdown-edited{min-height:0!important;max-width:none!important;width:100%!important;box-sizing:border-box}" +
+      ".ProseMirror .rs-html-block-root .rs-html-preview-host{font-size:16px;line-height:1.75;word-wrap:break-word;overflow-wrap:break-word}" +
+      ".ProseMirror .rs-html-block-root .html-edited img,.ProseMirror .rs-html-block-root .html-edited video,.ProseMirror .rs-html-block-root .html-edited svg{max-width:100%;height:auto}" +
+      ".ProseMirror .rs-html-block-root .html-edited table{max-width:100%;table-layout:auto}" +
       ".ProseMirror .rs-html-block-root .rs-html-hide-native{display:none!important}" +
       ".ProseMirror .rs-html-block-root .cm-editor," +
       ".ProseMirror .rs-html-block-root div:has(> .cm-editor){display:none!important;height:0!important;min-height:0!important;max-height:0!important;overflow:hidden!important;visibility:hidden!important;margin:0!important;padding:0!important;border:0!important}" +
@@ -266,11 +286,40 @@
     }, interval);
   }
 
+  function enhancePreviewContext(root) {
+    var host = root.children && root.children[root.children.length - 1];
+    if (host) host.classList.add("rs-html-preview-host", "markdown-body");
+    root.querySelectorAll(".html-edited").forEach(function (el) {
+      el.classList.add("markdown-body");
+    });
+    if (root.querySelector(".mcwws-web-public-home-root")) {
+      document.documentElement.classList.add("mcwws-web-public-home-page");
+    }
+  }
+
+  function switchToPreviewMode(root) {
+    if (root.dataset.rsHtmlInPreview === "1" || root.dataset.rsHtmlSwitching === "1") return;
+    if (!isSplitMode(root) && !isInlineEditMode(root)) {
+      root.dataset.rsHtmlInPreview = "1";
+      return;
+    }
+    root.dataset.rsHtmlSwitching = "1";
+    if (isSplitMode(root)) clickHeaderButton(root, "退出分屏");
+    if (isInlineEditMode(root)) clickHeaderButton(root, "预览");
+    setTimeout(function () {
+      root.dataset.rsHtmlSwitching = "0";
+      if (!isSplitMode(root) && !isInlineEditMode(root)) {
+        root.dataset.rsHtmlInPreview = "1";
+      }
+    }, 120);
+  }
+
   function ensurePreviewOnly(root) {
     if (!root || (fsState && fsState.root === root)) return;
     root.classList.add("rs-html-block-root");
     hideNativeActions(root);
     injectFullscreenButton(root);
+    enhancePreviewContext(root);
 
     if (root.querySelector(".cm-editor .cm-line")) {
       cacheSource(root, readCmText(root));
@@ -279,8 +328,7 @@
       if (pmText != null) cacheSource(root, pmText);
     }
 
-    if (isSplitMode(root)) clickHeaderButton(root, "退出分屏");
-    if (isInlineEditMode(root)) clickHeaderButton(root, "预览");
+    switchToPreviewMode(root);
   }
 
   function syncReadSource(root, cb) {
@@ -307,6 +355,8 @@
   }
 
   function setInlineEditorText(root, text, cb) {
+    delete root.dataset.rsHtmlInPreview;
+    delete root.dataset.rsHtmlSwitching;
     root.classList.add("rs-html-fs-sync");
     if (!isInlineEditMode(root)) clickHeaderButton(root, "编辑");
     waitFor(
@@ -451,6 +501,7 @@
   function boot() {
     var pm = getPm();
     if (!pm) return false;
+    ensurePreviewAssets();
     injectStyles();
     ensureOverlay();
     if (!pmHooked) {
@@ -469,6 +520,8 @@
   });
 
   console.log(
-    "[rs-html-block-compact] v" + RS_HTML_BLOCK_VER + " 已就绪：默认仅预览，全屏即时打开"
+    "[rs-html-block-compact] v" +
+      RS_HTML_BLOCK_VER +
+      " 已就绪：默认仅预览，全屏即时打开，已注入前台字体样式"
   );
 })();

@@ -62,6 +62,8 @@ window.RSConfig = {
     htmlBlockCompact: {
         enabled: true,
         labelRe: null,
-        types: ["html_edited"]
+        types: ["html_edited"],
+        // 后台预览注入与前台相同的字体/工具类（fronts.css）
+        previewStyles: ["/upload/wiki-data/fronts.css"]
     }
 };
