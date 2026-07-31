@@ -5,7 +5,7 @@
   "use strict";
 
   window.RSWikiLink = window.RSWikiLink || {};
-  var RS_WIKILINK_VER = "3.0";
+  var RS_WIKILINK_VER = "3.1";
   if (window.RSWikiLink.__ver === RS_WIKILINK_VER) {
     return;
   }
@@ -141,7 +141,7 @@
     }
     if (editor.type === "prosemirror" && ctx.text) {
       editor.el.focus();
-      restoreDomSelection(ctx);
+      restoreEditorSelection(ctx);
       try {
         if (document.queryCommandSupported("createLink")) {
           document.execCommand("createLink", false, href);
@@ -218,14 +218,76 @@
     window.fetch.__rsWikiLinkHook = true;
   }
 
+  function findMainProseMirror() {
+    var pms = document.querySelectorAll(".ProseMirror");
+    var best = null;
+    var bestArea = 0;
+    for (var i = 0; i < pms.length; i++) {
+      var pm = pms[i];
+      if (!pm.isContentEditable) continue;
+      var r = pm.getBoundingClientRect();
+      if (r.width < 20 || r.height < 20) continue;
+      var area = r.width * r.height;
+      if (area > bestArea) {
+        bestArea = area;
+        best = pm;
+      }
+    }
+    return best;
+  }
+
+  function findTipTapEditor(pmEl) {
+    pmEl = pmEl || findMainProseMirror();
+    if (!pmEl) return null;
+    var node = pmEl;
+    for (var depth = 0; depth < 16 && node; depth++) {
+      var vue = node.__vueParentComponent;
+      if (vue) {
+        var ed =
+          (vue.props && vue.props.editor) ||
+          (vue.vnode && vue.vnode.props && vue.vnode.props.editor) ||
+          (vue.setupState && vue.setupState.editor);
+        if (ed && ed.state) return ed;
+      }
+      node = node.parentElement;
+    }
+    return null;
+  }
+
   function findEditor() {
     var ta = document.querySelector("textarea:not([readonly])");
     if (ta && ta.offsetParent !== null) return { type: "textarea", el: ta };
-    var pm = document.querySelector(".ProseMirror");
-    if (pm && pm.isContentEditable) return { type: "prosemirror", el: pm };
+    var pm = findMainProseMirror();
+    if (pm) {
+      var tt = findTipTapEditor(pm);
+      return { type: "prosemirror", el: pm, tiptap: tt };
+    }
     var cm = document.querySelector(".cm-content[contenteditable='true']");
     if (cm) return { type: "codemirror", el: cm };
     return null;
+  }
+
+  function captureSelectionFromTipTap() {
+    var pm = findMainProseMirror();
+    var tt = findTipTapEditor(pm);
+    if (!tt || !tt.state || tt.state.selection.empty) return null;
+    var sel = tt.state.selection;
+    var text = tt.state.doc.textBetween(sel.from, sel.to, " ").replace(/\s+/g, " ").trim();
+    if (!text) return null;
+    var rect = null;
+    try {
+      var c = tt.view.coordsAtPos(sel.from);
+      rect = { top: c.top, left: c.left, bottom: c.bottom, right: c.right, width: 0, height: c.bottom - c.top };
+    } catch (e0) {
+      if (pm) rect = pm.getBoundingClientRect();
+    }
+    return {
+      editor: { type: "prosemirror", el: pm, tiptap: tt },
+      text: text,
+      tiptapSelection: { from: sel.from, to: sel.to },
+      range: null,
+      rect: rect,
+    };
   }
 
   function rememberSelection(ctx) {
@@ -246,6 +308,9 @@
   }
 
   function captureSelection() {
+    var ttCtx = captureSelectionFromTipTap();
+    if (ttCtx && ttCtx.text) return ttCtx;
+
     var editor = findEditor();
     if (editor && editor.type === "textarea") {
       var ta = editor.el;
@@ -271,6 +336,20 @@
     return { editor: editor, text: "", range: null, rect: null };
   }
 
+  function restoreEditorSelection(ctx) {
+    if (!ctx) return false;
+    if (ctx.tiptapSelection && ctx.editor && ctx.editor.tiptap) {
+      try {
+        var tt = ctx.editor.tiptap;
+        tt.chain().focus().setTextSelection(ctx.tiptapSelection).run();
+        return true;
+      } catch (e0) {
+        /* ignore */
+      }
+    }
+    return restoreDomSelection(ctx);
+  }
+
   function restoreDomSelection(ctx) {
     if (!ctx || !ctx.domRange) return false;
     try {
@@ -293,7 +372,15 @@
     return menu ? menu.getBoundingClientRect() : null;
   }
 
-  function selectionHasLink() {
+  function selectionHasLink(ctx) {
+    var tt = (ctx && ctx.editor && ctx.editor.tiptap) || findTipTapEditor();
+    if (tt) {
+      try {
+        if (tt.isActive && tt.isActive("link")) return true;
+      } catch (e0) {
+        /* ignore */
+      }
+    }
     var sel = window.getSelection();
     if (!sel || !sel.rangeCount) return false;
     var node = sel.anchorNode;
@@ -317,7 +404,16 @@
     var editor = (ctx && ctx.editor) || findEditor();
     if (!editor || editor.type !== "prosemirror") return;
     editor.el.focus();
-    restoreDomSelection(ctx || getSelectionForLink());
+    restoreEditorSelection(ctx || getSelectionForLink());
+    if (editor.tiptap) {
+      try {
+        editor.tiptap.chain().focus().setLink({ href: PENDING_HREF }).run();
+        provisionalLinkActive = true;
+        return;
+      } catch (e1) {
+        /* fallback execCommand */
+      }
+    }
     try {
       if (document.queryCommandSupported("createLink")) {
         document.execCommand("createLink", false, PENDING_HREF);
@@ -419,7 +515,7 @@
     }
     if (editor.type === "prosemirror" && ctx.text) {
       editor.el.focus();
-      restoreDomSelection(ctx);
+      restoreEditorSelection(ctx);
       try {
         if (document.queryCommandSupported("insertHTML")) {
           document.execCommand("insertHTML", false, bracketToHtml(target, label));
@@ -680,16 +776,22 @@
     });
   }
 
+  function isNativeLinkInputEl(input) {
+    if (!input || input.tagName !== "INPUT") return false;
+    var ph = (input.getAttribute("placeholder") || "").toLowerCase();
+    return /链接|link|url|address|地址/.test(ph);
+  }
+
   function findVisibleNativeLinkPopper() {
-    var poppers = document.querySelectorAll(".v-popper--theme-dropdown, [data-popper-placement]");
+    var poppers = document.querySelectorAll(".v-popper--theme-dropdown, [data-popper-placement], .v-popper__popper");
     for (var i = 0; i < poppers.length; i++) {
       var popper = poppers[i];
       if (popper.classList && popper.classList.contains("v-popper__popper--hidden")) continue;
       if (popper.closest && popper.closest("#rs-wikilink-pop")) continue;
-      var inp = popper.querySelector(
-        "input[placeholder*='链接'], input[placeholder*='link' i], input[placeholder*='Link' i]"
-      );
-      if (inp && !inp.closest("#rs-wikilink-pop")) return popper;
+      var inputs = popper.querySelectorAll("input");
+      for (var j = 0; j < inputs.length; j++) {
+        if (isNativeLinkInputEl(inputs[j]) && !inputs[j].closest("#rs-wikilink-pop")) return popper;
+      }
     }
     return null;
   }
@@ -716,11 +818,16 @@
   function positionWikiPopoverAsideNative(popoverEl, fallbackRect) {
     var bubbleRect = getBubbleMenuRect();
     var nativePopper =
-      document.querySelector(".bubble-menu input[placeholder*='链接']") ||
-      document.querySelector(".bubble-menu input[placeholder*='link']") ||
-      document.querySelector("[data-popper-placement] input[placeholder*='链接']") ||
-      document.querySelector("[data-popper-placement] input[placeholder*='link']");
-    nativePopper = nativePopper && (nativePopper.closest(".bubble-menu") || nativePopper.closest("[data-popper-placement]"));
+      findVisibleNativeLinkPopper() ||
+      (function () {
+        var menus = document.querySelectorAll(".bubble-menu input");
+        for (var i = 0; i < menus.length; i++) {
+          if (isNativeLinkInputEl(menus[i])) {
+            return menus[i].closest(".bubble-menu");
+          }
+        }
+        return null;
+      })();
     var anchorRect = (nativePopper && nativePopper.getBoundingClientRect()) || bubbleRect;
     if (anchorRect && anchorRect.width > 0) {
       var left = anchorRect.right + 12;
@@ -759,6 +866,7 @@
       '<div class="results"></div>' +
       '<div class="hint">Halo 原生气泡（普通链接 / 取消 / 打开）保持可用；此处填写 Wiki 目标后点完成。</div>';
     document.body.appendChild(popover);
+    console.log("[rs-wikilink] Wiki 面板已打开，选中:", initial || "(无)");
 
     popover.addEventListener("mousedown", function (e) {
       e.stopPropagation();
@@ -956,19 +1064,33 @@
     return isBubbleMenuLinkIntent(el);
   }
 
-  function bindEditorShortcuts(editor) {
-    if (!editor || !editor.el || editor.el.__rsWikiShortcuts) return;
-    editor.el.__rsWikiShortcuts = true;
-    editor.el.addEventListener("keydown", function (e) {
-      if (!(e.ctrlKey || e.metaKey) || e.key.toLowerCase() !== "k") return;
-      rememberSelection(captureSelection());
-      var sel = getSelectionTextForWiki();
-      if (!sel.text) return;
-      e.preventDefault();
-      e.stopPropagation();
-      wikiDebug("Ctrl+K 在编辑器内 → Wiki 面板");
-      openWikiImmediate(sel.ctx);
+  function bindEditorShortcuts() {
+    document.querySelectorAll(".ProseMirror").forEach(function (el) {
+      if (!el.isContentEditable || el.__rsWikiShortcuts) return;
+      el.__rsWikiShortcuts = true;
+      el.addEventListener("keydown", function (e) {
+        if (!(e.ctrlKey || e.metaKey) || e.key.toLowerCase() !== "k") return;
+        rememberSelection(captureSelection());
+        var sel = getSelectionTextForWiki();
+        if (!sel.text) return;
+        e.preventDefault();
+        e.stopPropagation();
+        console.log("[rs-wikilink] Ctrl+K → Wiki 面板");
+        openWikiImmediate(sel.ctx);
+      });
     });
+  }
+
+  function handleWikiShortcutKeydown(e) {
+    if (!(e.ctrlKey || e.metaKey) || e.key.toLowerCase() !== "k") return;
+    if (!onEditorPath()) return;
+    rememberSelection(captureSelection());
+    var sel = getSelectionTextForWiki();
+    if (!sel.text) return;
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    console.log("[rs-wikilink] Ctrl+K（全局拦截）→ Wiki 面板");
+    openWikiImmediate(sel.ctx);
   }
 
   function scanNativeLinkPanels() {
@@ -976,11 +1098,7 @@
     if (!findVisibleNativeLinkPopper()) return;
     var sel = getSelectionTextForWiki();
     if (!sel.text) return;
-    var recentLinkClick =
-      window.RSWikiLink.__lastAddLinkClick && Date.now() - window.RSWikiLink.__lastAddLinkClick < 8000;
-    var recentSelection = lastGoodCtx && lastGoodCtx._ts && Date.now() - lastGoodCtx._ts < 8000;
-    if (!recentLinkClick && !recentSelection) return;
-    wikiDebug("原生链接面板出现 → 嵌入 Wiki");
+    console.log("[rs-wikilink] 检测到原生链接面板 → 嵌入 Wiki");
     openLinkPopover(getSelectionForLink(), getBubbleMenuRect(), { alongsideNative: true, dockInNative: true });
   }
 
@@ -1016,6 +1134,8 @@
   function hookNativeLinkToolbar() {
     if (window.RSWikiLink.__nativeHooked) return;
     window.RSWikiLink.__nativeHooked = true;
+
+    window.addEventListener("keydown", handleWikiShortcutKeydown, true);
 
     document.addEventListener("mousedown", function (e) {
       if (e.target.closest && e.target.closest(".bubble-menu")) {
@@ -1162,27 +1282,41 @@
     if ((window.RSConfig && window.RSConfig.wikilink && window.RSConfig.wikilink.enabled === false)) return;
     bindSelectionMemory();
     hookNativeLinkToolbar();
+    bindEditorShortcuts();
     if (window.RSWikiLink.__editorReady) return;
     if (!findEditor()) return;
     window.RSWikiLink.__editorReady = true;
     injectStyles();
     hookSave();
     hookEditorRedlinkMarks();
-    bindEditorShortcuts(findEditor());
     initToolbar();
     if (cfg.showSelectionBubble !== false) bindEditorListeners();
     loadIndex().then(function () {
       markEditorArchiveLinks();
-      console.log("[rs-wikilink] v" + RS_WIKILINK_VER + " 已就绪：正文选中 → 链环/Ctrl+K 打开 Wiki（嵌入原生下拉）");
+      console.log("[rs-wikilink] v" + RS_WIKILINK_VER + " 已就绪：TipTap 选区 + Ctrl+K/链环 → Wiki 面板");
     });
   }
+
+  window.RSWikiLink.openNow = function () {
+    rememberSelection(captureSelection());
+    var sel = getSelectionTextForWiki();
+    if (!sel.text) {
+      console.warn("[rs-wikilink] openNow: 无选区。TipTap=", !!findTipTapEditor(), "lastGoodCtx=", !!(lastGoodCtx && lastGoodCtx.text));
+      return false;
+    }
+    openWikiImmediate(sel.ctx);
+    return true;
+  };
 
   window.RSWikiLink.init = function () {
     removeFloatingUi();
     boot();
     if (editorPoll) return;
     editorPoll = setInterval(function () {
-      if (onEditorPath() && findEditor() && !window.RSWikiLink.__editorReady) boot();
+      if (onEditorPath() && findEditor()) {
+        bindEditorShortcuts();
+        if (!window.RSWikiLink.__editorReady) boot();
+      }
     }, 1000);
   };
   window.RSWikiLink.__booted = true;
