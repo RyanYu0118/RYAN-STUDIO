@@ -30,9 +30,9 @@
             }
             var WIKI_VER = "2.6";
             var HTML_VER = "3.4.2";
-            var EDIT_SCROLL_VER = "1.2.1";
+            var EDIT_SCROLL_VER = "1.2.2";
             var PUBLISH_VER = "1.3";
-            var ARCHIVE_SCROLL_VER = "1.1.1";
+            var ARCHIVE_SCROLL_VER = "1.1.2";
             var scriptsLoaded = window.__rsConsoleScriptsLoaded;
             var wikiVer = window.RSWikiLink && window.RSWikiLink.__ver;
             var htmlVer = window.RSHtmlBlockCompact && window.RSHtmlBlockCompact.__ver;
@@ -51,7 +51,7 @@
             window.__rsConsoleScriptsLoaded = true;
             loadConsoleScript("/upload/wiki-data/rs-config.js?v=3", function () {
                 loadConsoleScript("/upload/wiki-data/rs-console-publish-redirect.js?v=1.3");
-                loadConsoleScript("/upload/wiki-data/rs-console-edit-scroll.js?v=1.2.1");
+                loadConsoleScript("/upload/wiki-data/rs-console-edit-scroll.js?v=1.2.2");
                 loadConsoleScript("/upload/wiki-data/rs-console-html-block-compact.js?v=3.4.2");
                 loadConsoleScript("/upload/wiki-data/rs-console-wikilink.js?v=" + WIKI_VER, afterWiki);
             });
@@ -87,6 +87,8 @@
     // ✨ 快速编辑按钮：记录前台浏览位置，供后台编辑器定位 & 发布后回跳
     var EDIT_CTX_KEY = "rs-edit-scroll-context";
     var RETURN_CTX_KEY = "rs-return-scroll-context";
+    /** 点「编辑」瞬间冻结，编辑/发布过程中不再改写 */
+    var ENTRY_FROZEN_KEY = "rs-edit-entry-frozen";
 
     function pushEditNeedle(list, seen, n) {
         if (!n || seen[n]) return;
@@ -242,6 +244,7 @@
             var payload = JSON.stringify({ postId: postId, ctx: ctx });
             sessionStorage.setItem(EDIT_CTX_KEY, payload);
             sessionStorage.setItem(RETURN_CTX_KEY, payload);
+            sessionStorage.setItem(ENTRY_FROZEN_KEY, payload);
         } catch (e0) {
             /* ignore */
         }
@@ -318,7 +321,7 @@
             loadScript("/upload/wiki-data/rs-ensure-manual-id.js?v=1.0", function () {
                 initQuickEdit();
             });
-            loadScript("/upload/wiki-data/rs-archive-scroll.js?v=1.1.1");
+            loadScript("/upload/wiki-data/rs-archive-scroll.js?v=1.1.2");
         } else {
             initQuickEdit();
         }

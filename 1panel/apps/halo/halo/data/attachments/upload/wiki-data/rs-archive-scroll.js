@@ -8,7 +8,7 @@
   var PATH_PREFIX = "/archives/";
   if (location.pathname.indexOf(PATH_PREFIX) !== 0) return;
 
-  var RS_ARCHIVE_SCROLL_VER = "1.1.1";
+  var RS_ARCHIVE_SCROLL_VER = "1.1.2";
 
   function getViewportAnchorY() {
     var vh = window.innerHeight || 800;
@@ -17,6 +17,7 @@
   if (window.RSArchiveScroll && window.RSArchiveScroll.__ver === RS_ARCHIVE_SCROLL_VER) return;
 
   var RETURN_KEY = "rs-return-scroll-context";
+  var ENTRY_FROZEN_KEY = "rs-edit-entry-frozen";
   var cfg = (window.RSConfig && window.RSConfig.editScroll) || {};
   var RETRY_MS = Array.isArray(cfg.archiveRetryMs)
     ? cfg.archiveRetryMs
@@ -32,8 +33,11 @@
   function readReturnContext() {
     try {
       var raw = sessionStorage.getItem(RETURN_KEY);
-      if (!raw) return null;
-      var data = JSON.parse(raw);
+      var data = raw ? JSON.parse(raw) : null;
+      if (!data || !data.ctx) {
+        raw = sessionStorage.getItem(ENTRY_FROZEN_KEY);
+        data = raw ? JSON.parse(raw) : null;
+      }
       if (!data || !data.ctx) return null;
       if (Date.now() - (data.ctx.ts || data.ts || 0) > MAX_AGE_MS) return null;
       var slug = slugFromPath();
@@ -50,6 +54,7 @@
   function clearReturnContext() {
     try {
       sessionStorage.removeItem(RETURN_KEY);
+      sessionStorage.removeItem(ENTRY_FROZEN_KEY);
     } catch (e1) {
       /* ignore */
     }
@@ -161,7 +166,7 @@
     if (!body || !ctx) return false;
     if ((body.textContent || "").replace(/\s+/g, "").length < 8) return false;
 
-    if (ctx.source !== "editor" && typeof ctx.scrollY === "number" && ctx.scrollY >= 0) {
+    if (ctx.source === "frontend" && typeof ctx.scrollY === "number" && ctx.scrollY >= 0) {
       scrollToY(ctx.scrollY, "auto");
       return true;
     }

@@ -7,11 +7,12 @@
 
   if (location.pathname.indexOf("/console/posts/editor") < 0) return;
 
-  var RS_EDIT_SCROLL_VER = "1.2.1";
+  var RS_EDIT_SCROLL_VER = "1.2.2";
   if (window.RSEditScroll && window.RSEditScroll.__ver === RS_EDIT_SCROLL_VER) return;
 
   var STORAGE_KEY = "rs-edit-scroll-context";
   var RETURN_KEY = "rs-return-scroll-context";
+  var ENTRY_FROZEN_KEY = "rs-edit-entry-frozen";
   var cfg = (window.RSConfig && window.RSConfig.editScroll) || {};
   var RETRY_MS = Array.isArray(cfg.retryMs)
     ? cfg.retryMs
@@ -71,9 +72,49 @@
   }
 
   function preserveReturnContext() {
-    var data = readStored(STORAGE_KEY);
-    if (data && data.ctx) writeReturnContext(data);
     clearContext();
+  }
+
+  function readEntryFrozen(postId) {
+    var data = readStored(ENTRY_FROZEN_KEY);
+    if (!data || !data.ctx) return null;
+    if (postId && data.postId && data.postId !== postId) return null;
+    if (Date.now() - (data.ctx.ts || data.ts || 0) > MAX_AGE_MS) return null;
+    return data;
+  }
+
+  function saveReturnContext(postName, slug) {
+    var postId = postName || editorPostName();
+    var frozen = readEntryFrozen(postId);
+    if (frozen && frozen.ctx) {
+      writeReturnContext({
+        postId: postId || frozen.postId,
+        slug: slug || "",
+        ctx: frozen.ctx,
+        ts: Date.now(),
+      });
+      return;
+    }
+    var existing = readStored(RETURN_KEY);
+    if (existing && existing.ctx && existing.ctx.source === "frontend") {
+      writeReturnContext({
+        postId: postId || existing.postId,
+        slug: slug || existing.slug || "",
+        ctx: existing.ctx,
+        ts: Date.now(),
+      });
+      return;
+    }
+    var fallback = readStored(STORAGE_KEY);
+    if (fallback && fallback.ctx && fallback.ctx.source === "frontend") {
+      writeReturnContext({
+        postId: postId || fallback.postId,
+        slug: slug || "",
+        ctx: fallback.ctx,
+        ts: Date.now(),
+      });
+      return;
+    }
   }
 
   function pushNeedle(list, seen, n) {
@@ -106,113 +147,6 @@
       cur = cur.parentElement;
     }
     return out;
-  }
-
-  function captureEditorReturnContext() {
-    var pm = document.querySelector(".ProseMirror");
-    if (!pm) return null;
-    var vh = window.innerHeight || 800;
-    var vw = window.innerWidth || 1200;
-    var anchorY = vh * 0.42;
-    var x = Math.max(0, Math.min(vw - 1, vw * 0.5));
-    var el = document.elementFromPoint(x, anchorY);
-    while (el && el !== pm && el !== document.body && !pm.contains(el)) {
-      el = el.parentElement;
-    }
-    if (!el || !pm.contains(el)) el = pm;
-
-    var needles = collectNeedlesFromEl(el, pm);
-    var headingId = "";
-    var cur = el;
-    while (cur && cur !== pm) {
-      var tag = cur.tagName ? cur.tagName.toUpperCase() : "";
-      if (/^H[1-6]$/.test(tag) && cur.id) {
-        headingId = cur.id;
-        break;
-      }
-      cur = cur.parentElement;
-    }
-
-    var blockSig = "";
-    var htmlEditedIdx = -1;
-    var blockRoots = findHtmlBlockRoots(pm);
-    var blockRoot = el.closest ? el.closest(".rs-html-block-root") : null;
-    if (blockRoot) {
-      htmlEditedIdx = blockRoots.indexOf(blockRoot);
-      var iframe = blockRoot.querySelector("[data-rs-html-iframe]");
-      try {
-        if (iframe && iframe.contentDocument && iframe.contentDocument.body) {
-          var idoc = iframe.contentDocument;
-          var marker = idoc.elementFromPoint(
-            Math.max(0, Math.min(iframe.clientWidth - 1, iframe.clientWidth * 0.5)),
-            Math.max(0, Math.min(iframe.clientHeight - 1, iframe.clientHeight * 0.42))
-          );
-          if (marker && marker.id) blockSig = marker.id;
-          if (!blockSig && marker) {
-            var m = String(marker.className || "").match(/wd-smart-card|wws-wb-card|nav-quote-box/);
-            if (m) blockSig = m[0];
-          }
-        }
-      } catch (e4) {
-        /* ignore */
-      }
-    }
-
-    var blockRatio = 0;
-    if (blockRoot) {
-      var bRect = blockRoot.getBoundingClientRect();
-      blockRatio = (anchorY - bRect.top) / Math.max(1, bRect.height);
-      blockRatio = Math.min(1, Math.max(0, blockRatio));
-    }
-
-    var container = findScrollContainer(pm);
-    var ratio = container.scrollTop / Math.max(1, container.scrollHeight - container.clientHeight);
-    ratio = Math.min(1, Math.max(0, ratio));
-
-    return {
-      scrollY: window.pageYOffset,
-      ratio: ratio,
-      blockRatio: blockRatio,
-      needles: needles,
-      headingId: headingId,
-      htmlEditedIdx: htmlEditedIdx,
-      blockSig: blockSig,
-      path: location.pathname,
-      ts: Date.now(),
-      source: "editor",
-    };
-  }
-
-  function saveReturnContext(postName, slug) {
-    var postId = postName || editorPostName();
-    var existing = readStored(RETURN_KEY);
-    if (existing && existing.ctx && existing.ctx.source !== "editor") {
-      writeReturnContext({
-        postId: postId || existing.postId,
-        slug: slug || existing.slug || "",
-        ctx: existing.ctx,
-        ts: Date.now(),
-      });
-      return;
-    }
-    var fallback = readStored(STORAGE_KEY);
-    if (fallback && fallback.ctx) {
-      writeReturnContext({
-        postId: postId || fallback.postId,
-        slug: slug || "",
-        ctx: fallback.ctx,
-        ts: Date.now(),
-      });
-      return;
-    }
-    var ctx = captureEditorReturnContext();
-    if (!ctx) return;
-    writeReturnContext({
-      postId: postId,
-      slug: slug || "",
-      ctx: ctx,
-      ts: Date.now(),
-    });
   }
 
   function cssEscape(id) {
