@@ -1,13 +1,13 @@
 /* =======================================================
-   RS Console — HTML 编辑块全屏编辑 v2.9
-   PM 直写 + 从服务器草稿/content-json 自动修复截断块
+   RS Console — HTML 编辑块全屏编辑 v3.0
+   PM 直写 + 从已发布 Snapshot / 备份片段修复截断块
    ======================================================= */
 (function () {
   "use strict";
 
   if (location.pathname.indexOf("/console/posts/editor") < 0) return;
 
-  var RS_HTML_BLOCK_VER = "2.9";
+  var RS_HTML_BLOCK_VER = "3.0";
   if (window.RSHtmlBlockCompact && window.RSHtmlBlockCompact.__ver === RS_HTML_BLOCK_VER) {
     return;
   }
@@ -454,6 +454,73 @@
     return typeof cfg.repairMinDiff === "number" ? cfg.repairMinDiff : 64;
   }
 
+  function blockSignature(text) {
+    if (!text) return "";
+    if (text.indexOf("wd-smart-card") >= 0) return "wd-smart-card";
+    if (text.indexOf("mcwws-web-public-home-root") >= 0) return "web-home";
+    if (text.indexOf("nav-quote-box") >= 0) return "nav-quote-box";
+    if (text.indexOf("halo-manual-id") >= 0) return "manual-id";
+    return "generic-" + fnv1a(text.slice(0, 160));
+  }
+
+  function indexBlocksBySignature(blocks) {
+    var map = {};
+    for (var i = 0; i < blocks.length; i++) {
+      var b = blocks[i];
+      if (!b) continue;
+      var sig = blockSignature(b);
+      if (!map[sig] || b.length > map[sig].length) map[sig] = b;
+    }
+    return map;
+  }
+
+  function bestServerBlockFor(pmText, idx, blocks, bySig) {
+    var pm = pmText || "";
+    var sig = blockSignature(pm);
+    if (sig && bySig[sig] && needsRepair(pm, bySig[sig])) return bySig[sig];
+    if (blocks[idx] && needsRepair(pm, blocks[idx])) return blocks[idx];
+    if (pm.length >= 32) {
+      var head = pm.slice(0, Math.min(120, pm.length));
+      for (var key in bySig) {
+        if (bySig[key].indexOf(head) === 0 && needsRepair(pm, bySig[key])) return bySig[key];
+      }
+    }
+    return null;
+  }
+
+  function snippetUrlForBlock(pmText) {
+    var snippets = cfg.repairSnippets || {
+      "wd-smart-card": "/upload/wiki-data/snippets/wander-card-block.snippet.html",
+    };
+    return snippets[blockSignature(pmText)] || null;
+  }
+
+  function trySnippetRepair(root, pmText, cb) {
+    var url = snippetUrlForBlock(pmText);
+    if (!url || !pmText) {
+      if (cb) cb(false);
+      return;
+    }
+    if (pmText.length >= 1800) {
+      if (cb) cb(false);
+      return;
+    }
+    fetch(url + (url.indexOf("?") >= 0 ? "" : "?v=1"), { credentials: "include" })
+      .then(function (r) {
+        if (!r.ok) throw new Error("http " + r.status);
+        return r.text();
+      })
+      .then(function (text) {
+        text = (text || "").trim();
+        if (text && needsRepair(pmText, text)) {
+          writeSourceToPm(root, text, cb);
+        } else if (cb) cb(false);
+      })
+      .catch(function () {
+        if (cb) cb(false);
+      });
+  }
+
   function parseHtmlEditedBlocks(raw) {
     if (!raw) return [];
     var blocks = [];
@@ -522,32 +589,138 @@
     });
   }
 
+  function rawFromSnapshotJson(data) {
+    if (!data || !data.spec) return null;
+    return data.spec.rawPatch || data.spec.contentPatch || null;
+  }
+
+  function snapshotNameFromPost(post) {
+    if (!post) return "";
+    var spec = post.spec || {};
+    var ann = (post.metadata && post.metadata.annotations) || {};
+    return (
+      spec.releaseSnapshot ||
+      spec.headSnapshot ||
+      spec.baseSnapshot ||
+      ann["content.halo.run/last-released-snapshot"] ||
+      ""
+    );
+  }
+
+  function tryFetchRawFromUrls(urls, extractor, cb) {
+    var i = 0;
+    function next() {
+      if (i >= urls.length) {
+        cb(null);
+        return;
+      }
+      fetchJson(urls[i])
+        .then(function (data) {
+          var raw = extractor(data);
+          if (raw) cb(raw);
+          else {
+            i++;
+            next();
+          }
+        })
+        .catch(function () {
+          i++;
+          next();
+        });
+    }
+    next();
+  }
+
+  function fetchSnapshotRawHtml(postName, cb) {
+    fetchJson("/apis/uc.api.content.halo.run/v1alpha1/posts/" + encodeURIComponent(postName))
+      .then(function (post) {
+        var snapName = snapshotNameFromPost(post);
+        if (!snapName) {
+          cb(null);
+          return;
+        }
+        var encSnap = encodeURIComponent(snapName);
+        tryFetchRawFromUrls(
+          [
+            "/apis/content.halo.run/v1alpha1/snapshots/" + encSnap,
+            "/apis/uc.api.content.halo.run/v1alpha1/snapshots/" + encSnap,
+            "/apis/api.console.halo.run/v1alpha1/snapshots/" + encSnap,
+          ],
+          rawFromSnapshotJson,
+          cb
+        );
+      })
+      .catch(function () {
+        cb(null);
+      });
+  }
+
   function fetchAllServerRawHtml(cb) {
     var postName = editorPostNameFromUrl();
     if (!postName) {
-      cb([], "no-post-name");
+      cb([], [], "no-post-name");
       return;
     }
     var enc = encodeURIComponent(postName);
-    var urls = [
-      "/apis/uc.api.content.halo.run/v1alpha1/posts/" + enc + "/draft",
-      "/apis/uc.api.content.halo.run/v1alpha1/posts/" + enc,
-      "/apis/api.console.halo.run/v1alpha1/posts/" + enc,
+    var sources = [
+      {
+        url: "/apis/uc.api.content.halo.run/v1alpha1/posts/" + enc + "/draft",
+        tag: "draft",
+        extract: rawFromPostJson,
+      },
+      {
+        url: "/apis/uc.api.content.halo.run/v1alpha1/posts/" + enc,
+        tag: "post",
+        extract: rawFromPostJson,
+      },
+      {
+        url: "/apis/api.console.halo.run/v1alpha1/posts/" + enc,
+        tag: "console-post",
+        extract: rawFromPostJson,
+      },
     ];
     var raws = [];
-    var pending = urls.length;
-    urls.forEach(function (url) {
-      fetchJson(url)
+    var tags = [];
+    var pending = sources.length + 1;
+
+    function finish() {
+      if (tags.length) {
+        console.log(
+          "[rs-html-block-compact] 内容来源: " +
+            tags.join(", ") +
+            " | raw长度: " +
+            raws.map(function (r) {
+              return r.length;
+            }).join("/")
+        );
+      }
+      cb(raws, tags, raws.length ? null : "fetch-failed");
+    }
+
+    fetchSnapshotRawHtml(postName, function (snapRaw) {
+      if (snapRaw) {
+        raws.push(snapRaw);
+        tags.push("snapshot");
+      }
+      pending--;
+      if (pending === 0) finish();
+    });
+
+    sources.forEach(function (src) {
+      fetchJson(src.url)
         .then(function (data) {
-          var raw = rawFromPostJson(data);
-          if (raw) raws.push(raw);
+          var raw = src.extract(data);
+          if (raw) {
+            raws.push(raw);
+            tags.push(src.tag);
+          }
         })
         .catch(function () {
           /* ignore */
         })
         .finally(function () {
           pending--;
-          if (pending === 0) cb(raws, raws.length ? null : "fetch-failed");
+          if (pending === 0) finish();
         });
     });
   }
@@ -557,7 +730,7 @@
       cb(serverBlocksCache, null);
       return;
     }
-    fetchAllServerRawHtml(function (raws, err) {
+    fetchAllServerRawHtml(function (raws, tags, err) {
       if (!raws.length) {
         cb(null, err);
         return;
@@ -582,7 +755,7 @@
   function repairBlockFromServer(root, serverText, cb) {
     var pmText = readSourceFromPm(root) || "";
     if (!needsRepair(pmText, serverText)) {
-      if (cb) cb(false);
+      trySnippetRepair(root, pmText, cb);
       return;
     }
     writeSourceToPm(root, serverText, cb);
@@ -598,42 +771,87 @@
       return;
     }
     fetchServerHtmlBlocks(function (blocks, err) {
+      var roots = findBlockRoots();
+      assignBlockIndices(roots);
+      if (!roots.length) {
+        repairScheduled = false;
+        if (cb) cb(0);
+        return;
+      }
       if (!blocks || !blocks.length) {
         if (err) {
           console.warn("[rs-html-block-compact] 服务器块读取失败:", err);
         }
-        if (cb) cb(0);
+        var onlyPending = roots.length;
+        var onlyRepaired = 0;
+        roots.forEach(function (root) {
+          var pmText = readSourceFromPm(root) || "";
+          trySnippetRepair(root, pmText, function (ok) {
+            if (ok) onlyRepaired++;
+            onlyPending--;
+            if (onlyPending === 0) {
+              if (onlyRepaired > 0) {
+                console.log(
+                  "[rs-html-block-compact] 已从备份片段修复 " + onlyRepaired + " 个 HTML 块"
+                );
+              }
+              if (cb) cb(onlyRepaired);
+            }
+          });
+        });
         return;
       }
-      var roots = findBlockRoots();
-      assignBlockIndices(roots);
-      if (!roots.length) {
-        if (cb) cb(0);
-        return;
-      }
+
+      var bySig = indexBlocksBySignature(blocks);
+      var sigKeys = [];
+      for (var sk in bySig) sigKeys.push(sk + "=" + bySig[sk].length);
+      console.log(
+        "[rs-html-block-compact] 修复检查: PM块=" +
+          roots.length +
+          " 服务器块=" +
+          blocks.length +
+          " 特征=" +
+          sigKeys.join(", ")
+      );
+
       var repaired = 0;
       var pending = roots.length;
       roots.forEach(function (root, i) {
-        var serverText = blocks[i];
+        var pmText = readSourceFromPm(root) || "";
+        var serverText = bestServerBlockFor(pmText, i, blocks, bySig);
+        console.log(
+          "  #" +
+            i +
+            " sig=" +
+            blockSignature(pmText) +
+            " pm=" +
+            pmText.length +
+            (serverText ? " srv=" + serverText.length : " srv=—")
+        );
         if (!serverText) {
-          pending--;
-          if (pending === 0 && cb) cb(repaired);
+          trySnippetRepair(root, pmText, function (ok) {
+            if (ok) repaired++;
+            pending--;
+            if (pending === 0) finishRepair(repaired, cb);
+          });
           return;
         }
         repairBlockFromServer(root, serverText, function (ok) {
           if (ok) repaired++;
           pending--;
-          if (pending === 0) {
-            if (repaired > 0) {
-              console.log(
-                "[rs-html-block-compact] 已从服务器自动修复 " + repaired + " 个截断 HTML 块"
-              );
-            }
-            if (cb) cb(repaired);
-          }
+          if (pending === 0) finishRepair(repaired, cb);
         });
       });
     });
+  }
+
+  function finishRepair(repaired, cb) {
+    if (repaired > 0) {
+      console.log("[rs-html-block-compact] 已自动修复 " + repaired + " 个截断 HTML 块");
+    } else {
+      console.log("[rs-html-block-compact] 未发现可修复的截断块（draft 与 PM 可能均已损坏）");
+    }
+    if (cb) cb(repaired);
   }
 
   function injectRepairButton(root) {
@@ -647,24 +865,34 @@
     btn.type = "button";
     btn.dataset.rsHtmlRepairBtn = "1";
     btn.textContent = "从服务器恢复";
-    btn.title = "用服务器草稿中的完整 HTML 覆盖当前块（修复截断）";
+    btn.title = "从已发布 Snapshot / 备份片段恢复完整 HTML（修复截断）";
     btn.addEventListener("click", function (e) {
       e.preventDefault();
       e.stopPropagation();
       serverBlocksCache = null;
       var idx = blockIndex(root);
+      var pmText = readSourceFromPm(root) || "";
+      if (!confirm("确定用服务器/备份中的完整内容覆盖当前块？未保存的本地修改将丢失。")) return;
       fetchServerHtmlBlocks(function (blocks) {
-        if (!blocks || !blocks[idx]) {
-          alert("无法从服务器读取该块的完整内容");
+        var bySig = blocks ? indexBlocksBySignature(blocks) : {};
+        var serverText = blocks ? bestServerBlockFor(pmText, idx, blocks, bySig) : null;
+        if (serverText && needsRepair(pmText, serverText)) {
+          writeSourceToPm(root, serverText, function (ok) {
+            if (ok) {
+              ensurePreviewOnly(root);
+              console.log("[rs-html-block-compact] 已手动恢复块 #" + idx + "（服务器）");
+            } else {
+              alert("恢复失败，请刷新后重试");
+            }
+          });
           return;
         }
-        if (!confirm("确定用服务器上的完整内容覆盖当前块？未保存的本地修改将丢失。")) return;
-        writeSourceToPm(root, blocks[idx], function (ok) {
-          if (ok) {
+        trySnippetRepair(root, pmText, function (ok2) {
+          if (ok2) {
             ensurePreviewOnly(root);
-            console.log("[rs-html-block-compact] 已手动恢复块 #" + idx);
+            console.log("[rs-html-block-compact] 已手动恢复块 #" + idx + "（备份片段）");
           } else {
-            alert("恢复失败，请刷新后重试");
+            alert("服务器与备份均无更长内容；请从 wiki/_halo/wander-card-block.snippet.html 手动粘贴");
           }
         });
       });
@@ -962,18 +1190,15 @@
       watchNewBlocks(pm);
       pmHooked = true;
     }
-    if (!serverRepairDone && cfg.autoRepairFromServer !== false && getPmView()) {
-      if (!repairScheduled) {
-        repairScheduled = true;
-        repairAllFromServer(function () {
-          serverRepairDone = true;
-          prepareAllBlocks();
-        });
-        return true;
-      }
-      return true;
-    }
     prepareAllBlocks();
+    if (!serverRepairDone && cfg.autoRepairFromServer !== false && getPmView() && !repairScheduled) {
+      repairScheduled = true;
+      repairAllFromServer(function (n) {
+        if (findBlockRoots().length) serverRepairDone = true;
+        repairScheduled = false;
+        if (n > 0) prepareAllBlocks();
+      });
+    }
     return true;
   }
 
@@ -986,6 +1211,17 @@
   console.log(
     "[rs-html-block-compact] v" +
       RS_HTML_BLOCK_VER +
-      " 已就绪：iframe 预览 + 服务器截断块自动修复，全屏即时打开"
+      " 已就绪：Snapshot/备份修复截断 + iframe 预览，全屏即时打开"
   );
+
+  window.RSHtmlBlockCompact.repairNow = function () {
+    serverBlocksCache = null;
+    serverRepairDone = false;
+    repairScheduled = false;
+    repairAllFromServer(function (n) {
+      if (findBlockRoots().length) serverRepairDone = true;
+      repairScheduled = false;
+      if (n > 0) prepareAllBlocks();
+    });
+  };
 })();

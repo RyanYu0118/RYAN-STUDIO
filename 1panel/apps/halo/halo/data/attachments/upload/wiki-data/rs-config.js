@@ -70,6 +70,9 @@ window.RSConfig = {
         // 打开编辑器时从 draft/content-json 自动修复被截断的 HTML 块
         autoRepairFromServer: true,
         repairMinDiff: 64,
-        showRepairButton: true
+        showRepairButton: true,
+        repairSnippets: {
+            "wd-smart-card": "/upload/wiki-data/snippets/wander-card-block.snippet.html"
+        }
     }
 };
