@@ -64,6 +64,8 @@ window.RSConfig = {
         labelRe: null,
         types: ["html_edited"],
         // 后台预览注入与前台相同的字体/工具类（fronts.css）
-        previewStyles: ["/upload/wiki-data/fronts.css"]
+        previewStyles: ["/upload/wiki-data/fronts.css"],
+        previewDocClass: "my-wiki-page markdown-body",
+        previewSandbox: "allow-scripts allow-same-origin"
     }
 };
