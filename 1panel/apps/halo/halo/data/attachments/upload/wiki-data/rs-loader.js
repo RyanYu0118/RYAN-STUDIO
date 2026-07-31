@@ -99,7 +99,6 @@
         const btn = document.createElement('a');
         btn.id = 'halo-quick-edit-btn';
         btn.href = '/console/posts/editor?name=' + postId;
-        btn.target = '_blank';
         btn.innerHTML = `
             <svg viewBox="0 0 1024 1024"><path d="M836 476h-160v-160c0-30.9-25.1-56-56-56h-560c-30.9 0-56 25.1-56 56v560c0 30.9 25.1 56 56 56h560c30.9 0 56-25.1 56-56v-160h160c30.9 0 56-25.1 56-56v-184c0-30.9-25.1-56-56-56zM620 872h-560v-560h560v560zM836 676h-160v-144h160v144zM240 460h360v48h-360v-48zM240 580h360v48h-360v-48zM240 700h200v48h-200v-48z"></path></svg>
             <span class="edit-cn">编辑</span>
