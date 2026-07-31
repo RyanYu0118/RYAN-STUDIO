@@ -1,13 +1,13 @@
 /* =======================================================
-   RS Console — HTML 编辑块全屏编辑 v3.1
-   PM 直写 + 块就绪后 Snapshot/备份片段修复（不依赖 5s 内 boot）
+   RS Console — HTML 编辑块全屏编辑 v3.2
+   完整源码缓存（Snapshot）驱动预览/全屏；PM+CM 双写同步
    ======================================================= */
 (function () {
   "use strict";
 
   if (location.pathname.indexOf("/console/posts/editor") < 0) return;
 
-  var RS_HTML_BLOCK_VER = "3.1";
+  var RS_HTML_BLOCK_VER = "3.2";
   if (window.RSHtmlBlockCompact && window.RSHtmlBlockCompact.__ver === RS_HTML_BLOCK_VER) {
     return;
   }
@@ -19,6 +19,7 @@
 
   var BLOCK_LABEL_RE = cfg.labelRe || /HTML\s*编辑块/;
   var sourceCache = new WeakMap();
+  var fullSourceCache = new WeakMap();
   var fsState = null;
   var pmHooked = false;
   var overlay = null;
@@ -67,6 +68,12 @@
     return (h >>> 0).toString(36);
   }
 
+  function absAssetUrl(href) {
+    if (!href) return href;
+    if (/^https?:\/\//i.test(href)) return href;
+    return location.origin + (href.charAt(0) === "/" ? href : "/" + href);
+  }
+
   function preparePreviewHtml(html) {
     if (!html) return "";
     return html
@@ -80,7 +87,7 @@
     var links = previewSheets()
       .map(function (href) {
         if (!href) return "";
-        var url = href + (href.indexOf("?") >= 0 ? "" : "?v=1");
+        var url = absAssetUrl(href) + (href.indexOf("?") >= 0 ? "" : "?v=1");
         return '<link rel="stylesheet" href="' + url + '">';
       })
       .join("");
@@ -92,6 +99,9 @@
       '/">' +
       links +
       "<style>" +
+      "@import url('" +
+      absAssetUrl(previewSheets()[0] || "/upload/wiki-data/fronts.css") +
+      "');" +
       "html,body{margin:0;padding:0;background:transparent;color:inherit;overflow:hidden!important;height:auto!important;}" +
       "body{font-size:16px;line-height:1.75;box-sizing:border-box;}" +
       "*,*::before,*::after{box-sizing:inherit;}" +
@@ -165,7 +175,8 @@
   function refreshIframePreview(root, force) {
     var shell = getBodyShell(root);
     if (!shell) return;
-    var source = getCachedSource(root);
+    var source = fullSourceCache.has(root) ? fullSourceCache.get(root) : null;
+    if (source == null) source = getCachedSource(root);
     if (source == null) {
       source = readSourceFromPm(root);
       if (source != null) cacheSource(root, source);
@@ -573,9 +584,129 @@
       return !hasCardDom || !hasScript;
     }
     if (sig === "nav-quote-box") {
-      return text.indexOf("nav-quote-box") >= 0 && text.indexOf("</div>") < 0;
+      return text.length < 600;
+    }
+    if (sig === "wd-smart-card" && text.length >= 5500) {
+      return false;
     }
     return false;
+  }
+
+  function fetchSnippetText(pmText, cb) {
+    var url = snippetUrlForBlock(pmText);
+    if (!url) {
+      cb(null);
+      return;
+    }
+    fetch(absAssetUrl(url) + (url.indexOf("?") >= 0 ? "" : "?v=1"), { credentials: "include" })
+      .then(function (r) {
+        if (!r.ok) throw new Error("http " + r.status);
+        return r.text();
+      })
+      .then(function (text) {
+        cb((text || "").trim() || null);
+      })
+      .catch(function () {
+        cb(null);
+      });
+  }
+
+  function resolveFullSource(root, cb) {
+    var local = readBestSource(root) || "";
+    if (fullSourceCache.has(root)) {
+      cb(fullSourceCache.get(root));
+      return;
+    }
+    if (!isTruncatedBlock(local) && local.length >= 1800) {
+      cb(local);
+      return;
+    }
+    fetchServerHtmlBlocks(function (blocks) {
+      var bySig = blocks ? indexBlocksBySignature(blocks) : {};
+      var idx = blockIndex(root);
+      var serverText = blocks ? bestServerBlockFor(local, idx, blocks, bySig) : null;
+      if (serverText && needsRepair(local, serverText)) {
+        fullSourceCache.set(root, serverText);
+        cb(serverText);
+        return;
+      }
+      fetchSnippetText(local, function (snippet) {
+        if (snippet && needsRepair(local, snippet)) {
+          fullSourceCache.set(root, snippet);
+          cb(snippet);
+        } else {
+          cb(local);
+        }
+      });
+    });
+  }
+
+  function findCm6View(root) {
+    var editorEl = root.querySelector(".cm-editor");
+    if (!editorEl) return null;
+    if (editorEl.cmView) return editorEl.cmView;
+    if (editorEl.editorView) return editorEl.editorView;
+    var stack = [editorEl];
+    while (stack.length) {
+      var n = stack.pop();
+      if (n && n.dispatch && n.state && n.dom) return n;
+      if (!n || !n.children) continue;
+      for (var i = 0; i < n.children.length; i++) stack.push(n.children[i]);
+    }
+    return null;
+  }
+
+  function syncWriteCm(root, text, cb) {
+    root.classList.add("rs-html-fs-sync");
+    if (!isInlineEditMode(root)) clickHeaderButton(root, "编辑");
+    waitFor(
+      function () {
+        return findCm6View(root) || root.querySelector(".cm-editor .cm-line");
+      },
+      function () {
+        var cmView = findCm6View(root);
+        if (cmView && cmView.dispatch) {
+          try {
+            cmView.dispatch({
+              changes: { from: 0, to: cmView.state.doc.length, insert: text },
+            });
+            setTimeout(function () {
+              root.classList.remove("rs-html-fs-sync");
+              cacheSource(root, text);
+              fullSourceCache.set(root, text);
+              if (cb) cb(true);
+            }, 180);
+            return;
+          } catch (eCm) {
+            console.warn("[rs-html-block-compact] CM 写入失败", eCm);
+          }
+        }
+        root.classList.remove("rs-html-fs-sync");
+        if (cb) cb(false);
+      },
+      0,
+      50
+    );
+  }
+
+  function writeSourceToBlock(root, text, cb) {
+    writeSourceToPm(root, text, function (okPm) {
+      if (okPm) {
+        fullSourceCache.set(root, text);
+        cacheSource(root, text);
+        if (cb) cb(true);
+        return;
+      }
+      syncWriteCm(root, text, function (okCm) {
+        if (okCm) {
+          writeSourceToPmNow(root, text, function (okPm2) {
+            if (cb) cb(okPm2 || okCm);
+          });
+          return;
+        }
+        if (cb) cb(false);
+      });
+    });
   }
 
   function trySnippetRepair(root, pmText, cb) {
@@ -588,7 +719,7 @@
       if (cb) cb(false);
       return;
     }
-    fetch(url + (url.indexOf("?") >= 0 ? "" : "?v=1"), { credentials: "include" })
+    fetch(absAssetUrl(url) + (url.indexOf("?") >= 0 ? "" : "?v=1"), { credentials: "include" })
       .then(function (r) {
         if (!r.ok) throw new Error("http " + r.status);
         return r.text();
@@ -596,7 +727,7 @@
       .then(function (text) {
         text = (text || "").trim();
         if (text && needsRepair(pmText, text)) {
-          writeSourceToPm(root, text, cb);
+          writeSourceToBlock(root, text, cb);
         } else if (cb) cb(false);
       })
       .catch(function (err) {
@@ -652,7 +783,7 @@
         var idx = blockIndex(root);
         var serverText = bestServerBlockFor(text, idx, blocks, bySig);
         if (serverText && needsRepair(text, serverText)) {
-          writeSourceToPm(root, serverText, function (okSrv) {
+          writeSourceToBlock(root, serverText, function (okSrv) {
             done(okSrv, "server");
           });
         } else {
@@ -914,7 +1045,7 @@
       trySnippetRepair(root, pmText, cb);
       return;
     }
-    writeSourceToPm(root, serverText, cb);
+    writeSourceToBlock(root, serverText, cb);
   }
 
   function repairAllFromServer(cb) {
@@ -1033,7 +1164,7 @@
         var bySig = blocks ? indexBlocksBySignature(blocks) : {};
         var serverText = blocks ? bestServerBlockFor(pmText, idx, blocks, bySig) : null;
         if (serverText && needsRepair(pmText, serverText)) {
-          writeSourceToPm(root, serverText, function (ok) {
+          writeSourceToBlock(root, serverText, function (ok) {
             if (ok) {
               ensurePreviewOnly(root);
               console.log("[rs-html-block-compact] 已手动恢复块 #" + idx + "（服务器）");
@@ -1154,9 +1285,27 @@
     injectFullscreenButton(root);
 
     var pmText = readBestSource(root);
-    if (isTruncatedBlock(pmText)) {
-      maybeAutoRepairBlock(root, function (ok) {
-        if (ok) ensurePreviewOnly(root);
+    if (isTruncatedBlock(pmText) || (blockSignature(pmText) === "wd-smart-card" && pmText.length < 5500)) {
+      if (root.dataset.rsHtmlResolveBusy === "1") return;
+      root.dataset.rsHtmlResolveBusy = "1";
+      resolveFullSource(root, function (full) {
+        root.dataset.rsHtmlResolveBusy = "";
+        if (full && full.length > (pmText || "").length + 64) {
+          fullSourceCache.set(root, full);
+          cacheSource(root, full);
+          root.dataset.rsHtmlPreviewSig = "";
+          refreshIframePreview(root, true);
+          if (!root.dataset.rsHtmlPmWriteAttempted) {
+            root.dataset.rsHtmlPmWriteAttempted = "1";
+            writeSourceToBlock(root, full, function (ok) {
+              if (ok) console.log("[rs-html-block-compact] PM/CM 已同步完整源码 len=" + full.length);
+            });
+          }
+          return;
+        }
+        maybeAutoRepairBlock(root, function (ok) {
+          if (ok) ensurePreviewOnly(root);
+        });
       });
       return;
     }
@@ -1200,27 +1349,23 @@
   }
 
   function setInlineEditorText(root, text, cb) {
-    writeSourceToPm(root, text, cb);
+    writeSourceToBlock(root, text, cb);
   }
 
   function openFullscreen(root) {
     if (fsState) return;
     ensureOverlay();
 
-    var cached = getCachedSource(root);
-    fsState = { root: root, initial: cached != null ? cached : "" };
-
-    overlayTextarea.value = cached != null ? cached : "";
-    overlayTextarea.placeholder = cached != null ? "" : "正在加载源码…";
+    fsState = { root: root, initial: "" };
+    overlayTextarea.value = "";
+    overlayTextarea.placeholder = "正在加载完整源码…";
     overlay.classList.remove("rs-html-fs-hidden");
     overlayTextarea.focus();
 
-    if (cached != null) return;
-
-    syncReadSource(root, function (source) {
+    resolveFullSource(root, function (full) {
       if (!fsState || fsState.root !== root) return;
-      fsState.initial = source;
-      overlayTextarea.value = source;
+      fsState.initial = full;
+      overlayTextarea.value = full;
       overlayTextarea.placeholder = "";
     });
   }
@@ -1239,6 +1384,7 @@
     }
 
     cacheSource(root, next);
+    fullSourceCache.set(root, next);
     setInlineEditorText(root, next, function () {
       ensurePreviewOnly(root);
     });
@@ -1367,7 +1513,7 @@
   console.log(
     "[rs-html-block-compact] v" +
       RS_HTML_BLOCK_VER +
-      " 已就绪：截断块即时备份修复 + Snapshot，iframe 预览"
+      " 已就绪：Snapshot 完整源码驱动预览/全屏，PM+CM 双写"
   );
 
   window.RSHtmlBlockCompact.repairNow = function () {
