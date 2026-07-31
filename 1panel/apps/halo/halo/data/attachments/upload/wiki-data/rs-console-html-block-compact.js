@@ -1,13 +1,13 @@
 /* =======================================================
-   RS Console — HTML 编辑块全屏编辑 v2.5
-   iframe 独立文档预览（Shadow DOM 隔离下注入 fronts.css）
+   RS Console — HTML 编辑块全屏编辑 v2.6
+   iframe 预览：document.write + 脚本转义 + 高度/路径修复
    ======================================================= */
 (function () {
   "use strict";
 
   if (location.pathname.indexOf("/console/posts/editor") < 0) return;
 
-  var RS_HTML_BLOCK_VER = "2.5";
+  var RS_HTML_BLOCK_VER = "2.6";
   if (window.RSHtmlBlockCompact && window.RSHtmlBlockCompact.__ver === RS_HTML_BLOCK_VER) {
     return;
   }
@@ -45,7 +45,16 @@
     return (h >>> 0).toString(36);
   }
 
+  function preparePreviewHtml(html) {
+    if (!html) return "";
+    return html
+      .replace(/<\/script/gi, "<\\/script")
+      .replace(/\bdemo\/upload\//g, "/upload/")
+      .replace(/url\((['"]?)demo\/upload\//g, "url($1/upload/");
+  }
+
   function buildIframeDoc(html) {
+    html = preparePreviewHtml(html);
     var links = previewSheets()
       .map(function (href) {
         if (!href) return "";
@@ -66,23 +75,65 @@
       "*,*::before,*::after{box-sizing:inherit;}" +
       "img,video,svg{max-width:100%;height:auto;}" +
       "table{max-width:100%;}" +
+      ".wd-smart-card{min-height:160px;}" +
+      ".wd-inner-mask{inset:0!important;border-radius:11px;}" +
       "</style></head><body class=\"" +
       extra +
       '">' +
-      (html || "") +
+      html +
       "</body></html>"
     );
+  }
+
+  function scheduleIframeResize(iframe, wrap) {
+    if (!iframe) return;
+    var delays = [0, 80, 250, 600, 1200];
+    for (var i = 0; i < delays.length; i++) {
+      (function (ms) {
+        setTimeout(function () {
+          resizeIframe(iframe);
+        }, ms);
+      })(delays[i]);
+    }
+    if (wrap && !wrap.__rsHtmlRo && typeof ResizeObserver !== "undefined") {
+      wrap.__rsHtmlRo = new ResizeObserver(function () {
+        resizeIframe(iframe);
+      });
+      wrap.__rsHtmlRo.observe(wrap);
+    }
+  }
+
+  function writeIframeDoc(iframe, html) {
+    var docHtml = buildIframeDoc(html);
+    try {
+      var doc = iframe.contentDocument;
+      if (!doc) return false;
+      doc.open();
+      doc.write(docHtml);
+      doc.close();
+      return true;
+    } catch (e0) {
+      iframe.srcdoc = docHtml;
+      return true;
+    }
   }
 
   function resizeIframe(iframe) {
     if (!iframe || !iframe.contentDocument) return;
     try {
       var doc = iframe.contentDocument;
+      var card = doc.querySelector(".wd-smart-card");
       var h = Math.max(
         doc.body ? doc.body.scrollHeight : 0,
         doc.documentElement ? doc.documentElement.scrollHeight : 0
       );
-      iframe.style.height = Math.max(72, h + 20) + "px";
+      if (card) {
+        var rect = card.getBoundingClientRect();
+        if (rect.height > 0) {
+          h = Math.max(h, Math.ceil(rect.bottom + (doc.body.scrollTop || 0) + 16));
+        }
+      }
+      iframe.style.height = Math.max(96, h + 20) + "px";
     } catch (e1) {
       /* ignore */
     }
@@ -116,11 +167,8 @@
       var iframe = document.createElement("iframe");
       iframe.setAttribute("data-rs-html-iframe", "1");
       iframe.setAttribute("title", "HTML 块预览");
-      iframe.setAttribute(
-        "sandbox",
-        cfg.previewSandbox || "allow-scripts allow-same-origin"
-      );
-      iframe.setAttribute("loading", "lazy");
+      iframe.setAttribute("title", "HTML 块预览");
+      iframe.setAttribute("sandbox", cfg.previewSandbox || "allow-scripts allow-same-origin");
       wrap.appendChild(iframe);
       shell.appendChild(wrap);
     }
@@ -129,13 +177,12 @@
     if (!iframe) return;
     var sig = fnv1a(source);
     if (!force && iframe.dataset.rsHtmlSig === sig) {
-      resizeIframe(iframe);
+      scheduleIframeResize(iframe, wrap);
       return;
     }
     iframe.dataset.rsHtmlSig = sig;
-    iframe.srcdoc = buildIframeDoc(source);
+    writeIframeDoc(iframe, source);
     iframe.onload = function () {
-      resizeIframe(iframe);
       if (root.querySelector(".mcwws-web-public-home-root")) {
         try {
           var idoc = iframe.contentDocument;
@@ -146,7 +193,15 @@
           /* ignore */
         }
       }
+      scheduleIframeResize(iframe, wrap);
     };
+    scheduleIframeResize(iframe, wrap);
+  }
+
+  function assignBlockIndices(roots) {
+    for (var i = 0; i < roots.length; i++) {
+      roots[i].dataset.rsHtmlBlockIdx = String(i);
+    }
   }
 
   function injectStyles() {
@@ -267,12 +322,15 @@
       }
     }
     pm.querySelectorAll(
-      ".html-edited, .cm-editor, [contenteditable='false'], node-view-wrapper, [class*='uno-vw5xng']"
+      "node-view-wrapper, [class*='uno-vw5xng'], .cm-editor, [contenteditable='false']"
     ).forEach(add);
     return out;
   }
 
   function blockIndex(root) {
+    if (root && root.dataset.rsHtmlBlockIdx != null) {
+      return parseInt(root.dataset.rsHtmlBlockIdx, 10);
+    }
     var roots = findBlockRoots();
     return roots.indexOf(root);
   }
@@ -517,7 +575,9 @@
   }
 
   function prepareAllBlocks() {
-    findBlockRoots().forEach(ensurePreviewOnly);
+    var roots = findBlockRoots();
+    assignBlockIndices(roots);
+    roots.forEach(ensurePreviewOnly);
   }
 
   function hookDocument() {
@@ -632,6 +692,6 @@
   console.log(
     "[rs-html-block-compact] v" +
       RS_HTML_BLOCK_VER +
-      " 已就绪：iframe 预览（含 fronts.css），全屏即时打开"
+      " 已就绪：iframe 预览 v2.6（脚本/卡片高度已修复），全屏即时打开"
   );
 })();
