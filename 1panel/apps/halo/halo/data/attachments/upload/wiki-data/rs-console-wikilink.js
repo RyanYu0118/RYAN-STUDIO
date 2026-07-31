@@ -5,7 +5,7 @@
   "use strict";
 
   window.RSWikiLink = window.RSWikiLink || {};
-  var RS_WIKILINK_VER = "2.6";
+  var RS_WIKILINK_VER = "2.8";
   if (window.RSWikiLink.__ver === RS_WIKILINK_VER) {
     return;
   }
@@ -348,6 +348,20 @@
     provisionalLinkActive = false;
   }
 
+  function findLinkAnchorInSelection() {
+    var sel = window.getSelection();
+    if (!sel || !sel.rangeCount) return null;
+    var node = sel.anchorNode;
+    if (!node) return null;
+    var el = node.nodeType === 3 ? node.parentElement : node;
+    while (el) {
+      if (el.tagName === "A") return el;
+      if (el.classList && el.classList.contains("ProseMirror")) break;
+      el = el.parentElement;
+    }
+    return null;
+  }
+
   function applyHrefToProvisionalOrSelection(href, label, ctx) {
     var editor = (ctx && ctx.editor) || findEditor();
     if (!editor || editor.type !== "prosemirror") return false;
@@ -358,6 +372,14 @@
       provisionalLinkActive = false;
       triggerEditorInput(editor.el);
       decorateArchiveAnchor(pending);
+      return true;
+    }
+    var existing = findLinkAnchorInSelection();
+    if (existing) {
+      existing.href = href;
+      if (label) existing.textContent = label;
+      triggerEditorInput(editor.el);
+      decorateArchiveAnchor(existing);
       return true;
     }
     return false;
@@ -535,7 +557,7 @@
       "#rs-wikilink-pop .row.red .label{color:#c62828;font-weight:600}" +
       "#rs-wikilink-pop .row .meta{font:11px/1.3 ui-monospace,monospace;color:#888;margin-top:2px}" +
       "#rs-wikilink-pop .hint{padding:8px 12px 10px;font:12px/1.45 system-ui,sans-serif;color:#666;border-top:1px solid #f0f0f0}" +
-      "#rs-wikilink-backdrop{position:fixed;inset:0;z-index:10059;background:transparent}" +
+      "#rs-wikilink-backdrop{position:fixed;inset:0;z-index:10059;background:transparent;pointer-events:none}" +
       "#rs-wikilink-btn{position:fixed;right:24px;bottom:24px;z-index:10050;padding:8px 14px;border-radius:8px;border:1px solid rgba(128,128,128,.35);background:rgba(255,255,255,.92);cursor:pointer;font:600 13px system-ui,sans-serif;box-shadow:0 4px 16px rgba(0,0,0,.12)}" +
       ".ProseMirror a.rs-wiki-redlink{color:#c62828!important;border-bottom:1px dashed currentColor;text-decoration:none!important}" +
       ".ProseMirror a.rs-wiki-redlink:hover{color:#b71c1c!important}";
@@ -644,15 +666,42 @@
     });
   }
 
-  function openLinkPopover(ctx, anchorRect) {
+  function positionWikiPopoverAsideNative(popoverEl, fallbackRect) {
+    var bubbleRect = getBubbleMenuRect();
+    var nativePopper =
+      document.querySelector(".bubble-menu input[placeholder*='链接']") ||
+      document.querySelector(".bubble-menu input[placeholder*='link']") ||
+      document.querySelector("[data-popper-placement] input[placeholder*='链接']") ||
+      document.querySelector("[data-popper-placement] input[placeholder*='link']");
+    nativePopper = nativePopper && (nativePopper.closest(".bubble-menu") || nativePopper.closest("[data-popper-placement]"));
+    var anchorRect = (nativePopper && nativePopper.getBoundingClientRect()) || bubbleRect;
+    if (anchorRect && anchorRect.width > 0) {
+      var left = anchorRect.right + 12;
+      if (left + 380 > window.innerWidth - 12) {
+        left = Math.max(12, anchorRect.left - 380 - 12);
+      }
+      popoverEl.style.top = Math.min(Math.max(anchorRect.top, 8), window.innerHeight - 320) + "px";
+      popoverEl.style.left = left + "px";
+      return;
+    }
+    var rect = fallbackRect || bubbleRect || { top: 80, left: 80, bottom: 120, right: 120 };
+    popoverEl.style.top = Math.min(rect.bottom + 8, window.innerHeight - 320) + "px";
+    popoverEl.style.left = Math.min(Math.max(rect.left + 200, 12), window.innerWidth - 380) + "px";
+  }
+
+  function openLinkPopover(ctx, anchorRect, options) {
+    options = options || {};
+    var alongsideNative = !!options.alongsideNative;
     hidePopover(false);
     ctx = getSelectionForLink();
     selectionCtx = ctx;
     var initial = ctx.text || "";
 
-    popoverBackdrop = document.createElement("div");
-    popoverBackdrop.id = "rs-wikilink-backdrop";
-    document.body.appendChild(popoverBackdrop);
+    if (!alongsideNative) {
+      popoverBackdrop = document.createElement("div");
+      popoverBackdrop.id = "rs-wikilink-backdrop";
+      document.body.appendChild(popoverBackdrop);
+    }
 
     popover = document.createElement("div");
     popover.id = "rs-wikilink-pop";
@@ -667,7 +716,15 @@
     outsideWikiHandler = function (e) {
       if (!popover) return;
       if (popover.contains(e.target)) return;
-      if (e.target.closest && e.target.closest(".bubble-menu")) return;
+      if (!e.target.closest) return hidePopover(true);
+      if (
+        e.target.closest(".bubble-menu") ||
+        e.target.closest("[data-popper-placement]") ||
+        e.target.closest(".v-popper__inner") ||
+        e.target.closest("[role='tooltip']")
+      ) {
+        return;
+      }
       hidePopover(true);
     };
     document.addEventListener("mousedown", outsideWikiHandler, true);
@@ -709,10 +766,14 @@
     var rect = anchorRect || getBubbleMenuRect() || ctx.rect;
     if (!rect && ctx.editor && ctx.editor.el) rect = ctx.editor.el.getBoundingClientRect();
     rect = rect || { top: window.innerHeight / 2, left: window.innerWidth / 2, width: 0, height: 0, bottom: window.innerHeight / 2 };
-    popover.style.top = Math.min(rect.bottom + 8, window.innerHeight - 320) + "px";
-    popover.style.left = Math.min(Math.max(rect.left, 12), window.innerWidth - 380) + "px";
-    input.focus();
-    input.select();
+    if (alongsideNative) {
+      positionWikiPopoverAsideNative(popover, rect);
+    } else {
+      popover.style.top = Math.min(rect.bottom + 8, window.innerHeight - 320) + "px";
+      popover.style.left = Math.min(Math.max(rect.left, 12), window.innerWidth - 380) + "px";
+      input.focus();
+      input.select();
+    }
   }
 
   function getSelectionTextForWiki() {
@@ -747,6 +808,22 @@
     return /cancel link|取消链接|open link|打开链接|nofollow|在新窗口|new window|delete|删除/.test(label);
   }
 
+  function buttonHasLinkIcon(btn) {
+    if (buttonHasUnlinkIcon(btn)) return false;
+    var svg = btn && btn.querySelector("svg");
+    if (!svg) return false;
+    var inner = (svg.innerHTML || "") + (svg.outerHTML || "");
+    if (inner.indexOf("10.232") >= 0) return false;
+    return (
+      inner.indexOf("2.828-2.829") >= 0 ||
+      inner.indexOf("link-line") >= 0 ||
+      inner.indexOf("12.586") >= 0 ||
+      inner.indexOf("15.586") >= 0 ||
+      inner.indexOf("8.464") >= 0 ||
+      inner.indexOf("4.464") >= 0
+    );
+  }
+
   /** Halo 链环按钮：仅图标、size-8（LinkBubbleButton），非 Hyperlink Card 的「普通链接」文字下拉 */
   function isIconOnlyLinkBubbleButton(btn) {
     if (!btn || btn.tagName !== "BUTTON") return false;
@@ -771,97 +848,55 @@
       clearTimeout(window.RSWikiLink.__wikiArmTimer);
       window.RSWikiLink.__wikiArmTimer = null;
     }
-    window.RSWikiLink.__wantWikiPopover = false;
     ensureProvisionalLink(ctx || getSelectionForLink());
     openLinkPopover(ctx || getSelectionForLink(), getBubbleMenuRect());
   }
 
-  function shouldHijackNativeLinkInput(input) {
-    if (window.RSWikiLink.__wantWikiPopover) return true;
-    if (window.RSWikiLink.__lastAddLinkClick && Date.now() - window.RSWikiLink.__lastAddLinkClick < 4000) {
-      return true;
-    }
-    if (input && !input.value && lastGoodCtx && lastGoodCtx.text) return true;
-    return false;
+  /** 不拦截 Halo 原生事件，仅并行打开 Wiki 弹层 */
+  function openWikiAlongsideNative(ctx) {
+    ctx = ctx || getSelectionForLink();
+    var text = (ctx.text || (lastGoodCtx && lastGoodCtx.text) || "").trim();
+    if (!text) return false;
+    window.RSWikiLink.__lastAddLinkClick = Date.now();
+    setTimeout(function () {
+      if (!popover) openLinkPopover(ctx, getBubbleMenuRect(), { alongsideNative: true });
+    }, 80);
+    return true;
   }
 
   function isLinkBubbleInsertButton(el) {
     if (!onEditorPath() || !el || !el.closest) return false;
     if (isHyperlinkCardTypeDropdown(el)) return false;
     var btn = el.closest(".bubble-menu button");
-    if (!btn) return false;
+    if (!btn || !isInBubbleMenu(btn)) return false;
     if (isSecondaryLinkAction(btn) || buttonHasUnlinkIcon(btn)) return false;
     var label = (btn.textContent || "").replace(/\s+/g, " ").trim();
     if (/普通链接|行内卡片|链接卡片/.test(label)) return false;
+    if (buttonHasLinkIcon(btn)) return true;
     var wrap = btn.closest(".inline-flex");
-    if (!wrap || !isInBubbleMenu(btn)) return false;
-    if (isIconOnlyLinkBubbleButton(btn)) return true;
-    if (!label && btn.querySelector("svg")) return true;
+    if (wrap && isIconOnlyLinkBubbleButton(btn)) return true;
+    if (wrap && !label && btn.querySelector("svg")) return true;
     if (/\bh-8\b/.test(btn.className || "") && btn.querySelector("svg") && !label) return true;
     return false;
   }
 
-  function scanAndReplaceNativeLinkPanels() {
+  function scanAndPrefillNativeLinkPanels() {
+    var sawNative = false;
     document.querySelectorAll("input").forEach(function (input) {
-      tryReplaceNativeLinkWithWiki(input);
+      if (!isNativeLinkInput(input)) return;
+      sawNative = true;
+      prefillNativeLinkInput(input);
     });
-  }
-
-  function closeNativeLinkPanel(input) {
-    if (!input) return;
-    var panel = input.closest("[class*='w-96']") || input.closest(".relative");
-    var popper =
-      (panel && (panel.closest("[data-popper-placement]") || panel.closest("[class*='popper']"))) ||
-      input.closest("[data-popper-placement]") ||
-      input.closest(".v-popper__inner") ||
-      input.closest("[role='tooltip']");
-    if (popper && popper.parentElement) {
-      popper.parentElement.removeChild(popper);
-      return;
+    if (
+      sawNative &&
+      !popover &&
+      window.RSWikiLink.__lastAddLinkClick &&
+      Date.now() - window.RSWikiLink.__lastAddLinkClick < 2500 &&
+      getSelectionTextForWiki().text
+    ) {
+      window.RSWikiLink.__lastAddLinkClick = 0;
+      openLinkPopover(getSelectionForLink(), getBubbleMenuRect(), { alongsideNative: true });
     }
-    if (panel && panel.parentElement && panel !== document.body) {
-      panel.parentElement.removeChild(panel);
-    }
-  }
-
-  function openWikiFromTrigger(e) {
-    var sel = getSelectionTextForWiki();
-    if (!sel.text) return false;
-    window.RSWikiLink.__lastAddLinkClick = Date.now();
-    if (e && e.preventDefault) {
-      e.preventDefault();
-      e.stopPropagation();
-      e.stopImmediatePropagation();
-    }
-    openWikiImmediate(sel.ctx);
-    return true;
-  }
-
-  function tryReplaceNativeLinkWithWiki(input) {
-    if (!isNativeLinkInput(input) || input.closest("#rs-wikilink-pop")) return;
-    if (popover) {
-      closeNativeLinkPanel(input);
-      return;
-    }
-    var sel = getSelectionTextForWiki();
-    if (!sel.text) {
-      prefillNativeLinkInput(input);
-      return;
-    }
-    if (!shouldHijackNativeLinkInput(input)) {
-      prefillNativeLinkInput(input);
-      return;
-    }
-    if (window.RSWikiLink.__wikiArmTimer) {
-      clearTimeout(window.RSWikiLink.__wikiArmTimer);
-      window.RSWikiLink.__wikiArmTimer = null;
-    }
-    window.RSWikiLink.__wantWikiPopover = false;
-    closeNativeLinkPanel(input);
-    ensureProvisionalLink(sel.ctx);
-    setTimeout(function () {
-      if (!popover) openLinkPopover(sel.ctx, getBubbleMenuRect());
-    }, 0);
   }
 
   function isNativeLinkInput(input) {
@@ -871,9 +906,11 @@
     var ph = (input.getAttribute("placeholder") || "").toLowerCase();
     var aria = (input.getAttribute("aria-label") || "").toLowerCase();
     var hay = ph + " " + aria;
-    if (/链接地址|link address|输入链接|enter the link/i.test(hay)) return true;
-    var panel = input.closest("[class*='w-96']") || input.closest(".relative");
-    if (panel && /在新窗口|nofollow|open in new window/i.test(panel.textContent || "")) return true;
+    if (/链接地址|link address|输入链接|enter the link|链接|link url|url/i.test(hay)) return true;
+    var panel = input.closest(".bubble-menu") || input.closest("[class*='w-96']") || input.closest(".relative");
+    if (panel && /在新窗口|nofollow|open in new window|取消链接|打开链接|普通链接/i.test(panel.textContent || "")) {
+      return true;
+    }
     return false;
   }
 
@@ -894,7 +931,9 @@
     document.addEventListener("mousedown", function (e) {
       if (isLinkBubbleInsertButton(e.target)) {
         rememberSelection(captureSelection());
-        if (getSelectionTextForWiki().text) openWikiFromTrigger(e);
+        if (getSelectionTextForWiki().text) {
+          window.RSWikiLink.__lastAddLinkClick = Date.now();
+        }
         return;
       }
       if (findEditor() && findEditor().el && findEditor().el.contains(e.target)) {
@@ -915,21 +954,17 @@
         clearTimeout(window.RSWikiLink.__wikiArmTimer);
         window.RSWikiLink.__wikiArmTimer = null;
       }
-      window.RSWikiLink.__wantWikiPopover = false;
-      window.RSWikiLink.__lastAddLinkClick = Date.now();
-      ensureProvisionalLink(sel.ctx);
-      openLinkPopover(sel.ctx, getBubbleMenuRect());
+      openWikiImmediate(sel.ctx);
     }, true);
 
     document.addEventListener("click", function (e) {
       if (!isLinkBubbleInsertButton(e.target)) return;
       rememberSelection(captureSelection());
-      if (!getSelectionTextForWiki().text) return;
-      openWikiFromTrigger(e);
+      openWikiAlongsideNative(getSelectionTextForWiki().ctx);
     }, true);
 
     var obs = new MutationObserver(function () {
-      scanAndReplaceNativeLinkPanels();
+      scanAndPrefillNativeLinkPanels();
     });
     obs.observe(document.body, { childList: true, subtree: true });
   }
@@ -1056,7 +1091,7 @@
     if (cfg.showSelectionBubble !== false) bindEditorListeners();
     loadIndex().then(function () {
       markEditorArchiveLinks();
-      console.log("[rs-wikilink] v" + RS_WIKILINK_VER + " 已就绪：编辑器内链红/蓝链着色已启用");
+      console.log("[rs-wikilink] v" + RS_WIKILINK_VER + " 已就绪：选中文字 → Halo 链环并行 Wiki 面板 / Ctrl+K");
     });
   }
 

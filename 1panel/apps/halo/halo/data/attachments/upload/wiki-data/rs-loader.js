@@ -28,7 +28,7 @@
                     });
                 }
             }
-            var WIKI_VER = "2.6";
+            var WIKI_VER = "2.8";
             var HTML_VER = "3.4.2";
             var EDIT_SCROLL_VER = "1.3.0";
             var PUBLISH_VER = "1.3";
