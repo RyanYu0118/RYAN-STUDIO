@@ -7,7 +7,7 @@
 
   if (location.pathname.indexOf("/console/posts/editor") < 0) return;
 
-  var RS_EDIT_SCROLL_VER = "1.1.3";
+  var RS_EDIT_SCROLL_VER = "1.2.0";
   if (window.RSEditScroll && window.RSEditScroll.__ver === RS_EDIT_SCROLL_VER) return;
 
   var STORAGE_KEY = "rs-edit-scroll-context";
@@ -18,12 +18,8 @@
     : [0, 200, 500, 1000, 1800, 3000, 5000, 8000, 12000];
   var MAX_AGE_MS = typeof cfg.maxAgeMs === "number" ? cfg.maxAgeMs : 600000;
 
-  function getAnchorScrollOffset() {
-    var anchorCfg = (window.RSConfig && window.RSConfig.anchorScroll) || {};
-    var extraGap = typeof anchorCfg.extraGap === "number" ? anchorCfg.extraGap : 8;
-    var navFallback = typeof anchorCfg.navFallback === "number" ? anchorCfg.navFallback : 80;
-    var nav = document.getElementById("navbar");
-    return (nav ? nav.getBoundingClientRect().height : navFallback) + extraGap;
+  function getEditorTopPadding() {
+    return typeof cfg.editorTopPadding === "number" ? cfg.editorTopPadding : 12;
   }
 
   window.RSEditScroll = { __ver: RS_EDIT_SCROLL_VER, tryApply: null };
@@ -189,19 +185,28 @@
 
   function saveReturnContext(postName, slug) {
     var postId = postName || editorPostName();
-    var ctx = captureEditorReturnContext();
-    if (!ctx) {
-      var existing = readStored(RETURN_KEY) || readStored(STORAGE_KEY);
-      if (existing && existing.ctx) {
-        writeReturnContext({
-          postId: postId || existing.postId,
-          slug: slug || existing.slug,
-          ctx: existing.ctx,
-          ts: Date.now(),
-        });
-      }
+    var existing = readStored(RETURN_KEY);
+    if (existing && existing.ctx && existing.ctx.source !== "editor") {
+      writeReturnContext({
+        postId: postId || existing.postId,
+        slug: slug || existing.slug || "",
+        ctx: existing.ctx,
+        ts: Date.now(),
+      });
       return;
     }
+    var fallback = readStored(STORAGE_KEY);
+    if (fallback && fallback.ctx) {
+      writeReturnContext({
+        postId: postId || fallback.postId,
+        slug: slug || "",
+        ctx: fallback.ctx,
+        ts: Date.now(),
+      });
+      return;
+    }
+    var ctx = captureEditorReturnContext();
+    if (!ctx) return;
     writeReturnContext({
       postId: postId,
       slug: slug || "",
@@ -232,18 +237,16 @@
 
   function scrollElIntoEditorView(el) {
     if (!el) return;
-    var offset = getAnchorScrollOffset();
+    var pad = getEditorTopPadding();
     var container = findScrollContainer(el);
     if (container && container !== document.documentElement && container !== document.body) {
       var cRect = container.getBoundingClientRect();
       var rect = el.getBoundingClientRect();
-      var innerY = rect.top - cRect.top + container.scrollTop - offset;
-      container.scrollTop = Math.max(0, innerY);
+      container.scrollTop = Math.max(0, rect.top - cRect.top + container.scrollTop - pad);
       return;
     }
     var rect = el.getBoundingClientRect();
-    var y = rect.top + window.pageYOffset - offset;
-    window.scrollTo({ top: Math.max(0, y), behavior: "auto" });
+    window.scrollTo({ top: Math.max(0, rect.top + window.pageYOffset - pad), behavior: "auto" });
   }
 
   function findTextHost(root, needle) {
@@ -272,6 +275,15 @@
       var hid = cssEscape(ctx.headingId);
       var heading = pm.querySelector("#" + hid + ', [id="' + ctx.headingId + '"]');
       if (heading) return heading;
+    }
+
+    if (ctx.headingText) {
+      var heads = pm.querySelectorAll("h1,h2,h3,h4,h5,h6");
+      var hi;
+      for (hi = 0; hi < heads.length; hi++) {
+        var ht = (heads[hi].textContent || "").replace(/\s+/g, " ").trim();
+        if (ht && ht.indexOf(ctx.headingText) >= 0) return heads[hi];
+      }
     }
 
     var blockRoots = findHtmlBlockRoots(pm);

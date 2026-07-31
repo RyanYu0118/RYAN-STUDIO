@@ -30,9 +30,9 @@
             }
             var WIKI_VER = "2.6";
             var HTML_VER = "3.4.2";
-            var EDIT_SCROLL_VER = "1.1.3";
+            var EDIT_SCROLL_VER = "1.2.0";
             var PUBLISH_VER = "1.3";
-            var ARCHIVE_SCROLL_VER = "1.0.3";
+            var ARCHIVE_SCROLL_VER = "1.1.0";
             var scriptsLoaded = window.__rsConsoleScriptsLoaded;
             var wikiVer = window.RSWikiLink && window.RSWikiLink.__ver;
             var htmlVer = window.RSHtmlBlockCompact && window.RSHtmlBlockCompact.__ver;
@@ -51,7 +51,7 @@
             window.__rsConsoleScriptsLoaded = true;
             loadConsoleScript("/upload/wiki-data/rs-config.js?v=3", function () {
                 loadConsoleScript("/upload/wiki-data/rs-console-publish-redirect.js?v=1.3");
-                loadConsoleScript("/upload/wiki-data/rs-console-edit-scroll.js?v=1.1.3");
+                loadConsoleScript("/upload/wiki-data/rs-console-edit-scroll.js?v=1.2.0");
                 loadConsoleScript("/upload/wiki-data/rs-console-html-block-compact.js?v=3.4.2");
                 loadConsoleScript("/upload/wiki-data/rs-console-wikilink.js?v=" + WIKI_VER, afterWiki);
             });
@@ -140,11 +140,13 @@
 
         var needles = collectEditNeedles(el);
         var headingId = "";
+        var headingText = "";
         var cur = el;
         while (cur && cur !== body) {
             var tag = cur.tagName ? cur.tagName.toUpperCase() : "";
             if (/^H[1-6]$/.test(tag) && cur.id) {
                 headingId = cur.id;
+                headingText = (cur.textContent || "").replace(/\s+/g, " ").trim();
                 break;
             }
             cur = cur.parentElement;
@@ -158,7 +160,19 @@
                 if (top <= anchorY && top > bestTop) {
                     bestTop = top;
                     headingId = headings[hi].id;
+                    headingText = (headings[hi].textContent || "").replace(/\s+/g, " ").trim();
                 }
+            }
+        }
+        if (!headingText) {
+            cur = el;
+            while (cur && cur !== body) {
+                var tag2 = cur.tagName ? cur.tagName.toUpperCase() : "";
+                if (/^H[1-6]$/.test(tag2)) {
+                    headingText = (cur.textContent || "").replace(/\s+/g, " ").trim();
+                    break;
+                }
+                cur = cur.parentElement;
             }
         }
 
@@ -204,10 +218,12 @@
             blockRatio: blockRatio,
             needles: needles,
             headingId: headingId,
+            headingText: headingText,
             htmlEditedIdx: htmlEditedIdx,
             blockSig: blockSig,
             path: location.pathname,
             ts: Date.now(),
+            source: "frontend",
         };
     }
 
@@ -294,7 +310,7 @@
             loadScript("/upload/wiki-data/rs-ensure-manual-id.js?v=1.0", function () {
                 initQuickEdit();
             });
-            loadScript("/upload/wiki-data/rs-archive-scroll.js?v=1.0.3");
+            loadScript("/upload/wiki-data/rs-archive-scroll.js?v=1.1.0");
         } else {
             initQuickEdit();
         }
