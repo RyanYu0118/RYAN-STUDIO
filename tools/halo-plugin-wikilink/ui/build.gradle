@@ -3,7 +3,7 @@ plugins {
     id "com.github.node-gradle.node" version "7.1.0"
 }
 
-group 'run.mcwws.mcwwswikilink.ui'
+group 'run.rs.rswikilink.ui'
 
 tasks.register('npmBuild', NpmTask) {
     group = 'build'

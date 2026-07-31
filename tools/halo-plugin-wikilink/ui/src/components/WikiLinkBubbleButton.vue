@@ -23,13 +23,13 @@ function handleGlobalOpen() {
 }
 
 onMounted(() => {
-  window.addEventListener('mcwws-wikilink-open', handleGlobalOpen)
-  window.addEventListener('mcwws-wikilink-close', onClose)
+  window.addEventListener('rs-wikilink-open', handleGlobalOpen)
+  window.addEventListener('rs-wikilink-close', onClose)
 })
 
 onUnmounted(() => {
-  window.removeEventListener('mcwws-wikilink-open', handleGlobalOpen)
-  window.removeEventListener('mcwws-wikilink-close', onClose)
+  window.removeEventListener('rs-wikilink-open', handleGlobalOpen)
+  window.removeEventListener('rs-wikilink-close', onClose)
 })
 </script>
 
@@ -44,10 +44,10 @@ onUnmounted(() => {
       :editor="editor"
       :is-active="isActive?.({ editor })"
       tooltip="Wiki 链接 (Ctrl+Shift+K)"
-      class="mcwws-wiki-bubble-btn"
+      class="rs-wiki-bubble-btn"
     >
       <svg
-        class="mcwws-wiki-bubble-btn__icon"
+        class="rs-wiki-bubble-btn__icon"
         xmlns="http://www.w3.org/2000/svg"
         viewBox="0 0 24 24"
         width="18"
@@ -67,7 +67,7 @@ onUnmounted(() => {
 </template>
 
 <style scoped>
-.mcwws-wiki-bubble-btn {
+.rs-wiki-bubble-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -77,11 +77,11 @@ onUnmounted(() => {
   color: #4b5563;
 }
 
-.mcwws-wiki-bubble-btn:hover {
+.rs-wiki-bubble-btn:hover {
   background: #f3f4f6;
 }
 
-.mcwws-wiki-bubble-btn__icon {
+.rs-wiki-bubble-btn__icon {
   display: block;
   flex-shrink: 0;
   pointer-events: none;

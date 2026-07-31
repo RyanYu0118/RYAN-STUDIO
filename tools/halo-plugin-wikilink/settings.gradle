@@ -3,5 +3,5 @@ pluginManagement {
         gradlePluginPortal()
     }
 }
-rootProject.name = 'plugin-mcwws-wikilink'
+rootProject.name = 'plugin-RS_WikiLink'
 include 'ui'

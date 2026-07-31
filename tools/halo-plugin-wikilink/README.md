@@ -1,4 +1,4 @@
-# MCWWS Wiki 链接 — Halo 2 编辑器插件
+# RS Wiki 链接 — Halo 2 编辑器插件
 
 在 Halo **默认富文本编辑器**中提供 MediaWiki 风格的 Wiki 内链：选中文字 → 气泡栏 **Wiki 链接**（书本图标）→ 搜索 slug / 红链 → 写入 `/archives/{slug}`。
 
@@ -25,7 +25,7 @@ cd tools/halo-plugin-wikilink
 .\build.ps1
 ```
 
-产物：`build/libs/plugin-mcwws-wikilink-*.jar`
+产物：`build/libs/plugin-RS_WikiLink-<version>.jar`（当前 1.0.2）
 
 或手动：
 
@@ -35,8 +35,10 @@ cd tools/halo-plugin-wikilink
 
 ## 安装
 
+> 若曾安装旧版 `mcwws-wikilink`，请先卸载再安装 `RS_WikiLink`（插件 ID 已变更）。
+
 1. Halo 控制台 → **插件** → **安装**
-2. 上传 `build/libs/plugin-mcwws-wikilink-*.jar`
+2. 上传 `build/libs/plugin-RS_WikiLink-*.jar`
 3. **启用**插件
 4. 硬刷新文章编辑页 `/console/posts/editor`
 

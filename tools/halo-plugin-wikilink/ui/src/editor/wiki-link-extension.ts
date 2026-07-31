@@ -3,7 +3,7 @@ import { Extension, TEXT_BUBBLE_MENU_KEY, type Editor } from '@halo-dev/richtext
 import { markRaw } from 'vue'
 
 const WikiLinkExtension = Extension.create({
-  name: 'mcwwsWikiLink',
+  name: 'rsWikiLink',
 
   addOptions() {
     return {
@@ -28,7 +28,7 @@ const WikiLinkExtension = Extension.create({
   addKeyboardShortcuts() {
     return {
       'Mod-Shift-k': () => {
-        window.dispatchEvent(new CustomEvent('mcwws-wikilink-open'))
+        window.dispatchEvent(new CustomEvent('rs-wikilink-open'))
         return true
       },
     }

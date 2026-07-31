@@ -3,20 +3,20 @@
 apiVersion: plugin.halo.run/v1alpha1
 kind: Plugin
 metadata:
-  # The name defines how the plugin is invoked, A unique name
-  name: mcwws-wikilink
+  name: RS_WikiLink
 spec:
   enabled: true
+  version: 1.0.2
   requires: ">=2.25.0"
   author:
-    name: MCWWS
-    website: https://github.com/MCWWS
+    name: Ryan Studio
+    website: https://github.com/RyanYu0118
   logo: logo.png
-  homepage: https://github.com/MCWWS/mcwws-wikilink#readme
-  repo: https://github.com/MCWWS/mcwws-wikilink
-  issues: https://github.com/MCWWS/mcwws-wikilink/issues
-  displayName: "MCWWS Wiki 链接"
+  homepage: https://github.com/RyanYu0118/RYAN-STUDIO
+  repo: https://github.com/RyanYu0118/RYAN-STUDIO
+  issues: https://github.com/RyanYu0118/RYAN-STUDIO/issues
+  displayName: "RS Wiki 链接"
   description: "后台编辑器：选中文字 → 气泡栏 Wiki 链接（slug 搜索、红链）· 与 Halo 原生链环并存"
   license:
     - name: "GPL-3.0"
-      url: "https://github.com/MCWWS/mcwws-wikilink/blob/main/LICENSE"
+      url: "https://github.com/RyanYu0118/RYAN-STUDIO/blob/main/tools/halo-plugin-wikilink/LICENSE"

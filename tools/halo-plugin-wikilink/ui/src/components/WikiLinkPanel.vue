@@ -68,14 +68,14 @@ function pick(row: WikiPage) {
   const raw = row.external ? row.slug : row.slug || row.title
   if (!raw) return
   applyWikiLink(props.editor, raw, initialText.value)
-  window.dispatchEvent(new CustomEvent('mcwws-wikilink-close'))
+  window.dispatchEvent(new CustomEvent('rs-wikilink-close'))
 }
 
 function finish() {
   const raw = query.value.trim() || activeSlug.value
   if (!raw) return
   applyWikiLink(props.editor, raw, initialText.value)
-  window.dispatchEvent(new CustomEvent('mcwws-wikilink-close'))
+  window.dispatchEvent(new CustomEvent('rs-wikilink-close'))
 }
 
 function rowMeta(row: WikiPage) {
@@ -94,12 +94,12 @@ function onKeydown(e: KeyboardEvent) {
 </script>
 
 <template>
-  <div class="mcwws-wiki-panel">
-    <div class="mcwws-wiki-panel__head">
-      <span class="mcwws-wiki-panel__title">Wiki 链接</span>
-      <button type="button" class="mcwws-wiki-panel__done" @click="finish">完成</button>
+  <div class="rs-wiki-panel">
+    <div class="rs-wiki-panel__head">
+      <span class="rs-wiki-panel__title">Wiki 链接</span>
+      <button type="button" class="rs-wiki-panel__done" @click="finish">完成</button>
     </div>
-    <div class="mcwws-wiki-panel__search">
+    <div class="rs-wiki-panel__search">
       <input
         v-model="query"
         type="text"
@@ -108,13 +108,13 @@ function onKeydown(e: KeyboardEvent) {
         @keydown="onKeydown"
       />
     </div>
-    <div v-if="loading" class="mcwws-wiki-panel__hint">加载页面索引…</div>
-    <div v-else class="mcwws-wiki-panel__results">
+    <div v-if="loading" class="rs-wiki-panel__hint">加载页面索引…</div>
+    <div v-else class="rs-wiki-panel__results">
       <button
         v-for="row in results"
         :key="row.slug + row.title"
         type="button"
-        class="mcwws-wiki-panel__row"
+        class="rs-wiki-panel__row"
         :class="{ red: row.red || (!row.published && !row.external) }"
         @click="pick(row)"
       >
@@ -124,14 +124,14 @@ function onKeydown(e: KeyboardEvent) {
           <span class="meta">{{ rowMeta(row) }}</span>
         </span>
       </button>
-      <div v-if="!results.length" class="mcwws-wiki-panel__hint">输入页面名称，或从列表中选择</div>
+      <div v-if="!results.length" class="rs-wiki-panel__hint">输入页面名称，或从列表中选择</div>
     </div>
-    <div class="mcwws-wiki-panel__foot">原生链环（普通链接 / 取消 / 打开）仍可使用 · Ctrl+Shift+K</div>
+    <div class="rs-wiki-panel__foot">原生链环（普通链接 / 取消 / 打开）仍可使用 · Ctrl+Shift+K</div>
   </div>
 </template>
 
 <style scoped lang="scss">
-.mcwws-wiki-panel {
+.rs-wiki-panel {
   width: min(360px, calc(100vw - 24px));
   background: #fff;
   border-radius: 10px;
@@ -140,7 +140,7 @@ function onKeydown(e: KeyboardEvent) {
   overflow: hidden;
 }
 
-.mcwws-wiki-panel__head {
+.rs-wiki-panel__head {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -148,13 +148,13 @@ function onKeydown(e: KeyboardEvent) {
   border-bottom: 1px solid #eee;
 }
 
-.mcwws-wiki-panel__title {
+.rs-wiki-panel__title {
   flex: 1;
   font: 600 14px system-ui, sans-serif;
   text-align: center;
 }
 
-.mcwws-wiki-panel__done {
+.rs-wiki-panel__done {
   border: none;
   background: transparent;
   cursor: pointer;
@@ -162,12 +162,12 @@ function onKeydown(e: KeyboardEvent) {
   color: #1976d2;
 }
 
-.mcwws-wiki-panel__search {
+.rs-wiki-panel__search {
   padding: 10px 12px;
   border-bottom: 1px solid #f0f0f0;
 }
 
-.mcwws-wiki-panel__search input {
+.rs-wiki-panel__search input {
   width: 100%;
   box-sizing: border-box;
   border: 1px solid #ddd;
@@ -176,12 +176,12 @@ function onKeydown(e: KeyboardEvent) {
   font: 14px system-ui, sans-serif;
 }
 
-.mcwws-wiki-panel__results {
+.rs-wiki-panel__results {
   max-height: 240px;
   overflow: auto;
 }
 
-.mcwws-wiki-panel__row {
+.rs-wiki-panel__row {
   display: flex;
   align-items: center;
   gap: 10px;
@@ -193,16 +193,16 @@ function onKeydown(e: KeyboardEvent) {
   cursor: pointer;
 }
 
-.mcwws-wiki-panel__row:hover {
+.rs-wiki-panel__row:hover {
   background: #f5f5f5;
 }
 
-.mcwws-wiki-panel__row.red .label {
+.rs-wiki-panel__row.red .label {
   color: #c62828;
   font-weight: 600;
 }
 
-.mcwws-wiki-panel__row .icon {
+.rs-wiki-panel__row .icon {
   width: 28px;
   height: 28px;
   border-radius: 6px;
@@ -215,29 +215,29 @@ function onKeydown(e: KeyboardEvent) {
   flex-shrink: 0;
 }
 
-.mcwws-wiki-panel__row.red .icon {
+.rs-wiki-panel__row.red .icon {
   background: #ffebee;
   color: #c62828;
 }
 
-.mcwws-wiki-panel__row .body {
+.rs-wiki-panel__row .body {
   min-width: 0;
 }
 
-.mcwws-wiki-panel__row .label {
+.rs-wiki-panel__row .label {
   display: block;
   font: 14px system-ui, sans-serif;
 }
 
-.mcwws-wiki-panel__row .meta {
+.rs-wiki-panel__row .meta {
   display: block;
   font: 12px/1.45 system-ui, sans-serif;
   color: #666;
   margin-top: 2px;
 }
 
-.mcwws-wiki-panel__hint,
-.mcwws-wiki-panel__foot {
+.rs-wiki-panel__hint,
+.rs-wiki-panel__foot {
   padding: 8px 12px 10px;
   font: 12px/1.45 system-ui, sans-serif;
   color: #666;
