@@ -1,13 +1,13 @@
 /* =======================================================
-   RS Console — HTML 编辑块全屏编辑 v3.3
-   Snapshot 完整源码 + 全屏编辑过渡动画
+   RS Console — HTML 编辑块全屏编辑 v3.4
+   全屏编辑按预览点击/滚动位置定位源码
    ======================================================= */
 (function () {
   "use strict";
 
   if (location.pathname.indexOf("/console/posts/editor") < 0) return;
 
-  var RS_HTML_BLOCK_VER = "3.3";
+  var RS_HTML_BLOCK_VER = "3.4";
   if (window.RSHtmlBlockCompact && window.RSHtmlBlockCompact.__ver === RS_HTML_BLOCK_VER) {
     return;
   }
@@ -163,6 +163,110 @@
     }
   }
 
+  function getPreviewIframe(root) {
+    return root ? root.querySelector("[data-rs-html-iframe]") : null;
+  }
+
+  function needleFromElement(el, doc) {
+    if (!el || !doc || el === doc.body || el === doc.documentElement) return "";
+    if (el.id) return 'id="' + el.id + '"';
+    var cls = el.className;
+    if (typeof cls === "string" && cls.trim()) {
+      var parts = cls.trim().split(/\s+/);
+      for (var i = 0; i < parts.length; i++) {
+        var c = parts[i];
+        if (c && (c.indexOf("wd-") === 0 || c.indexOf("wander") === 0 || c.indexOf("nav-") === 0 || c.indexOf("font-") === 0)) {
+          return c;
+        }
+      }
+      if (parts[0].length >= 3) return parts[0];
+    }
+    var tag = el.tagName ? el.tagName.toLowerCase() : "";
+    if (tag === "style" || tag === "script") return "<" + tag;
+    var text = (el.textContent || "").replace(/\s+/g, " ").trim();
+    if (text.length >= 6 && text.length <= 48) return text;
+    return needleFromElement(el.parentElement, doc);
+  }
+
+  function capturePreviewScrollRatio(root) {
+    var iframe = getPreviewIframe(root);
+    if (!iframe || !iframe.contentWindow) return;
+    try {
+      var doc = iframe.contentDocument;
+      var win = iframe.contentWindow;
+      var max = Math.max(1, (doc.documentElement.scrollHeight || 0) - (win.innerHeight || 0));
+      root.dataset.rsHtmlPreviewScrollRatio = String(Math.min(1, Math.max(0, (win.scrollY || 0) / max)));
+    } catch (e0) {
+      /* ignore */
+    }
+  }
+
+  function attachPreviewInteraction(iframe, root) {
+    try {
+      var doc = iframe.contentDocument;
+      if (!doc || doc.__rsHtmlPreviewHook) return;
+      doc.__rsHtmlPreviewHook = true;
+      doc.addEventListener(
+        "click",
+        function (e) {
+          var needle = needleFromElement(e.target, doc);
+          if (needle) root.dataset.rsHtmlPreviewNeedle = needle;
+          capturePreviewScrollRatio(root);
+        },
+        true
+      );
+      iframe.contentWindow.addEventListener(
+        "scroll",
+        function () {
+          capturePreviewScrollRatio(root);
+        },
+        { passive: true }
+      );
+    } catch (e1) {
+      /* ignore */
+    }
+  }
+
+  function scrollTextareaToLine(ta, line) {
+    if (!ta) return;
+    var lines = ta.value.split("\n");
+    line = Math.max(0, Math.min(line, lines.length - 1));
+    var pos = 0;
+    for (var i = 0; i < line; i++) pos += lines[i].length + 1;
+    ta.focus();
+    ta.setSelectionRange(pos, pos);
+    var style = window.getComputedStyle(ta);
+    var lineHeight = parseFloat(style.lineHeight) || 20;
+    var paddingTop = parseFloat(style.paddingTop) || 0;
+    ta.scrollTop = Math.max(0, line * lineHeight - ta.clientHeight * 0.35 + paddingTop);
+  }
+
+  function scrollTextareaToNeedle(ta, needle) {
+    if (!ta || !needle) return false;
+    var idx = ta.value.indexOf(needle);
+    if (idx < 0) return false;
+    var line = ta.value.slice(0, idx).split("\n").length - 1;
+    scrollTextareaToLine(ta, line);
+    return true;
+  }
+
+  function scrollTextareaByRatio(ta, ratio) {
+    if (!ta || !ta.value) return;
+    ratio = Math.min(1, Math.max(0, ratio || 0));
+    var lineCount = ta.value.split("\n").length;
+    scrollTextareaToLine(ta, Math.round(ratio * Math.max(0, lineCount - 1)));
+  }
+
+  function focusTextareaAtPreviewContext(root, ta) {
+    if (!ta || !root) return;
+    capturePreviewScrollRatio(root);
+    var needle = root.dataset.rsHtmlPreviewNeedle || "";
+    if (needle && scrollTextareaToNeedle(ta, needle)) return;
+    var ratio = parseFloat(root.dataset.rsHtmlPreviewScrollRatio || "0");
+    if (ratio > 0.01) scrollTextareaByRatio(ta, ratio);
+    else ta.focus();
+  }
+
   function getBodyShell(root) {
     return (
       root.querySelector(".uno-ere7q9") ||
@@ -217,6 +321,7 @@
           /* ignore */
         }
       }
+      attachPreviewInteraction(iframe, root);
       scheduleIframeResize(iframe);
     };
     scheduleIframeResize(iframe);
@@ -1391,20 +1496,23 @@
   function openFullscreen(root) {
     if (fsState) return;
     ensureOverlay();
+    capturePreviewScrollRatio(root);
 
     fsState = { root: root, initial: "" };
     overlayTextarea.value = "";
     overlayTextarea.placeholder = "正在加载完整源码…";
     showFullscreenOverlay();
-    setTimeout(function () {
-      if (fsState && fsState.root === root) overlayTextarea.focus();
-    }, 80);
 
     resolveFullSource(root, function (full) {
       if (!fsState || fsState.root !== root) return;
       fsState.initial = full;
       overlayTextarea.value = full;
       overlayTextarea.placeholder = "";
+      setTimeout(function () {
+        if (fsState && fsState.root === root) {
+          focusTextareaAtPreviewContext(root, overlayTextarea);
+        }
+      }, 120);
     });
   }
 
@@ -1552,7 +1660,7 @@
   console.log(
     "[rs-html-block-compact] v" +
       RS_HTML_BLOCK_VER +
-      " 已就绪：Snapshot 完整源码 + 全屏编辑过渡动画"
+      " 已就绪：全屏编辑过渡动画 + 预览位置定位源码"
   );
 
   window.RSHtmlBlockCompact.repairNow = function () {
