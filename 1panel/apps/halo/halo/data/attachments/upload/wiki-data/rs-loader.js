@@ -19,6 +19,9 @@
         function bootConsoleWiki() {
             function afterWiki() {
                 if (window.RSWikiLink && window.RSWikiLink.init) window.RSWikiLink.init();
+                if (window.RSHtmlBlockCompact && window.RSHtmlBlockCompact.init) {
+                    window.RSHtmlBlockCompact.init();
+                }
             }
             var WIKI_VER = "2.6";
             var scriptsLoaded = window.__rsConsoleScriptsLoaded;
@@ -30,6 +33,7 @@
             window.__rsConsoleScriptsLoaded = true;
             loadConsoleScript("/upload/wiki-data/rs-config.js?v=2", function () {
                 loadConsoleScript("/upload/wiki-data/rs-console-publish-redirect.js?v=1.2");
+                loadConsoleScript("/upload/wiki-data/rs-console-html-block-compact.js?v=1.0");
                 loadConsoleScript("/upload/wiki-data/rs-console-wikilink.js?v=" + WIKI_VER, afterWiki);
             });
         }

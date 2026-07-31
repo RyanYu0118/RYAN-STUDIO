@@ -56,5 +56,12 @@ window.RSConfig = {
         // 悬浮 UI：false = 仅用 Ctrl+K / 工具栏链环
         showCornerButton: false,
         showSelectionBubble: false
+    },
+
+    // 📦 hybrid-edit-block：HTML 编辑块默认按渲染预览高度显示（见 rs-console-html-block-compact.js）
+    htmlBlockCompact: {
+        enabled: true,
+        types: ["html_edited"],
+        editMaxHeight: "min(42vh, 420px)"
     }
 };
