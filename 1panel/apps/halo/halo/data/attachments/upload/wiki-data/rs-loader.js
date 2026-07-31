@@ -22,19 +22,27 @@
                 if (window.RSHtmlBlockCompact && window.RSHtmlBlockCompact.init) {
                     window.RSHtmlBlockCompact.init();
                 }
+                if (window.RSEditScroll && window.RSEditScroll.tryApply) {
+                    [600, 1500, 3500].forEach(function (ms) {
+                        setTimeout(window.RSEditScroll.tryApply, ms);
+                    });
+                }
             }
             var WIKI_VER = "2.6";
             var HTML_VER = "3.4.2";
+            var EDIT_SCROLL_VER = "1.0.0";
             var scriptsLoaded = window.__rsConsoleScriptsLoaded;
             var wikiVer = window.RSWikiLink && window.RSWikiLink.__ver;
             var htmlVer = window.RSHtmlBlockCompact && window.RSHtmlBlockCompact.__ver;
-            if (scriptsLoaded && wikiVer === WIKI_VER && htmlVer === HTML_VER) {
+            var editScrollVer = window.RSEditScroll && window.RSEditScroll.__ver;
+            if (scriptsLoaded && wikiVer === WIKI_VER && htmlVer === HTML_VER && editScrollVer === EDIT_SCROLL_VER) {
                 afterWiki();
                 return;
             }
             window.__rsConsoleScriptsLoaded = true;
             loadConsoleScript("/upload/wiki-data/rs-config.js?v=3", function () {
                 loadConsoleScript("/upload/wiki-data/rs-console-publish-redirect.js?v=1.2");
+                loadConsoleScript("/upload/wiki-data/rs-console-edit-scroll.js?v=1.0.0");
                 loadConsoleScript("/upload/wiki-data/rs-console-html-block-compact.js?v=3.4.2");
                 loadConsoleScript("/upload/wiki-data/rs-console-wikilink.js?v=" + WIKI_VER, afterWiki);
             });
@@ -67,7 +75,142 @@
         document.body.appendChild(script);
     }
 
-    // ✨ 新增：快速编辑按钮集成模块
+    // ✨ 快速编辑按钮：记录前台浏览位置，供后台编辑器定位
+    var EDIT_CTX_KEY = "rs-edit-scroll-context";
+
+    function pushEditNeedle(list, seen, n) {
+        if (!n || seen[n]) return;
+        seen[n] = true;
+        list.push(n);
+    }
+
+    function collectEditNeedles(el) {
+        var out = [];
+        var seen = {};
+        var cur = el;
+        while (cur && cur !== document.body) {
+            if (cur.id) {
+                pushEditNeedle(out, seen, 'id="' + cur.id + '"');
+                pushEditNeedle(out, seen, cur.id);
+            }
+            var cls = cur.className;
+            if (typeof cls === "string" && cls.trim()) {
+                cls.trim().split(/\s+/).forEach(function (c) {
+                    if (!c || c.length < 3) return;
+                    if (c === "html-edited" || c === "markdown-body") return;
+                    pushEditNeedle(out, seen, c);
+                    pushEditNeedle(out, seen, "." + c);
+                });
+            }
+            if (cur === el) {
+                var direct = (cur.textContent || "").replace(/\s+/g, " ").trim();
+                if (direct.length >= 4 && direct.length <= 80) pushEditNeedle(out, seen, direct);
+            }
+            cur = cur.parentElement;
+        }
+        return out;
+    }
+
+    function captureEditContext() {
+        var body =
+            document.querySelector(".markdown-body") ||
+            document.querySelector(".post-content") ||
+            document.querySelector("article.post");
+        if (!body) return null;
+
+        var vh = window.innerHeight || 800;
+        var vw = window.innerWidth || 1200;
+        var anchorY = vh * 0.42;
+        var x = Math.max(0, Math.min(vw - 1, vw * 0.5));
+        var el = document.elementFromPoint(x, anchorY);
+        while (el && el !== document.body && el !== body && !body.contains(el)) {
+            el = el.parentElement;
+        }
+        if (!el || !body.contains(el)) el = body;
+
+        var needles = collectEditNeedles(el);
+        var headingId = "";
+        var cur = el;
+        while (cur && cur !== body) {
+            var tag = cur.tagName ? cur.tagName.toUpperCase() : "";
+            if (/^H[1-6]$/.test(tag) && cur.id) {
+                headingId = cur.id;
+                break;
+            }
+            cur = cur.parentElement;
+        }
+        if (!headingId) {
+            var headings = body.querySelectorAll("h1[id],h2[id],h3[id],h4[id],h5[id],h6[id]");
+            var bestTop = -Infinity;
+            var hi;
+            for (hi = 0; hi < headings.length; hi++) {
+                var top = headings[hi].getBoundingClientRect().top;
+                if (top <= anchorY && top > bestTop) {
+                    bestTop = top;
+                    headingId = headings[hi].id;
+                }
+            }
+        }
+
+        var htmlEditedIdx = -1;
+        var htmlBlocks = body.querySelectorAll(".html-edited");
+        var bi;
+        for (bi = 0; bi < htmlBlocks.length; bi++) {
+            if (htmlBlocks[bi].contains(el)) {
+                htmlEditedIdx = bi;
+                break;
+            }
+        }
+
+        var blockSig = "";
+        if (el.closest) {
+            var marker = el.closest(
+                ".wd-smart-card, .wws-wb-card, .nav-quote-box, [id='wanderCard'], [id]"
+            );
+            if (marker) {
+                if (marker.id) blockSig = marker.id;
+                else if (marker.className) {
+                    var m = String(marker.className).match(/wd-smart-card|wws-wb-card|nav-quote-box/);
+                    if (m) blockSig = m[0];
+                }
+            }
+        }
+
+        var blockRatio = 0;
+        if (htmlEditedIdx >= 0 && htmlBlocks[htmlEditedIdx]) {
+            var blockEl = htmlBlocks[htmlEditedIdx];
+            var bRect = blockEl.getBoundingClientRect();
+            blockRatio = (anchorY - bRect.top) / Math.max(1, bRect.height);
+            blockRatio = Math.min(1, Math.max(0, blockRatio));
+        }
+
+        var bodyTop = body.getBoundingClientRect().top + window.pageYOffset;
+        var articleRatio = (window.pageYOffset + anchorY - bodyTop) / Math.max(1, body.scrollHeight);
+        articleRatio = Math.min(1, Math.max(0, articleRatio));
+
+        return {
+            scrollY: window.pageYOffset,
+            ratio: articleRatio,
+            blockRatio: blockRatio,
+            needles: needles,
+            headingId: headingId,
+            htmlEditedIdx: htmlEditedIdx,
+            blockSig: blockSig,
+            path: location.pathname,
+            ts: Date.now(),
+        };
+    }
+
+    function saveEditContext(postId) {
+        var ctx = captureEditContext();
+        if (!ctx) return;
+        try {
+            sessionStorage.setItem(EDIT_CTX_KEY, JSON.stringify({ postId: postId, ctx: ctx }));
+        } catch (e0) {
+            /* ignore */
+        }
+    }
+
     function initQuickEdit() {
         const manualIdDiv = document.getElementById('halo-manual-id');
         if (!manualIdDiv || window.innerWidth <= 768) return; 
@@ -112,6 +255,12 @@
             <span class="edit-en">EDIT</span>
         `;
         document.body.appendChild(btn);
+        btn.addEventListener("mousedown", function () {
+            saveEditContext(postId);
+        });
+        btn.addEventListener("click", function () {
+            saveEditContext(postId);
+        });
         setTimeout(() => btn.classList.add('show'), 100);
     }
 

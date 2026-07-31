@@ -22,6 +22,12 @@ window.RSConfig = {
         loadRetryMs: [0, 120, 400, 800, 1500, 3000, 5000]
     },
 
+    // 🎯 前台快速编辑 → 后台编辑器滚动定位（见 rs-console-edit-scroll.js）
+    editScroll: {
+        retryMs: [0, 200, 500, 1000, 1800, 3000, 5000, 8000, 12000],
+        maxAgeMs: 600000
+    },
+
     // 📖 Wiki 页（rs-loader 根据 urlIncludes 加载 rs-wiki.js）
     wiki: {
         // 顶栏全屏背景视频（/upload/1000b.mp4）；false = 用文章/主题自带封面图

@@ -1796,4 +1796,6 @@
         : idx;
     return root ? resolveEditorContext(root) : null;
   };
+
+  window.RSHtmlBlockCompact.getBlockRoots = findBlockRoots;
 })();
