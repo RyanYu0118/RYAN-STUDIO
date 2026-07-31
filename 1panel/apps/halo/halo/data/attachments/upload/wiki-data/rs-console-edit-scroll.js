@@ -7,7 +7,7 @@
 
   if (location.pathname.indexOf("/console/posts/editor") < 0) return;
 
-  var RS_EDIT_SCROLL_VER = "1.2.2";
+  var RS_EDIT_SCROLL_VER = "1.3.0";
   if (window.RSEditScroll && window.RSEditScroll.__ver === RS_EDIT_SCROLL_VER) return;
 
   var STORAGE_KEY = "rs-edit-scroll-context";
@@ -83,38 +83,113 @@
     return data;
   }
 
+  function readEntryContext() {
+    var postId = editorPostName();
+    var data = readStored(STORAGE_KEY);
+    if (!data || !data.ctx) data = readEntryFrozen(postId);
+    if (!data || !data.ctx) return null;
+    if (data.postId && postId && data.postId !== postId) return null;
+    if (Date.now() - (data.ctx.ts || data.ts || 0) > MAX_AGE_MS) return null;
+    return data.ctx;
+  }
+
   function saveReturnContext(postName, slug) {
     var postId = postName || editorPostName();
+    var ctx = captureEditorReturnContext();
+    if (!ctx) return;
     var frozen = readEntryFrozen(postId);
-    if (frozen && frozen.ctx) {
-      writeReturnContext({
-        postId: postId || frozen.postId,
-        slug: slug || "",
-        ctx: frozen.ctx,
-        ts: Date.now(),
-      });
-      return;
+    if (frozen && frozen.ctx && frozen.ctx.path) ctx.path = frozen.ctx.path;
+    writeReturnContext({
+      postId: postId,
+      slug: slug || "",
+      ctx: ctx,
+      ts: Date.now(),
+    });
+  }
+
+  function findNearestPmHeading(pm, anchorY) {
+    var heads = pm.querySelectorAll("h1,h2,h3,h4,h5,h6");
+    var best = null;
+    var bestTop = -Infinity;
+    var i;
+    for (i = 0; i < heads.length; i++) {
+      var top = heads[i].getBoundingClientRect().top;
+      if (top <= anchorY + 4 && top > bestTop) {
+        bestTop = top;
+        best = heads[i];
+      }
     }
-    var existing = readStored(RETURN_KEY);
-    if (existing && existing.ctx && existing.ctx.source === "frontend") {
-      writeReturnContext({
-        postId: postId || existing.postId,
-        slug: slug || existing.slug || "",
-        ctx: existing.ctx,
-        ts: Date.now(),
-      });
-      return;
+    return best;
+  }
+
+  function captureEditorReturnContext() {
+    var pm = document.querySelector(".ProseMirror");
+    if (!pm) return null;
+    var pad = getEditorTopPadding();
+    var anchorY = pad + 16;
+    var vw = window.innerWidth || 1200;
+    var x = Math.max(0, Math.min(vw - 1, vw * 0.5));
+    var el = document.elementFromPoint(x, anchorY);
+    while (el && el !== pm && el !== document.body && !pm.contains(el)) {
+      el = el.parentElement;
     }
-    var fallback = readStored(STORAGE_KEY);
-    if (fallback && fallback.ctx && fallback.ctx.source === "frontend") {
-      writeReturnContext({
-        postId: postId || fallback.postId,
-        slug: slug || "",
-        ctx: fallback.ctx,
-        ts: Date.now(),
-      });
-      return;
+    if (!el || !pm.contains(el)) el = pm;
+
+    var headingId = "";
+    var headingText = "";
+    var cur = el;
+    while (cur && cur !== pm) {
+      var tag = cur.tagName ? cur.tagName.toUpperCase() : "";
+      if (/^H[1-6]$/.test(tag)) {
+        headingText = (cur.textContent || "").replace(/\s+/g, " ").trim();
+        if (cur.id) headingId = cur.id;
+        break;
+      }
+      cur = cur.parentElement;
     }
+    if (!headingText) {
+      var nearest = findNearestPmHeading(pm, anchorY);
+      if (nearest) {
+        headingText = (nearest.textContent || "").replace(/\s+/g, " ").trim();
+        if (nearest.id) headingId = nearest.id;
+      }
+    }
+
+    var needles = collectNeedlesFromEl(el, pm);
+    var blockSig = "";
+    var htmlEditedIdx = -1;
+    var blockRoots = findHtmlBlockRoots(pm);
+    var blockRoot = el.closest ? el.closest(".rs-html-block-root") : null;
+    if (blockRoot) {
+      htmlEditedIdx = blockRoots.indexOf(blockRoot);
+      var iframe = blockRoot.querySelector("[data-rs-html-iframe]");
+      try {
+        if (iframe && iframe.contentDocument && iframe.contentDocument.body) {
+          var idoc = iframe.contentDocument;
+          var ix = Math.max(0, Math.min(iframe.clientWidth - 1, iframe.clientWidth * 0.5));
+          var iy = Math.max(0, Math.min(iframe.clientHeight - 1, pad + 16));
+          var marker = idoc.elementFromPoint(ix, iy);
+          if (marker && marker.id) blockSig = marker.id;
+          if (!blockSig && marker) {
+            var m = String(marker.className || "").match(/wd-smart-card|wws-wb-card|nav-quote-box/);
+            if (m) blockSig = m[0];
+          }
+        }
+      } catch (e4) {
+        /* ignore */
+      }
+    }
+
+    return {
+      needles: needles,
+      headingId: headingId,
+      headingText: headingText,
+      htmlEditedIdx: htmlEditedIdx,
+      blockSig: blockSig,
+      path: location.pathname,
+      ts: Date.now(),
+      source: "editor",
+    };
   }
 
   function pushNeedle(list, seen, n) {
@@ -311,7 +386,7 @@
 
   function tryApply() {
     if (applied) return;
-    var ctx = readContext();
+    var ctx = readEntryContext();
     if (!ctx) return;
     if (!applyScroll(ctx)) return;
     applied = true;
@@ -326,5 +401,5 @@
     setTimeout(tryApply, ms);
   });
 
-  console.log("[rs-edit-scroll] v" + RS_EDIT_SCROLL_VER + " 已就绪：前台浏览位置 ↔ 编辑器/发布后定位");
+  console.log("[rs-edit-scroll] v" + RS_EDIT_SCROLL_VER + " 已就绪：进入编辑用前台位置，发布回跳用编辑器最后位置");
 })();
