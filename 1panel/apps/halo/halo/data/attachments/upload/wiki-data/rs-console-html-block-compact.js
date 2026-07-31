@@ -7,7 +7,7 @@
 
   if (location.pathname.indexOf("/console/posts/editor") < 0) return;
 
-  var RS_HTML_BLOCK_VER = "3.2";
+  var RS_HTML_BLOCK_VER = "3.2.1";
   if (window.RSHtmlBlockCompact && window.RSHtmlBlockCompact.__ver === RS_HTML_BLOCK_VER) {
     return;
   }
@@ -958,11 +958,6 @@
       {
         url: "/apis/uc.api.content.halo.run/v1alpha1/posts/" + enc,
         tag: "post",
-        extract: rawFromPostJson,
-      },
-      {
-        url: "/apis/api.console.halo.run/v1alpha1/posts/" + enc,
-        tag: "console-post",
         extract: rawFromPostJson,
       },
     ];
