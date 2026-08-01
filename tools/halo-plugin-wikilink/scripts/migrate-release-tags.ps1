@@ -44,4 +44,5 @@ foreach ($item in $plan) {
 }
 
 Write-Host "Done. Old GitHub Releases may remain orphaned — delete duplicates in Releases UI if needed." -ForegroundColor Yellow
+Write-Host "If owner view shows Drafts tab entries, run: .\scripts\publish-release-drafts.ps1 (requires gh auth login)" -ForegroundColor Yellow
 Write-Host "New tag pushes may re-run CI once per migrated tag." -ForegroundColor Yellow

@@ -29,4 +29,14 @@ cd tools/halo-plugin-wikilink
 .\scripts\migrate-release-tags.ps1           # 执行
 ```
 
-发版前请确保插件相关 commit 标题能准确概括本版改动（中文标题会被提取为 Release bullet）。
+迁移后若 GitHub **Drafts** 标签页仍有条目（owner 可见、公开 API 看不到），执行：
+
+```powershell
+gh auth login
+cd tools/halo-plugin-wikilink
+.\scripts\publish-release-drafts.ps1
+```
+
+或在 GitHub → Releases → Drafts → 逐条 **Publish release**。
+
+公开验证：匿名 API 应返回 `draft: false`，例如 [RS_WikiLink-v1.1.013](https://github.com/RyanYu0118/RYAN-STUDIO/releases/tag/RS_WikiLink-v1.1.013)。
