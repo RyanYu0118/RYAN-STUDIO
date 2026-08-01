@@ -1,22 +1,22 @@
 {
-  "updated": "2026-08-01T11:27:29Z",
+  "updated": "2026-08-01T15:01:09Z",
   "sources": {
     "git": 28,
     "halo": 12
   },
   "slugs": [
-    "join-server",
-    "mcwws_player_economy",
-    "poster",
-    "production",
-    "production_umbrella",
-    "wwswiki",
-    "wwswiki_metro",
-    "wwswiki_worldbuilding",
-    "wwswiki_worldbuilding_economy",
-    "wwswiki_worldbuilding_natural",
-    "wwswiki_worldbuilding_social",
-    "提出"
+    "Umbrella 二次创作系列",
+    "世界观构建",
+    "加入服务器",
+    "提出",
+    "摄影与影视创作",
+    "流浪世界服务器Wiki",
+    "海报",
+    "社会科学",
+    "经济与商店",
+    "经济系统",
+    "自然科学",
+    "轨道交通"
   ],
   "redlinkTargets": [
     "player/economy"
