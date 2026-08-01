@@ -42,14 +42,19 @@ jobs:
           chmod +x tools/halo-plugin-wikilink/scripts/gen-release-notes.sh
           tools/halo-plugin-wikilink/scripts/gen-release-notes.sh "${{ github.ref_name }}" release-body.md
 
+      - name: Read plugin version
+        id: version
+        run: echo "version=$(grep '^version=' tools/halo-plugin-wikilink/gradle.properties | cut -d= -f2)" >> "$GITHUB_OUTPUT"
+
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.ref_name }}
-          name: ${{ github.ref_name }}
+          name: RS_WikiLink v${{ steps.version.outputs.version }}
           body_path: release-body.md
           files: tools/halo-plugin-wikilink/build/libs/RS_WikiLink-*.jar
           draft: false
           prerelease: false
+          make_latest: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

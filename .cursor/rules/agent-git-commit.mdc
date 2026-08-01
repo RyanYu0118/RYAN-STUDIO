@@ -90,8 +90,8 @@ alwaysApply: true
 
 1. **若工作区有改动**：按上文「推荐流程」完成 `git add` → commit → push（等同 `y`）
 2. 确认 `tools/halo-plugin-wikilink/gradle.properties` 版本与本次改动一致
-3. 运行 `tools/halo-plugin-wikilink/release.ps1`（build + `RS_WikiLink-v<version>` tag + push tag）
-4. 告知用户 Release 页：`https://github.com/RyanYu0118/RYAN-STUDIO/releases/tag/RS_WikiLink-v<version>`
+3. 运行 `tools/halo-plugin-wikilink/release.ps1`（build + 补零 tag 如 `RS_WikiLink-v1.1.013` + push tag）
+4. 告知用户 Release 页：`https://github.com/RyanYu0118/RYAN-STUDIO/releases/tag/RS_WikiLink-v<补零tag>`
 
 ### Release 正文（只写相对上一版的变更）
 

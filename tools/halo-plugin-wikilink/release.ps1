@@ -5,7 +5,7 @@ $Root = Split-Path -Parent $MyInvocation.MyCommand.Path
 Set-Location $Root
 
 $version = (Get-Content "$Root\gradle.properties" | Where-Object { $_ -match '^version=' }) -replace '^version=', ''
-$tag = "RS_WikiLink-v$version"
+$tag = & "$Root\scripts\format-release-tag.ps1" -Version $version
 
 Write-Host "==> Build..." -ForegroundColor Cyan
 & "$Root\build.ps1"
