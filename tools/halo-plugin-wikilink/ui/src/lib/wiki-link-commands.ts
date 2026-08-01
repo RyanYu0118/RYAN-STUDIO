@@ -178,7 +178,7 @@ export function focusWikiLinkAt(
   return editor.chain().focus().setTextSelection(pos).extendMarkRange(ExtensionLink.name).run()
 }
 
-/** 索引刷新后，把已发布但仍带 rs-wiki-redlink 的 mark 改回普通链接样式 */
+/** 索引刷新后，双向同步 Wiki 内链样式（已发布去红 / 未发布加红） */
 export function refreshWikiLinkClasses(editor: Editor): void {
   const { pageIndex, publishedSlugs } = getWikiIndexState()
   const linkType = editor.schema.marks[ExtensionLink.name]
@@ -200,19 +200,32 @@ export function refreshWikiLinkClasses(editor: Editor): void {
       const hit = findPageByQuery(target, pageIndex, publishedSlugs)
       const published = !!(hit?.published || publishedSlugs[target])
       const hasRed = String(mark.attrs.class || '').includes('rs-wiki-redlink')
-      if (!published || !hasRed) continue
 
-      const resolved = hit?.slug || target
-      updates.push({
-        from: pos,
-        to: pos + node.nodeSize,
-        attrs: {
-          ...mark.attrs,
-          href: archivesHref(resolved),
-          class: null,
-          title: null,
-        },
-      })
+      if (published && hasRed) {
+        const resolved = hit?.slug || target
+        updates.push({
+          from: pos,
+          to: pos + node.nodeSize,
+          attrs: {
+            ...mark.attrs,
+            href: archivesHref(resolved),
+            class: null,
+            title: null,
+          },
+        })
+      } else if (!published && !hasRed) {
+        updates.push({
+          from: pos,
+          to: pos + node.nodeSize,
+          attrs: {
+            ...mark.attrs,
+            href: archivesHref(target),
+            class: 'rs-wiki-redlink',
+            target: '_self',
+            title: '尚未发布 · Ctrl+点击在新标签页打开并发布',
+          },
+        })
+      }
     }
   })
 
