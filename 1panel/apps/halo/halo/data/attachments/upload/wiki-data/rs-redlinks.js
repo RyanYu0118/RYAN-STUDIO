@@ -10,7 +10,7 @@
   var WIKI_CATEGORY = cfg.defaultCategory || "category-f8bm8yzr";
   var MINIGAME_CATEGORY = cfg.minecraftCategory || "category-1g9f80go";
   var POST_OWNER = cfg.postOwner || "ryanyu";
-  var SLUG_PREFIX = cfg.slugPrefix || "mcwws_";
+  var SLUG_PREFIX = cfg.slugPrefix || "rs_";
 
   var slugSet = null;
   var slugSetLoadedAt = 0;
@@ -206,7 +206,7 @@
     return spec.publish === true && status.phase === "PUBLISHED";
   }
 
-  /** mcwws_ + 链接目标；英文路径转下划线，中文标题保留为页面名 */
+  /** rs_ + 链接目标；英文路径转下划线，中文标题保留为页面名 */
   function slugFromRedlink(linkSlug, title) {
     function cleanSegment(raw) {
       return String(raw || "")
@@ -250,7 +250,7 @@
     });
   }
 
-  /** 红链新建 slug：默认标题 → mcwws_*；slugFromPostName 时用 UUID；否则可用链接 slug */
+  /** 红链新建 slug：默认标题 → rs_*；slugFromPostName 时用 UUID；否则可用链接 slug */
   function resolvePublishSlug(linkSlug, postName, title) {
     if (cfg.slugFromTitle !== false) {
       return {

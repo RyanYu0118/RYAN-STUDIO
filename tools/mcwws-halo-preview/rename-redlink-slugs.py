@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""将红链占位文章的 spec.slug 改为 mcwws_ + 英文路径（优先 redlink-target-slug）。"""
+"""将红链占位文章的 spec.slug 改为 rs_ + 英文路径（优先 redlink-target-slug）。"""
 from __future__ import annotations
 
 import argparse
@@ -69,7 +69,7 @@ def list_post_extensions() -> list[str]:
     return [line.strip() for line in raw.splitlines() if line.strip()]
 
 
-def slug_from_link_target(link_target: str, prefix: str = "mcwws_") -> str | None:
+def slug_from_link_target(link_target: str, prefix: str = "rs_") -> str | None:
     if not link_target:
         return None
     base = link_target.strip().strip("/").replace("\\", "/")
@@ -83,7 +83,7 @@ def slug_from_link_target(link_target: str, prefix: str = "mcwws_") -> str | Non
     return prefix + base
 
 
-def slug_from_title_ascii(title: str, prefix: str = "mcwws_") -> str:
+def slug_from_title_ascii(title: str, prefix: str = "rs_") -> str:
     s = (title or "").strip()
     s = re.sub(
         r"[\s\u00a0·•，,。！？!?：:；;/\\|（）()\[\]【】《》「」『』\"'""''\-]+",
@@ -97,7 +97,7 @@ def slug_from_title_ascii(title: str, prefix: str = "mcwws_") -> str:
     return (prefix + s)[:180].rstrip("_")
 
 
-def resolve_redlink_slug(post: dict, prefix: str = "mcwws_") -> str:
+def resolve_redlink_slug(post: dict, prefix: str = "rs_") -> str:
     meta = post.get("metadata") or {}
     spec = post.get("spec") or {}
     ann = meta.get("annotations") or {}
@@ -168,11 +168,11 @@ def restart_halo_container() -> None:
 
 
 def main() -> int:
-    p = argparse.ArgumentParser(description="Rename redlink stub slugs to mcwws_<english_path>")
-    p.add_argument("--prefix", default="mcwws_")
+    p = argparse.ArgumentParser(description="Rename redlink stub slugs to rs_<english_path>")
+    p.add_argument("--prefix", default="rs_")
     p.add_argument("--dry-run", action="store_true")
     p.add_argument("--all-uuid", action="store_true")
-    p.add_argument("--force-english", action="store_true", help="重命名已有 mcwws_ 中文 slug")
+    p.add_argument("--force-english", action="store_true", help="重命名已有 rs_ 中文 slug")
     p.add_argument("--slug", default="", help="仅处理当前 spec.slug")
     p.add_argument(
         "--restart-halo",

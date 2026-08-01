@@ -14,10 +14,11 @@ GitHub Releases 页左侧 **Release list 按 tag 名字母序排列**，不是�
 
 | `gradle.properties` 版本 | Git tag |
 |--------------------------|---------|
+| `1.2.000` | `RS_WikiLink-v1.2.000` |
 | `1.1.13` | `RS_WikiLink-v1.1.013` |
 | `1.1.2` | `RS_WikiLink-v1.1.002` |
 
-由 [`scripts/format-release-tag.ps1`](scripts/format-release-tag.ps1) / [`release.ps1`](release.ps1) 自动生成。Release 标题仍显示人类可读版本 `RS_WikiLink v1.1.13`。
+由 [`scripts/format-release-tag.ps1`](scripts/format-release-tag.ps1) / [`release.ps1`](release.ps1) 自动生成。Release 标题仍显示人类可读版本 `RS_WikiLink v1.2.000`。
 
 ### 迁移已有旧 tag
 
