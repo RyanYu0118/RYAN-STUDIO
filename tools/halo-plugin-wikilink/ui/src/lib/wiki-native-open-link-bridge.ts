@@ -137,7 +137,6 @@ function handleEditorWikiLinkMousedown(e: MouseEvent) {
   if (modClick) {
     e.preventDefault()
     e.stopPropagation()
-    e.stopImmediatePropagation()
     pendingCtrlWikiLink = { href, label: label || href }
     return
   }
@@ -145,9 +144,10 @@ function handleEditorWikiLinkMousedown(e: MouseEvent) {
   pendingCtrlWikiLink = null
 }
 
-/** 编辑页 Wiki 内链：一律 preventDefault，阻断 target=_self 覆盖当前页（含 Ctrl+点击） */
+/** 普通左键：preventDefault 阻断 target=_self 导航（不 stopPropagation，保留 PM 选区） */
 function handleEditorWikiLinkNavBlock(e: MouseEvent) {
   if (!isEditorPage() || e.button !== 0) return
+  if (e.ctrlKey || e.metaKey) return
 
   const anchor = wikiAnchorFromEvent(e)
   if (!anchor) return
@@ -155,22 +155,33 @@ function handleEditorWikiLinkNavBlock(e: MouseEvent) {
   if (!isWikiArchiveHref(href)) return
 
   e.preventDefault()
-  e.stopPropagation()
 }
 
-/** Ctrl+左键兜底（主逻辑在 PM handleDOMEvents；此处仅阻断冒泡） */
+/** Ctrl+左键：document capture 主入口（先于 Halo Link，PM 可能被 capture 挡住） */
 function handleEditorWikiLinkClick(e: MouseEvent) {
   if (!isEditorPage() || e.button !== 0) return
   if (!(e.ctrlKey || e.metaKey)) return
 
+  const pending = pendingCtrlWikiLink
+  pendingCtrlWikiLink = null
+
   const anchor = wikiAnchorFromEvent(e)
-  if (!anchor) return
-  const href = (anchor.getAttribute('href') || '').trim()
-  if (!isWikiArchiveHref(href)) return
+  const href = (pending?.href || anchor?.getAttribute('href') || '').trim()
+  if (!href || !isWikiArchiveHref(href)) return
+
+  const ed = activeEditor
+  if (!ed) return
 
   e.preventDefault()
   e.stopPropagation()
   e.stopImmediatePropagation()
+
+  const label =
+    pending?.label ||
+    (anchor?.textContent || '').replace(/\s+/g, ' ').trim() ||
+    href
+  const pos = posFromMouseEvent(ed, e)
+  void openWikiArchiveLinkFromEditor(ed, { href, label, newTab: true, pos })
 }
 
 /** Halo 文本气泡栏 / 链接面板里的原生「打开链接」按钮 */
@@ -248,9 +259,9 @@ function ensureDocumentListeners() {
   const editorLinkNavBlock = (e: MouseEvent) => handleEditorWikiLinkNavBlock(e)
 
   document.addEventListener('mousedown', mousedown, true)
-  document.addEventListener('click', click, true)
   document.addEventListener('click', editorLinkClick, true)
   document.addEventListener('click', editorLinkNavBlock, true)
+  document.addEventListener('click', click, true)
   docListeners = { mousedown, click, editorLinkClick, editorLinkNavBlock }
 }
 
@@ -267,9 +278,9 @@ export function bindNativeOpenLinkBridge(editor: Editor) {
 export function unbindNativeOpenLinkBridge() {
   if (docListeners) {
     document.removeEventListener('mousedown', docListeners.mousedown, true)
-    document.removeEventListener('click', docListeners.click, true)
     document.removeEventListener('click', docListeners.editorLinkClick, true)
     document.removeEventListener('click', docListeners.editorLinkNavBlock, true)
+    document.removeEventListener('click', docListeners.click, true)
     docListeners = null
   }
   activeEditor = null
