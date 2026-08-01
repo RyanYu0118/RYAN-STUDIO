@@ -8,30 +8,50 @@ if [[ -z "$TAG" ]]; then
   exit 1
 fi
 
-PREV="$(git tag -l 'RS_WikiLink-v*' --sort=-v:refname | grep -vx "$TAG" | head -1 || true)"
 OUT="${2:-release-body.md}"
 PLUGIN_DIR="tools/halo-plugin-wikilink"
+
+# CI 浅克隆时 tag 可能缺失，尽力补拉
+git fetch --tags --force >/dev/null 2>&1 || true
+
+PREV="$(git tag -l 'RS_WikiLink-v*' --sort=-v:refname | grep -vx "$TAG" | head -1 || true)"
+
+format_subject() {
+  local subject="$1"
+  local note
+  note="$(printf '%s' "$subject" | sed -E 's/ (fix|feat|docs|chore|refactor|perf|test|build|style)\([^)]+\):.*$//')"
+  note="$(printf '%s' "$note" | sed -E 's/ v[0-9]+\.[0-9]+\.[0-9]+$//')"
+  printf '%s' "$note"
+}
+
+emit_log_range() {
+  local range="$1"
+  shift
+  git log "$range" --pretty=format:'%s' -- "$@" | while IFS= read -r subject; do
+    [[ -z "$subject" ]] && continue
+    printf -- '- %s\n' "$(format_subject "$subject")"
+  done
+}
 
 {
   if [[ -n "$PREV" ]]; then
     echo "## 相比 ${PREV} 的变更"
   else
-    echo "## 首个版本"
+    echo "## 相比上一版本的变更"
   fi
   echo ""
 
   if [[ -z "$PREV" ]]; then
     echo "- 首次发布 RS_WikiLink 插件"
-  elif ! git log "${PREV}..HEAD" --pretty=format:'%s' -- "$PLUGIN_DIR" | grep -q .; then
-    echo "- （无 ${PLUGIN_DIR} 目录下的提交，请检查 tag 范围）"
   else
-    git log "${PREV}..HEAD" --pretty=format:'%s' -- "$PLUGIN_DIR" | while IFS= read -r subject; do
-      # 双语 commit 标题：取英文 Conventional 类型出现前的中文段
-      note="$(printf '%s' "$subject" | sed -E 's/ (fix|feat|docs|chore|refactor|perf|test|build|style)\([^)]+\):.*$//')"
-      # 去掉标题末尾版本号，如「… v1.1.3」
-      note="$(printf '%s' "$note" | sed -E 's/ v[0-9]+\.[0-9]+\.[0-9]+$//')"
-      printf -- '- %s\n' "$note"
-    done
+    RANGE="${PREV}..${TAG}"
+    if git log "$RANGE" --pretty=format:'%s' -- "$PLUGIN_DIR" | grep -q .; then
+      emit_log_range "$RANGE" "$PLUGIN_DIR"
+    elif git log "$RANGE" --pretty=format:'%s' | grep -q .; then
+      emit_log_range "$RANGE"
+    else
+      echo "- （${PREV} → ${TAG} 无 git 提交记录，可能为仅重打 tag）"
+    fi
   fi
 } >"$OUT"
 
