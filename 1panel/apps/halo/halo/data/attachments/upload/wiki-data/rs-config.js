@@ -78,6 +78,7 @@ window.RSConfig = {
         previewStyles: ["/upload/wiki-data/fronts.css"],
         previewDocClass: "my-wiki-page markdown-body",
         previewSandbox: "allow-scripts allow-same-origin",
+        // 预览 iframe 内右键默认弹出块菜单；实体需自定义右键时加 data-rs-contextmenu="custom"
         // 打开编辑器时从 draft/content-json 自动修复被截断的 HTML 块
         autoRepairFromServer: true,
         repairMinDiff: 64,

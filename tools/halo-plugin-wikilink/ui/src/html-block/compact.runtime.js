@@ -188,6 +188,20 @@
     list.push(n);
   }
 
+  /** 渲染实体显式声明自定义右键时，不转发块菜单（data-rs-contextmenu="custom" 或 oncontextmenu） */
+  function hasCustomContextMenu(el) {
+    var cur = el;
+    while (cur) {
+      if (cur.getAttribute) {
+        var mode = cur.getAttribute("data-rs-contextmenu");
+        if (mode === "custom" || mode === "native") return true;
+      }
+      if (cur.hasAttribute && cur.hasAttribute("oncontextmenu")) return true;
+      cur = cur.parentElement;
+    }
+    return false;
+  }
+
   function collectNeedles(el, doc) {
     var out = [];
     var seen = {};
@@ -291,6 +305,26 @@
           root.__rsHtmlOpenCtx = { ratio: ratio, needles: needles, docY: docY };
           root.dataset.rsHtmlPreviewScrollRatio = String(ratio);
           if (needles.length) root.dataset.rsHtmlPreviewNeedles = JSON.stringify(needles);
+        },
+        true
+      );
+      doc.addEventListener(
+        "contextmenu",
+        function (e) {
+          var target = e.target;
+          if (hasCustomContextMenu(target)) return;
+          e.preventDefault();
+          e.stopPropagation();
+          var rect = iframe.getBoundingClientRect();
+          window.dispatchEvent(
+            new CustomEvent("rs-block-contextmenu-preview", {
+              detail: {
+                root: root,
+                clientX: rect.left + e.clientX,
+                clientY: rect.top + e.clientY,
+              },
+            })
+          );
         },
         true
       );

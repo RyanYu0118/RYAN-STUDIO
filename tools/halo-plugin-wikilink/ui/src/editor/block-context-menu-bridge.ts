@@ -1,9 +1,14 @@
 import type { Editor } from '@tiptap/core'
 import { findParentNodeClosestToPos } from '@tiptap/core'
 import { mountBlockContextMenuHost, unmountBlockContextMenuHost } from '@/editor/block-context-menu-host'
+import {
+  hasCustomContextMenu,
+  RS_BLOCK_CONTEXTMENU_PREVIEW_EVENT,
+  type BlockContextMenuPreviewDetail,
+} from '@/editor/block-context-menu-utils'
 import { NodeSelection, TextSelection } from '@tiptap/pm/state'
 
-const RS_BLOCK_CTX_VER = '1.1.9'
+const RS_BLOCK_CTX_VER = '1.1.11'
 
 type BlockHit = {
   node: NonNullable<ReturnType<Editor['state']['doc']['nodeAt']>>
@@ -13,6 +18,7 @@ type BlockHit = {
 let boundEditor: Editor | null = null
 let boundDom: HTMLElement | null = null
 let domHandler: ((event: MouseEvent) => void) | null = null
+let previewHandler: ((event: Event) => void) | null = null
 
 function isEditorPage() {
   return location.pathname.indexOf('/console/posts/editor') >= 0
@@ -110,11 +116,28 @@ function findBlockFromTarget(editor: Editor, target: Element | null): BlockHit |
   return null
 }
 
-function findBlockHit(editor: Editor, event: MouseEvent): BlockHit | null {
-  const clamped = clampPointerToEditor(editor.view, event.clientX, event.clientY)
-  const x = clamped?.x ?? event.clientX
-  const y = clamped?.y ?? event.clientY
+function findBlockFromHtmlRoot(editor: Editor, root: HTMLElement): BlockHit | null {
+  const candidates = [
+    root.closest('[data-node-view-wrapper]'),
+    root.closest('.rs-html-block-root'),
+    root,
+  ]
+  for (const el of candidates) {
+    if (!(el instanceof HTMLElement)) continue
+    try {
+      const domPos = editor.view.posAtDOM(el, 0)
+      const node = editor.state.doc.nodeAt(domPos)
+      if (node && isDraggableBlock(node)) return { node, pos: domPos }
+      const hit = findBlockAtPos(editor, domPos)
+      if (hit) return hit
+    } catch {
+      /* try next candidate */
+    }
+  }
+  return null
+}
 
+function findBlockAtPointer(editor: Editor, x: number, y: number, target?: Element | null): BlockHit | null {
   const fromDom = findBlockFromDom(editor, x, y)
   if (fromDom) return fromDom
 
@@ -124,17 +147,26 @@ function findBlockHit(editor: Editor, event: MouseEvent): BlockHit | null {
     if (hit) return hit
   }
 
-  const fromTarget = findBlockFromTarget(editor, event.target as Element | null)
-  if (fromTarget) return fromTarget
+  if (target) {
+    const fromTarget = findBlockFromTarget(editor, target)
+    if (fromTarget) return fromTarget
+  }
 
   return findBlockAtPos(editor, editor.state.selection.from)
 }
 
-function focusBlockAtPointer(editor: Editor, event: MouseEvent) {
+function findBlockHit(editor: Editor, event: MouseEvent): BlockHit | null {
   const clamped = clampPointerToEditor(editor.view, event.clientX, event.clientY)
   const x = clamped?.x ?? event.clientX
   const y = clamped?.y ?? event.clientY
-  const pos = resolvePosFromCoords(editor, x, y)
+  return findBlockAtPointer(editor, x, y, event.target as Element | null)
+}
+
+function focusBlockAtPointer(editor: Editor, x: number, y: number) {
+  const clamped = clampPointerToEditor(editor.view, x, y)
+  const px = clamped?.x ?? x
+  const py = clamped?.y ?? y
+  const pos = resolvePosFromCoords(editor, px, py)
   if (pos == null) return
   try {
     const tr = editor.state.tr
@@ -158,6 +190,16 @@ function openBlockContextMenu(editor: Editor, block: BlockHit, x: number, y: num
   )
 }
 
+function openBlockContextMenuAt(editor: Editor, x: number, y: number, block?: BlockHit | null) {
+  const hit = block ?? findBlockAtPointer(editor, x, y)
+  if (!hit) {
+    console.warn('[rs-block-contextmenu] 未能定位块，已拦截浏览器菜单')
+    return
+  }
+  focusBlockAtPointer(editor, x, y)
+  openBlockContextMenu(editor, hit, x, y)
+}
+
 function handleContextMenu(editor: Editor, event: MouseEvent) {
   if (!isEditorPage()) return
   if (!editor.isEditable) return
@@ -170,19 +212,21 @@ function handleContextMenu(editor: Editor, event: MouseEvent) {
   event.stopPropagation()
   event.stopImmediatePropagation()
 
-  focusBlockAtPointer(editor, event)
+  openBlockContextMenuAt(editor, event.clientX, event.clientY)
+}
 
-  const block = findBlockHit(editor, event)
-  if (!block) {
-    console.warn('[rs-block-contextmenu] 未能定位块，已拦截浏览器菜单')
-    return
-  }
+function handlePreviewContextMenu(editor: Editor, detail: BlockContextMenuPreviewDetail) {
+  if (!isEditorPage()) return
+  if (!editor.isEditable) return
+  if (!detail?.root) return
 
-  openBlockContextMenu(editor, block, event.clientX, event.clientY)
+  const block = findBlockFromHtmlRoot(editor, detail.root)
+  openBlockContextMenuAt(editor, detail.clientX, detail.clientY, block)
 }
 
 function shouldIgnoreContextTarget(target: Element | null): boolean {
   if (!target) return true
+  if (hasCustomContextMenu(target)) return true
   if (target.closest('textarea, input, select, .cm-editor, .cm-content')) return true
   if (target.closest('.bubble-menu, .v-popper, [data-tippy-root], .rs-wiki-panel')) return true
   if (target.closest('[data-rs-html-fs-overlay], .rs-block-context-menu')) return true
@@ -190,23 +234,32 @@ function shouldIgnoreContextTarget(target: Element | null): boolean {
 }
 
 function bindEditorDom(editor: Editor) {
-  if (boundEditor === editor && boundDom === editor.view.dom) return
+  if (boundEditor === editor && boundDom === editor.view.dom && previewHandler) return
 
   unbindEditorDom()
 
   boundEditor = editor
   boundDom = editor.view.dom
   domHandler = (event: MouseEvent) => handleContextMenu(editor, event)
+  previewHandler = (event: Event) => {
+    handlePreviewContextMenu(editor, (event as CustomEvent<BlockContextMenuPreviewDetail>).detail)
+  }
+
   editor.view.dom.addEventListener('contextmenu', domHandler, true)
+  window.addEventListener(RS_BLOCK_CONTEXTMENU_PREVIEW_EVENT, previewHandler)
 }
 
 function unbindEditorDom() {
   if (boundDom && domHandler) {
     boundDom.removeEventListener('contextmenu', domHandler, true)
   }
+  if (previewHandler) {
+    window.removeEventListener(RS_BLOCK_CONTEXTMENU_PREVIEW_EVENT, previewHandler)
+  }
   boundEditor = null
   boundDom = null
   domHandler = null
+  previewHandler = null
 }
 
 export function initBlockContextMenu(editor: Editor) {
@@ -217,7 +270,9 @@ export function initBlockContextMenu(editor: Editor) {
 
   if (!(window as Window & { __rsBlockCtxReady?: boolean }).__rsBlockCtxReady) {
     ;(window as Window & { __rsBlockCtxReady?: boolean }).__rsBlockCtxReady = true
-    console.log(`[rs-block-contextmenu] v${RS_BLOCK_CTX_VER} 已就绪：段落右键 → 块菜单`)
+    console.log(
+      `[rs-block-contextmenu] v${RS_BLOCK_CTX_VER} 已就绪：段落/渲染预览右键 → 块菜单（data-rs-contextmenu=custom 除外）`,
+    )
   }
 }
 
@@ -225,3 +280,5 @@ export function teardownBlockContextMenu() {
   unbindEditorDom()
   unmountBlockContextMenuHost()
 }
+
+export { hasCustomContextMenu, RS_BLOCK_CONTEXTMENU_PREVIEW_EVENT }
