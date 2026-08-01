@@ -28,7 +28,7 @@
                     });
                 }
             }
-            var WIKI_VER = "3.1";
+            var WIKI_VER = "3.2";
             var HTML_VER = "3.4.3";
             var EDIT_SCROLL_VER = "1.3.0";
             var PUBLISH_VER = "1.3";
@@ -49,11 +49,27 @@
                 return;
             }
             window.__rsConsoleScriptsLoaded = true;
-            loadConsoleScript("/upload/wiki-data/rs-config.js?v=3", function () {
+            loadConsoleScript("/upload/wiki-data/rs-config.js?v=4", function () {
+                var wikiEnabled = !(
+                    window.RSConfig &&
+                    window.RSConfig.wikilink &&
+                    window.RSConfig.wikilink.enabled === false
+                );
                 loadConsoleScript("/upload/wiki-data/rs-console-publish-redirect.js?v=1.3");
                 loadConsoleScript("/upload/wiki-data/rs-console-edit-scroll.js?v=1.3.0");
                 loadConsoleScript("/upload/wiki-data/rs-console-html-block-compact.js?v=3.4.3");
-                loadConsoleScript("/upload/wiki-data/rs-console-wikilink.js?v=" + WIKI_VER, afterWiki);
+                function afterOptionalWiki() {
+                    afterWiki();
+                }
+                if (wikiEnabled) {
+                    loadConsoleScript(
+                        "/upload/wiki-data/rs-console-wikilink.js?v=" + WIKI_VER,
+                        afterOptionalWiki
+                    );
+                } else {
+                    console.log("[rs-loader] wikilink 注入已关闭（使用 RS_WikiLink 插件）");
+                    afterOptionalWiki();
+                }
             });
         }
         bootConsoleWiki();

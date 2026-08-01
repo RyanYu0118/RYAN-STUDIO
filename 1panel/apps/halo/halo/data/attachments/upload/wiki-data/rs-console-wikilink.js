@@ -5,7 +5,7 @@
   "use strict";
 
   window.RSWikiLink = window.RSWikiLink || {};
-  var RS_WIKILINK_VER = "3.1";
+  var RS_WIKILINK_VER = "3.2";
   if (window.RSWikiLink.__ver === RS_WIKILINK_VER) {
     return;
   }
@@ -39,6 +39,10 @@
   function wikiDebug() {
     if (!cfg.debug) return;
     console.log.apply(console, ["[rs-wikilink]"].concat(Array.prototype.slice.call(arguments)));
+  }
+
+  function isWikiLinkEnabled() {
+    return !(window.RSConfig && window.RSConfig.wikilink && window.RSConfig.wikilink.enabled === false);
   }
 
   function onEditorPath() {
@@ -1065,10 +1069,12 @@
   }
 
   function bindEditorShortcuts() {
+    if (!isWikiLinkEnabled()) return;
     document.querySelectorAll(".ProseMirror").forEach(function (el) {
       if (!el.isContentEditable || el.__rsWikiShortcuts) return;
       el.__rsWikiShortcuts = true;
       el.addEventListener("keydown", function (e) {
+        if (!isWikiLinkEnabled()) return;
         if (!(e.ctrlKey || e.metaKey) || e.key.toLowerCase() !== "k") return;
         rememberSelection(captureSelection());
         var sel = getSelectionTextForWiki();
@@ -1082,6 +1088,7 @@
   }
 
   function handleWikiShortcutKeydown(e) {
+    if (!isWikiLinkEnabled()) return;
     if (!(e.ctrlKey || e.metaKey) || e.key.toLowerCase() !== "k") return;
     if (!onEditorPath()) return;
     rememberSelection(captureSelection());
@@ -1279,7 +1286,7 @@
 
   function boot() {
     if (!onEditorPath()) return;
-    if ((window.RSConfig && window.RSConfig.wikilink && window.RSConfig.wikilink.enabled === false)) return;
+    if (!isWikiLinkEnabled()) return;
     bindSelectionMemory();
     hookNativeLinkToolbar();
     bindEditorShortcuts();
@@ -1310,9 +1317,17 @@
 
   window.RSWikiLink.init = function () {
     removeFloatingUi();
+    if (!isWikiLinkEnabled()) {
+      if (editorPoll) {
+        clearInterval(editorPoll);
+        editorPoll = null;
+      }
+      return;
+    }
     boot();
     if (editorPoll) return;
     editorPoll = setInterval(function () {
+      if (!isWikiLinkEnabled()) return;
       if (onEditorPath() && findEditor()) {
         bindEditorShortcuts();
         if (!window.RSWikiLink.__editorReady) boot();

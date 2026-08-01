@@ -64,7 +64,7 @@ window.RSConfig = {
         enabled: false,
         slugIndex: "/upload/wiki-data/wiki-slugs.json",
         pathPrefix: "/archives/",
-        // 悬浮 UI：false = 仅用 Ctrl+K / 工具栏链环
+        // 悬浮 UI：false = 仅用 Ctrl+Shift+K / 工具栏书本图标（插件版）；Ctrl+K 留给 Halo 原生链接
         showCornerButton: false,
         showSelectionBubble: false
     },
