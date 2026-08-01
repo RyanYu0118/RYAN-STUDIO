@@ -4,6 +4,7 @@ import {
 } from '@halo-dev/richtext-editor'
 import {
   archivesHref,
+  findPageByQuery,
   isExternalUrl,
   normalizeExternalUrl,
   normalizeTarget,
@@ -28,10 +29,11 @@ export function applyWikiLink(editor: Editor, rawTarget: string, label?: string)
 
   const target = normalizeTarget(rawTarget)
   if (!target) return false
-  const href = archivesHref(target)
-  const { publishedSlugs } = getWikiIndexState()
-  const published = !!publishedSlugs[target]
-  const slug = target
+  const { pageIndex, publishedSlugs } = getWikiIndexState()
+  const hit = findPageByQuery(target, pageIndex, publishedSlugs)
+  const resolved = hit?.slug || target
+  const published = hit ? hit.published : !!(publishedSlugs[target] || publishedSlugs[resolved])
+  const href = archivesHref(resolved)
 
   return editor
     .chain()

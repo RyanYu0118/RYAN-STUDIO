@@ -22,6 +22,12 @@ export function reloadWikiIndex(): Promise<void> {
   return loadWikiIndex()
 }
 
+function resetIndexCollections() {
+  pageIndex.length = 0
+  suggestPaths.length = 0
+  for (const key of Object.keys(publishedSlugs)) delete publishedSlugs[key]
+}
+
 function ingestPost(post: {
   spec?: { slug?: string; title?: string; deleted?: boolean; publish?: boolean }
   metadata?: { labels?: Record<string, string>; annotations?: Record<string, string> }
@@ -32,7 +38,11 @@ function ingestPost(post: {
   if (!slug) return
   const pub = isPostPublished(post)
   pageIndex.push({ slug, title, published: pub })
-  if (pub) publishedSlugs[slug] = true
+  if (pub) {
+    publishedSlugs[slug] = true
+    const titleKey = normalizeTarget(title)
+    if (titleKey) publishedSlugs[titleKey] = true
+  }
   const lt = post.metadata?.annotations?.['rs.wiki/redlink-target-slug']
   if (lt) {
     const n = normalizeTarget(lt)
@@ -61,9 +71,7 @@ async function loadPosts(page = 1, api: 'uc' | 'public' = 'uc'): Promise<void> {
 export async function loadWikiIndex(): Promise<void> {
   if (loadPromise) return loadPromise
   loadPromise = (async () => {
-    pageIndex = []
-    suggestPaths = []
-    publishedSlugs = {}
+    resetIndexCollections()
 
     try {
       const res = await fetch(WIKI_SLUG_INDEX, { credentials: 'same-origin', cache: 'no-cache' })

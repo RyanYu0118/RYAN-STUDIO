@@ -21,12 +21,13 @@ const props = withDefaults(defineProps<WikiBubbleItemProps>(), {
 const query = ref('')
 const activeSlug = ref('')
 const loading = ref(false)
-
-const { pageIndex, suggestPaths, publishedSlugs } = getWikiIndexState()
+const indexReady = ref(0)
 
 const initialText = computed(() => getSelectedText(props.editor))
 
 const results = computed(() => {
+  indexReady.value
+  const { pageIndex, suggestPaths, publishedSlugs } = getWikiIndexState()
   const q = query.value.trim()
   if (q && isExternalUrl(q)) {
     const href = normalizeExternalUrl(q)
@@ -61,8 +62,15 @@ onMounted(async () => {
   query.value = initialText.value
   activeSlug.value = query.value
   await reloadWikiIndex()
+  indexReady.value++
   loading.value = false
 })
+
+function resolveTarget(raw: string): string {
+  const { pageIndex, publishedSlugs } = getWikiIndexState()
+  const hit = findPageByQuery(raw, pageIndex, publishedSlugs)
+  return hit?.slug || raw
+}
 
 function pick(row: WikiPage) {
   const raw = row.external ? row.slug : row.slug || row.title
@@ -74,7 +82,7 @@ function pick(row: WikiPage) {
 function finish() {
   const raw = query.value.trim() || activeSlug.value
   if (!raw) return
-  applyWikiLink(props.editor, raw, initialText.value)
+  applyWikiLink(props.editor, resolveTarget(raw), initialText.value)
   window.dispatchEvent(new CustomEvent('rs-wikilink-close'))
 }
 
