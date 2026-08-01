@@ -1,5 +1,5 @@
 {
-  "updated": "2026-08-01T11:20:18Z",
+  "updated": "2026-08-01T11:27:29Z",
   "sources": {
     "git": 28,
     "halo": 12
@@ -10,17 +10,16 @@
     "poster",
     "production",
     "production_umbrella",
-    "rs_提出",
     "wwswiki",
     "wwswiki_metro",
     "wwswiki_worldbuilding",
     "wwswiki_worldbuilding_economy",
     "wwswiki_worldbuilding_natural",
-    "wwswiki_worldbuilding_social"
+    "wwswiki_worldbuilding_social",
+    "提出"
   ],
   "redlinkTargets": [
-    "player/economy",
-    "提出"
+    "player/economy"
   ],
   "gitSlugs": [
     "README",

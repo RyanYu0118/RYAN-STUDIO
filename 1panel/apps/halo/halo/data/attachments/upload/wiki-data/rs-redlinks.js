@@ -10,7 +10,7 @@
   var WIKI_CATEGORY = cfg.defaultCategory || "category-f8bm8yzr";
   var MINIGAME_CATEGORY = cfg.minecraftCategory || "category-1g9f80go";
   var POST_OWNER = cfg.postOwner || "ryanyu";
-  var SLUG_PREFIX = cfg.slugPrefix || "rs_";
+  var SLUG_PREFIX = cfg.slugPrefix != null ? cfg.slugPrefix : "";
 
   var slugSet = null;
   var slugSetLoadedAt = 0;
@@ -206,7 +206,7 @@
     return spec.publish === true && status.phase === "PUBLISHED";
   }
 
-  /** rs_ + 链接目标；英文路径转下划线，中文标题保留为页面名 */
+  /** 链接目标 → spec.slug（英文路径转下划线，中文标题保留） */
   function slugFromRedlink(linkSlug, title) {
     function cleanSegment(raw) {
       return String(raw || "")
@@ -250,7 +250,7 @@
     });
   }
 
-  /** 红链新建 slug：默认标题 → rs_*；slugFromPostName 时用 UUID；否则可用链接 slug */
+  /** 红链新建 slug：默认与链接目标一致；slugFromPostName 时用 UUID */
   function resolvePublishSlug(linkSlug, postName, title) {
     if (cfg.slugFromTitle !== false) {
       return {
@@ -454,7 +454,7 @@
       "content.halo.run/permalink-pattern": "/archives/{slug}",
       "content.halo.run/content-json": contentJson,
     };
-    if (resolved.linkTarget) {
+    if (resolved.linkTarget && resolved.linkTarget !== publishSlug) {
       annotations["rs.wiki/redlink-target-slug"] = resolved.linkTarget;
     }
 

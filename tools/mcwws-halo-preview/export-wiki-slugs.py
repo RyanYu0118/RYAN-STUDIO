@@ -145,6 +145,20 @@ def main() -> int:
         published = sorted(git_slugs | halo_slugs)
     else:
         published = sorted(halo_slugs)
+    slug_set = set(published)
+    filtered_targets: set[str] = set()
+    for t in redlink_targets:
+        n = t.strip().strip("/")
+        if not n:
+            continue
+        if n in slug_set:
+            continue
+        if f"rs_{n}" in slug_set:
+            continue
+        u = n.replace("/", "_").lower()
+        if u in slug_set or f"rs_{u}" in slug_set:
+            continue
+        filtered_targets.add(t)
     payload = {
         "updated": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "sources": {
@@ -152,7 +166,7 @@ def main() -> int:
             "halo": len(halo_slugs),
         },
         "slugs": published,
-        "redlinkTargets": sorted(redlink_targets),
+        "redlinkTargets": sorted(filtered_targets),
         "gitSlugs": sorted(git_slugs),
     }
     args.output.parent.mkdir(parents=True, exist_ok=True)

@@ -118,6 +118,8 @@ export function searchPages(
   suggestPaths.forEach((path) => {
     if (!path.toLowerCase().includes(q)) return
     if (out.some((x) => x.slug === path)) return
+    if (out.some((x) => isRedlinkSlugAlias(x.slug, path))) return
+    if (findPageByQuery(path, pageIndex, publishedSlugs)?.published) return
     out.push({
       slug: path,
       title: defaultLabel(path),

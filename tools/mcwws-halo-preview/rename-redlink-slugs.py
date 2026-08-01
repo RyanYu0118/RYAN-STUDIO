@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""将红链占位文章的 spec.slug 改为 rs_ + 英文路径（优先 redlink-target-slug）。"""
+"""将红链占位文章的 spec.slug 改为链接目标英文路径（优先 redlink-target-slug）。"""
 from __future__ import annotations
 
 import argparse
@@ -69,7 +69,7 @@ def list_post_extensions() -> list[str]:
     return [line.strip() for line in raw.splitlines() if line.strip()]
 
 
-def slug_from_link_target(link_target: str, prefix: str = "rs_") -> str | None:
+def slug_from_link_target(link_target: str, prefix: str = "") -> str | None:
     if not link_target:
         return None
     base = link_target.strip().strip("/").replace("\\", "/")
@@ -83,7 +83,7 @@ def slug_from_link_target(link_target: str, prefix: str = "rs_") -> str | None:
     return prefix + base
 
 
-def slug_from_title_ascii(title: str, prefix: str = "rs_") -> str:
+def slug_from_title_ascii(title: str, prefix: str = "") -> str:
     s = (title or "").strip()
     s = re.sub(
         r"[\s\u00a0·•，,。！？!?：:；;/\\|（）()\[\]【】《》「」『』\"'""''\-]+",
@@ -97,7 +97,7 @@ def slug_from_title_ascii(title: str, prefix: str = "rs_") -> str:
     return (prefix + s)[:180].rstrip("_")
 
 
-def resolve_redlink_slug(post: dict, prefix: str = "rs_") -> str:
+def resolve_redlink_slug(post: dict, prefix: str = "") -> str:
     meta = post.get("metadata") or {}
     spec = post.get("spec") or {}
     ann = meta.get("annotations") or {}
@@ -148,10 +148,22 @@ def is_redlink_candidate(post: dict) -> bool:
 
 
 def slug_needs_english_fix(slug: str, prefix: str) -> bool:
-    if not slug.startswith(prefix):
+    if prefix:
+        if not slug.startswith(prefix):
+            return True
+        rest = slug[len(prefix) :]
+        return bool(NON_ASCII.search(rest))
+    if slug.startswith(("rs_", "mcwws_")):
         return True
-    rest = slug[len(prefix) :]
-    return bool(NON_ASCII.search(rest))
+    return bool(NON_ASCII.search(slug or ""))
+
+
+def slug_already_plain(slug: str) -> bool:
+    if not slug or UUID_SLUG.match(slug):
+        return False
+    if slug.startswith(("rs_", "mcwws_")):
+        return False
+    return True
 
 
 def update_permalink(post: dict) -> None:
@@ -168,11 +180,11 @@ def restart_halo_container() -> None:
 
 
 def main() -> int:
-    p = argparse.ArgumentParser(description="Rename redlink stub slugs to rs_<english_path>")
-    p.add_argument("--prefix", default="rs_")
+    p = argparse.ArgumentParser(description="Rename redlink stub slugs to wiki link target path")
+    p.add_argument("--prefix", default="")
     p.add_argument("--dry-run", action="store_true")
     p.add_argument("--all-uuid", action="store_true")
-    p.add_argument("--force-english", action="store_true", help="重命名已有 rs_ 中文 slug")
+    p.add_argument("--force-english", action="store_true", help="重命名已有前缀/中文 slug")
     p.add_argument("--slug", default="", help="仅处理当前 spec.slug")
     p.add_argument(
         "--restart-halo",
@@ -199,10 +211,18 @@ def main() -> int:
             skipped += 1
             continue
         if (
-            old_slug.startswith(args.prefix)
+            args.prefix
+            and old_slug.startswith(args.prefix)
             and not UUID_SLUG.match(old_slug)
             and not args.force_english
             and not slug_needs_english_fix(old_slug, args.prefix)
+        ):
+            skipped += 1
+            continue
+        if (
+            not args.prefix
+            and not args.force_english
+            and slug_already_plain(old_slug)
         ):
             skipped += 1
             continue

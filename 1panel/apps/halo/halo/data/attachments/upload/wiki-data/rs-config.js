@@ -50,8 +50,8 @@ window.RSConfig = {
         /** true = 普通点击也不弹确认；Shift+点击 始终跳过确认 */
         skipConfirm: false,
         publishFirst: true,
-        /** 红链新建 spec.slug：rs_ + 链接目标英文路径（player/rules → rs_player_rules） */
-        slugPrefix: "rs_",
+        /** 红链新建 spec.slug = 链接目标（player/rules → player_rules；提出 → 提出） */
+        slugPrefix: "",
         slugFromTitle: true,
         slugFromPostName: false,
         defaultCategory: "category-f8bm8yzr",

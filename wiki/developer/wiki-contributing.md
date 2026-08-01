@@ -27,7 +27,7 @@ Halo **没有**内置红链。本站通过主题已加载的 `rs-redlinks.js` �
 
 - 正文里指向 `/archives/{slug}` 的内链，若 **Halo 尚未发布**该 slug（见 `wiki-slugs.json` 的 `slugs` + `redlinkTargets`，或前台 API 查 `rs.wiki/redlink-target-slug`），会显示为**红色虚线链接**。
 - `gitSlugs` 仅作规划参考；Git 里有 `prices.md` 但未发布时**不会**再误判为蓝链。
-- **已登录**且有发文权限的用户点击红链 → **继承当前文章页**的分类、标签、封面；标题取**红链文字**；**先发布**后在本标签页打开新建页。**新建 `spec.slug`**：`rs_` + 链接目标英文路径（`player/rules` → `rs_player_rules`），目标写入注解 `rs.wiki/redlink-target-slug`。**Shift+点击**跳过确认框；或在 `rs-config.js` 设 `redlinks.skipConfirm: true` 一律免确认。
+- **已登录**且有发文权限的用户点击红链 → **继承当前文章页**的分类、标签、封面；标题取**红链文字**；**先发布**后在本标签页打开新建页。**新建 `spec.slug`** 与链接目标一致（`player/rules` → `player_rules`，`提出` → `提出`）。历史 `mcwws_*` / 旧 `rs_*` 页面仍可用，后续再统一优化。**Shift+点击**跳过确认框；或在 `rs-config.js` 设 `redlinks.skipConfirm: true` 一律免确认。
 - **后台编辑器**：Injector 2.0 **无法**向 `/console/**` 注入（HEAD 仅主题、WebFilter 跳过 console）。须 patch jar 内 `ui/console.html`：
   ```powershell
   python tools/mcwws-halo-preview/patch-halo-console-loader.py
@@ -49,11 +49,19 @@ python tools/mcwws-halo-preview/ensure-halo-manual-id.py --dry-run
 python tools/mcwws-halo-preview/ensure-halo-manual-id.py
 ```
 
-**批量把红链占位文章的 UUID slug 改为 `rs_` + 标题**（本地需 `halo-mysql` 容器）：
+**批量把红链占位文章的 UUID slug 改为链接目标路径**（本地需 `halo-mysql` 容器）：
 
 ```powershell
-python tools/mcwws-halo-preview/rename-redlink-slugs.py --force-english --dry-run
-python tools/mcwws-halo-preview/rename-redlink-slugs.py --force-english --restart-halo
+python tools/mcwws-halo-preview/rename-redlink-slugs.py --prefix "" --force-english --dry-run
+python tools/mcwws-halo-preview/rename-redlink-slugs.py --prefix "" --force-english --restart-halo
+python tools/mcwws-halo-preview/export-wiki-slugs.py
+```
+
+**去掉历史 `rs_` 前缀**（`mcwws_*` 不动）：
+
+```powershell
+python tools/mcwws-halo-preview/strip-rs-slug-prefix.py --dry-run
+python tools/mcwws-halo-preview/strip-rs-slug-prefix.py --restart-halo
 python tools/mcwws-halo-preview/export-wiki-slugs.py
 ```
 

@@ -81,6 +81,11 @@ export async function loadWikiIndex(): Promise<void> {
         ;(data[key] || []).forEach((p: string) => {
           const n = normalizeTarget(p)
           if (!n || seen[n]) return
+          if (key === 'redlinkTargets') {
+            if (publishedSlugs[n] || publishedSlugs[`rs_${n}`]) return
+            const u = n.replace(/\//g, '_').toLowerCase()
+            if (publishedSlugs[u] || publishedSlugs[`rs_${u}`]) return
+          }
           seen[n] = true
           suggestPaths.push(n)
           if (key === 'slugs') publishedSlugs[n] = true
