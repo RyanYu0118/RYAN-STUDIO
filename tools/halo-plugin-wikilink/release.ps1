@@ -18,6 +18,6 @@ if ($LASTEXITCODE -ne 0) {
 }
 
 Write-Host "==> Push tag (triggers GitHub Actions release)..." -ForegroundColor Cyan
-git -C (Resolve-Path "$Root\..\..") push origin $tag
+git -C (Resolve-Path "$Root\..\..") push origin $tag --force
 
 Write-Host "==> Done. Check: https://github.com/RyanYu0118/RYAN-STUDIO/releases/tag/$tag" -ForegroundColor Green

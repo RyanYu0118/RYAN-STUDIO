@@ -10,15 +10,15 @@ GitHub Releases 页左侧 **Release list 按 tag 名字母序排列**，不是�
 
 未补零时会出现：`v1.1.9` 排在 `v1.1.11` 上面，而 `v1.1.10+` 沉到底部。
 
-**规范：** tag 使用 patch 三位补零，例如：
+**规范：** Git tag 使用 patch 三位补零；`gradle.properties` / `plugin.yaml` 须写 **合法 semver**（Halo 不接受 `1.2.000` 这类前导零 patch）。
 
-| `gradle.properties` 版本 | Git tag |
-|--------------------------|---------|
-| `1.2.000` | `RS_WikiLink-v1.2.000` |
-| `1.1.13` | `RS_WikiLink-v1.1.013` |
-| `1.1.2` | `RS_WikiLink-v1.1.002` |
+| `gradle.properties` 版本 | Git tag | Release 显示名 |
+|--------------------------|---------|----------------|
+| `1.2.0` | `RS_WikiLink-v1.2.000` | `RS_WikiLink v1.2.000` |
+| `1.1.13` | `RS_WikiLink-v1.1.013` | `RS_WikiLink v1.1.13` |
+| `1.1.2` | `RS_WikiLink-v1.1.002` | `RS_WikiLink v1.1.2` |
 
-由 [`scripts/format-release-tag.ps1`](scripts/format-release-tag.ps1) / [`release.ps1`](release.ps1) 自动生成。Release 标题仍显示人类可读版本 `RS_WikiLink v1.2.000`。
+由 [`scripts/format-release-tag.ps1`](scripts/format-release-tag.ps1) / [`release.ps1`](release.ps1) 自动生成 tag 与 Release 标题（补零仅用于 tag/显示名，jar 内 manifest 仍为 `1.2.0`）。
 
 ### 迁移已有旧 tag
 
