@@ -8,6 +8,10 @@ import {
   setWikiLinkEditor,
   unbindNativeOpenLinkBridge,
 } from '@/lib/wiki-native-open-link-bridge'
+import {
+  bindWikiEditorCtrlCursor,
+  unbindWikiEditorCtrlCursor,
+} from '@/lib/wiki-editor-ctrl-cursor'
 import { linkInfoAtPos } from '@/lib/wiki-link-commands'
 import { openWikiArchiveLinkFromEditor } from '@/lib/wiki-redlink-open'
 import { isWikiArchiveHref } from '@/lib/wiki-utils'
@@ -24,11 +28,13 @@ const WikiLinkExtension = Extension.create({
     mountWikiLinkFloatingHost()
     setWikiLinkEditor(this.editor)
     bindNativeOpenLinkBridge(this.editor)
+    bindWikiEditorCtrlCursor()
   },
 
   onDestroy() {
     unmountWikiLinkFloatingHost()
     unbindNativeOpenLinkBridge()
+    unbindWikiEditorCtrlCursor()
     setWikiLinkEditor(null)
   },
 

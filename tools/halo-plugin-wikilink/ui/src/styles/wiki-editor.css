@@ -4,6 +4,11 @@
 
 .ProseMirror a[href*="/archives/"],
 .ProseMirror a.rs-wiki-redlink {
+  cursor: text;
+}
+
+.ProseMirror.rs-wiki-ctrl-nav a[href*="/archives/"],
+.ProseMirror.rs-wiki-ctrl-nav a.rs-wiki-redlink {
   cursor: pointer !important;
 }
 
