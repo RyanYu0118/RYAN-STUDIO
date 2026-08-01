@@ -40,3 +40,15 @@ cd tools/halo-plugin-wikilink
 或在 GitHub → Releases → Drafts → 逐条 **Publish release**。
 
 公开验证：匿名 API 应返回 `draft: false`，例如 [RS_WikiLink-v1.1.013](https://github.com/RyanYu0118/RYAN-STUDIO/releases/tag/RS_WikiLink-v1.1.013)。
+
+### Release 正文空白
+
+若「相比上一 tag 的变更」下无 bullet，通常是 tag 迁移重发时 `git log --pretty=format:%s` 末行无换行导致 CI 漏读唯一 commit。已修复 `gen-release-notes.sh`（`%s%n` + 双语标题解析）。
+
+补写某 tag 正文：
+
+```powershell
+gh auth login
+cd tools/halo-plugin-wikilink
+.\scripts\refresh-release-notes.ps1 -Tag RS_WikiLink-v1.1.013
+```
