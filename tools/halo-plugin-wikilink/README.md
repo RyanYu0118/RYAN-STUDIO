@@ -28,7 +28,7 @@ cd tools/halo-plugin-wikilink
 .\build.ps1
 ```
 
-产物：`build/libs/RS_WikiLink-<version>.jar`（当前 1.1.0）
+产物：`build/libs/RS_WikiLink-<version>.jar`（当前 1.1.1）
 
 或手动：
 
@@ -64,7 +64,7 @@ htmlBlockCompact: { enabled: false }
 
 ## Release
 
-GitHub Release：[RS_WikiLink-v1.0.3](https://github.com/RyanYu0118/RYAN-STUDIO/releases/tag/RS_WikiLink-v1.0.3)（直接下载 JAR，无需本地构建）
+GitHub Release：[RS_WikiLink-v1.1.1](https://github.com/RyanYu0118/RYAN-STUDIO/releases/tag/RS_WikiLink-v1.1.1)（直接下载 JAR，无需本地构建）
 
 打新标签 `RS_WikiLink-v*` 推送后会自动构建并发布（见仓库根目录 `.github/workflows/rs-wikilink-release.yml`）。
 
