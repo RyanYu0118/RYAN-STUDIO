@@ -6,9 +6,11 @@ import { isExternalUrl, isPostPublished, isWikiArchiveHref, normalizeTarget } fr
 import { WIKI_PATH_PREFIX } from '@/lib/wiki-config'
 import {
   applyWikiLink,
+  focusWikiLinkAt,
   getActiveWikiLinkInfo,
   getWikiLinkInfoFromHref,
   hrefAtEditorSelection,
+  refreshWikiLinkClasses,
 } from '@/lib/wiki-link-commands'
 
 const REDLINK_TARGET_ANN = 'rs.wiki/redlink-target-slug'
@@ -314,50 +316,71 @@ function openArchive(slug: string, newTab: boolean) {
 }
 
 /** 编辑器/后台：已发布或红链均直接创建发布；默认新标签打开（Ctrl+点击同） */
+let openingKey = ''
+let openingAt = 0
+
 export async function openWikiArchiveLinkFromEditor(
   editor: Editor,
-  options?: { href?: string; label?: string; newTab?: boolean }
+  options?: { href?: string; label?: string; newTab?: boolean; pos?: number }
 ): Promise<boolean> {
   let href = (options?.href || '').trim()
   if (!href) href = hrefAtEditorSelection(editor)
   if (!href) href = String(editor.getAttributes(ExtensionLink.name).href || '').trim()
   if (!href || !isWikiArchiveHref(href)) return false
 
-  editor.commands.extendMarkRange(ExtensionLink.name)
+  const dedupeKey = normalizeTarget(href)
+  if (openingKey === dedupeKey && Date.now() - openingAt < 800) return true
+  openingKey = dedupeKey
+  openingAt = Date.now()
 
-  const info =
-    getActiveWikiLinkInfo(editor) ||
-    getWikiLinkInfoFromHref(editor, href)
+  const anchor = { pos: options?.pos, href }
+  const explicitHref = !!(options?.href || '').trim()
+
+  let info
+  if (explicitHref) {
+    info = getWikiLinkInfoFromHref(editor, href, options?.label)
+  } else {
+    focusWikiLinkAt(editor, anchor)
+    info = getActiveWikiLinkInfo(editor) || getWikiLinkInfoFromHref(editor, href, options?.label)
+  }
   if (options?.label) info.label = options.label
 
   const newTab = options?.newTab !== false
 
-  await reloadWikiIndex()
+  try {
+    await reloadWikiIndex()
+    refreshWikiLinkClasses(editor)
 
-  const status = await checkLinkTarget(info.target)
-  if (status.ready && status.postSlug) {
-    openArchive(status.postSlug, newTab)
-    if (info.isRed) {
-      applyWikiLink(editor, status.postSlug, info.label)
+    const status = await checkLinkTarget(info.target)
+    if (status.ready && status.postSlug) {
+      openArchive(status.postSlug, newTab)
+      if (info.isRed) {
+        applyWikiLink(editor, status.postSlug, info.label, anchor)
+        refreshWikiLinkClasses(editor)
+      }
+      return true
     }
+
+    const sourcePost = await fetchCurrentEditorPost()
+    const result = await createAndPublishRedlink(
+      info.target,
+      info.label || info.target,
+      sourcePost
+    )
+
+    if (!result.ok) {
+      alert('发布失败：' + (result.error || '未知错误'))
+      return true
+    }
+
+    await reloadWikiIndex()
+    refreshWikiLinkClasses(editor)
+    const finalSlug = result.slug || info.target
+    applyWikiLink(editor, finalSlug, info.label, anchor)
+    refreshWikiLinkClasses(editor)
+    openArchive(finalSlug, newTab)
     return true
+  } finally {
+    if (openingKey === dedupeKey) openingKey = ''
   }
-
-  const sourcePost = await fetchCurrentEditorPost()
-  const result = await createAndPublishRedlink(
-    info.target,
-    info.label || info.target,
-    sourcePost
-  )
-
-  if (!result.ok) {
-    alert('发布失败：' + (result.error || '未知错误'))
-    return true
-  }
-
-  await reloadWikiIndex()
-  const finalSlug = result.slug || info.target
-  applyWikiLink(editor, finalSlug, info.label)
-  openArchive(finalSlug, newTab)
-  return true
 }

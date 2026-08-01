@@ -42,6 +42,7 @@ function createWikiSafeLinkClickPlugin(editor: Editor): Plugin {
             href,
             label: info?.label || (anchor?.textContent || '').replace(/\s+/g, ' ').trim() || href,
             newTab: true,
+            pos,
           })
           return true
         }

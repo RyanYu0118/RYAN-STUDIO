@@ -1,6 +1,7 @@
 import { ExtensionLink, type Editor } from '@halo-dev/richtext-editor'
 import {
   archivesHref,
+  defaultLabel,
   findPageByQuery,
   isExternalUrl,
   normalizeExternalUrl,
@@ -121,22 +122,107 @@ export function labelAtEditorSelection(editor: Editor, fallback = ''): string {
   return fallback
 }
 
-export function getWikiLinkInfoFromHref(editor: Editor, href: string): ActiveWikiLinkInfo {
+export function getWikiLinkInfoFromHref(
+  editor: Editor,
+  href: string,
+  labelOverride?: string
+): ActiveWikiLinkInfo {
   const target = normalizeTarget(href)
   const { pageIndex, publishedSlugs } = getWikiIndexState()
   const hit = findPageByQuery(target, pageIndex, publishedSlugs)
   const published = !!(hit?.published || publishedSlugs[target])
-  const attrs = editor.getAttributes(ExtensionLink.name)
-  const linkClass = String(attrs.class || '')
-  const isRed = linkClass.includes('rs-wiki-redlink') || !published
-  const label = labelAtEditorSelection(editor, hit?.title || target)
+  const label =
+    labelOverride ||
+    (published ? hit?.title : undefined) ||
+    defaultLabel(target)
   return {
     href,
     target,
     label,
-    isRed,
+    isRed: !published,
     postSlug: hit?.published ? hit.slug : null,
   }
+}
+
+/** 文档内匹配 href 的 link 位置；nearPos 用于同 href 多实例时取最近 */
+export function findLinkPosByHref(
+  editor: Editor,
+  href: string,
+  nearPos?: number
+): number | null {
+  const want = normalizeTarget(href)
+  if (!want) return null
+  const candidates: number[] = []
+  editor.state.doc.descendants((node, pos) => {
+    if (!node.isText) return
+    const mark = node.marks.find((m) => m.type.name === ExtensionLink.name)
+    if (!mark?.attrs?.href) return
+    if (normalizeTarget(String(mark.attrs.href)) === want) candidates.push(pos)
+  })
+  if (!candidates.length) return null
+  if (nearPos == null) return candidates[0]!
+  return candidates.reduce((best, p) =>
+    Math.abs(p - nearPos) < Math.abs(best - nearPos) ? p : best
+  )
+}
+
+export function focusWikiLinkAt(
+  editor: Editor,
+  anchor?: { pos?: number; href?: string }
+): boolean {
+  let pos = anchor?.pos
+  if (pos == null && anchor?.href) {
+    pos = findLinkPosByHref(editor, anchor.href) ?? undefined
+  }
+  if (pos == null) return editor.commands.extendMarkRange(ExtensionLink.name)
+  return editor.chain().focus().setTextSelection(pos).extendMarkRange(ExtensionLink.name).run()
+}
+
+/** 索引刷新后，把已发布但仍带 rs-wiki-redlink 的 mark 改回普通链接样式 */
+export function refreshWikiLinkClasses(editor: Editor): void {
+  const { pageIndex, publishedSlugs } = getWikiIndexState()
+  const linkType = editor.schema.marks[ExtensionLink.name]
+  if (!linkType) return
+
+  type MarkUpdate = { from: number; to: number; attrs: Record<string, unknown> }
+  const updates: MarkUpdate[] = []
+
+  editor.state.doc.descendants((node, pos) => {
+    if (!node.isText) return
+    for (const mark of node.marks) {
+      if (mark.type !== linkType) continue
+      const href = String(mark.attrs.href || '')
+      if (!href || isExternalUrl(href)) continue
+      const path = href.replace(/^https?:\/\/[^/]+/i, '')
+      if (!path.startsWith('/archives/') && !path.includes('/archives/')) continue
+
+      const target = normalizeTarget(href)
+      const hit = findPageByQuery(target, pageIndex, publishedSlugs)
+      const published = !!(hit?.published || publishedSlugs[target])
+      const hasRed = String(mark.attrs.class || '').includes('rs-wiki-redlink')
+      if (!published || !hasRed) continue
+
+      const resolved = hit?.slug || target
+      updates.push({
+        from: pos,
+        to: pos + node.nodeSize,
+        attrs: {
+          ...mark.attrs,
+          href: archivesHref(resolved),
+          class: null,
+          title: null,
+        },
+      })
+    }
+  })
+
+  if (!updates.length) return
+  let tr = editor.state.tr
+  for (const u of updates) {
+    tr = tr.removeMark(u.from, u.to, linkType)
+    tr = tr.addMark(u.from, u.to, linkType.create(u.attrs))
+  }
+  editor.view.dispatch(tr)
 }
 
 /** 选区是否在 Wiki 内链（/archives/…）上；普通文本或外部链接返回 false */
@@ -168,14 +254,25 @@ export function getActiveWikiLinkInfo(editor: Editor): ActiveWikiLinkInfo | null
   }
 }
 
-export function applyWikiLink(editor: Editor, rawTarget: string, label?: string): boolean {
+export function applyWikiLink(
+  editor: Editor,
+  rawTarget: string,
+  label?: string,
+  anchor?: { pos?: number; href?: string }
+): boolean {
   const text = getSelectedText(editor)
   label = (label || text || '').trim()
 
   if (isExternalUrl(rawTarget)) {
     const href = normalizeExternalUrl(rawTarget)
     if (!label) label = href
-    return editor.chain().focus().extendMarkRange(ExtensionLink.name).setLink({ href }).run()
+    const chain = editor.chain().focus()
+    if (anchor?.pos != null) chain.setTextSelection(anchor.pos)
+    else if (anchor?.href) {
+      const p = findLinkPosByHref(editor, anchor.href, anchor.pos)
+      if (p != null) chain.setTextSelection(p)
+    }
+    return chain.extendMarkRange(ExtensionLink.name).setLink({ href }).run()
   }
 
   const target = normalizeTarget(rawTarget)
@@ -186,9 +283,15 @@ export function applyWikiLink(editor: Editor, rawTarget: string, label?: string)
   const published = hit ? hit.published : !!(publishedSlugs[target] || publishedSlugs[resolved])
   const href = archivesHref(resolved)
 
-  return editor
-    .chain()
-    .focus()
+  const chain = editor.chain().focus()
+  if (anchor?.pos != null) {
+    chain.setTextSelection(anchor.pos)
+  } else if (anchor?.href) {
+    const p = findLinkPosByHref(editor, anchor.href, anchor.pos)
+    if (p != null) chain.setTextSelection(p)
+  }
+
+  return chain
     .extendMarkRange(ExtensionLink.name)
     .setLink({
       href,

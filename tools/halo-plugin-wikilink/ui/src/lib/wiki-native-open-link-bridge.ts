@@ -61,14 +61,16 @@ function buttonHasOpenLinkIcon(btn: HTMLButtonElement): boolean {
   return inner.includes(OPEN_LINK_ICON_MARK) || inner.includes('mingcute-share-3')
 }
 
-function cacheLinkFromEditor(ed: Editor) {
-  const href = hrefAtEditorSelection(ed)
+function posFromMouseEvent(ed: Editor, e: MouseEvent): number | undefined {
+  const hit = ed.view.posAtCoords({ left: e.clientX, top: e.clientY })
+  return hit?.pos
+}
+
+function cacheLinkFromAnchor(anchor: HTMLAnchorElement) {
+  const href = (anchor.getAttribute('href') || '').trim()
   if (!href || !isWikiArchiveHref(href)) return
   cachedHref = href
-  const { from, to } = ed.state.selection
-  if (to > from) {
-    cachedLabel = ed.state.doc.textBetween(from, to, ' ').replace(/\s+/g, ' ').trim()
-  }
+  cachedLabel = (anchor.textContent || '').replace(/\s+/g, ' ').trim()
   cachedAt = Date.now()
 }
 
@@ -179,7 +181,8 @@ function handleEditorWikiLinkClick(e: MouseEvent) {
     pending?.label ||
     (anchor?.textContent || '').replace(/\s+/g, ' ').trim() ||
     href
-  void openWikiArchiveLinkFromEditor(ed, { href, label, newTab: true })
+  const pos = posFromMouseEvent(ed, e)
+  void openWikiArchiveLinkFromEditor(ed, { href, label, newTab: true, pos })
 }
 
 /** Halo 文本气泡栏 / 链接面板里的原生「打开链接」按钮 */
@@ -219,9 +222,31 @@ function handleOpenLinkClick(e: MouseEvent) {
 }
 
 function handleOpenLinkMousedown(e: MouseEvent) {
-  if (activeEditor) cacheLinkFromEditor(activeEditor)
+  const anchor = wikiAnchorFromEvent(e)
+  if (anchor) {
+    cacheLinkFromAnchor(anchor)
+  } else if (activeEditor) {
+    const href = hrefAtEditorSelection(activeEditor)
+    if (href && isWikiArchiveHref(href)) {
+      cachedHref = href
+      const { from, to } = activeEditor.state.selection
+      if (to > from) {
+        cachedLabel = activeEditor.state.doc
+          .textBetween(from, to, ' ')
+          .replace(/\s+/g, ' ')
+          .trim()
+      }
+      cachedAt = Date.now()
+    }
+  }
   if (e.target instanceof Element && e.target.closest('.bubble-menu, .v-popper__inner')) {
-    if (activeEditor) cacheLinkFromEditor(activeEditor)
+    if (activeEditor) {
+      const href = hrefAtEditorSelection(activeEditor)
+      if (href && isWikiArchiveHref(href)) {
+        cachedHref = href
+        cachedAt = Date.now()
+      }
+    }
   }
   handleEditorWikiLinkMousedown(e)
 }
@@ -243,7 +268,11 @@ function ensureDocumentListeners() {
 
 export function bindNativeOpenLinkBridge(editor: Editor) {
   activeEditor = editor
-  cacheLinkFromEditor(editor)
+  const href = hrefAtEditorSelection(editor)
+  if (href && isWikiArchiveHref(href)) {
+    cachedHref = href
+    cachedAt = Date.now()
+  }
   ensureDocumentListeners()
 }
 
