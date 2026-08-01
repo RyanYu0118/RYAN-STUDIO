@@ -12,6 +12,10 @@ import {
   hrefAtEditorSelection,
 } from '@/lib/wiki-link-commands'
 import { refreshWikiLinkClassesFromApi } from '@/lib/wiki-link-class-sync'
+import {
+  isEditorConsolePage,
+  isEditorWikiLinkNavEnabled,
+} from '@/lib/wiki-editor-nav-policy'
 
 const REDLINK_TARGET_ANN = 'rs.wiki/redlink-target-slug'
 
@@ -389,6 +393,10 @@ export async function openWikiArchiveLinkFromEditor(
   editor: Editor,
   options?: { href?: string; label?: string; newTab?: boolean; pos?: number }
 ): Promise<boolean> {
+  if (isEditorConsolePage() && !isEditorWikiLinkNavEnabled()) {
+    return false
+  }
+
   let href = (options?.href || '').trim()
   if (!href) href = hrefAtEditorSelection(editor)
   if (!href) href = String(editor.getAttributes(ExtensionLink.name).href || '').trim()

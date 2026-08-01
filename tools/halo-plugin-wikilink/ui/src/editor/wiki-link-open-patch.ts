@@ -1,7 +1,5 @@
 import type { Editor } from '@halo-dev/richtext-editor'
 import { ExtensionLink } from '@halo-dev/richtext-editor'
-import { linkInfoAtPos } from '@/lib/wiki-link-commands'
-import { openWikiArchiveLinkFromEditor } from '@/lib/wiki-redlink-open'
 import { isWikiArchiveHref } from '@/lib/wiki-utils'
 import { Plugin, PluginKey } from '@tiptap/pm/state'
 import type { EditorView } from '@tiptap/pm/view'
@@ -32,26 +30,8 @@ function wikiLinkFromDomEvent(
   return { anchor, href }
 }
 
-function openWikiLinkFromEditorDom(
-  editor: Editor,
-  view: EditorView,
-  event: MouseEvent,
-  href: string,
-  anchor: HTMLAnchorElement
-) {
-  const coords = view.posAtCoords({ left: event.clientX, top: event.clientY })
-  const pos = coords?.pos
-  const info = pos != null ? linkInfoAtPos(editor, pos) : null
-  void openWikiArchiveLinkFromEditor(editor, {
-    href,
-    label: info?.label || (anchor.textContent || '').replace(/\s+/g, ' ').trim() || href,
-    newTab: true,
-    pos,
-  })
-}
-
-/** 替换 Halo Link 的 handleClickLink：Wiki 内链禁止一点就 window.open(_self) */
-function createWikiSafeLinkClickPlugin(editor: Editor): Plugin {
+/** 替换 Halo Link 的 handleClickLink：编辑页 Wiki 内链仅编辑/选区，不跳转 */
+function createWikiSafeLinkClickPlugin(_editor: Editor): Plugin {
   return new Plugin({
     key: HANDLE_CLICK_LINK,
     props: {
@@ -70,44 +50,21 @@ function createWikiSafeLinkClickPlugin(editor: Editor): Plugin {
           if (event.button !== 0 || !view.editable) return false
           const hit = wikiLinkFromDomEvent(view, event)
           if (!hit) return false
-
           event.preventDefault()
           event.stopPropagation()
-
-          if (event.ctrlKey || event.metaKey) {
-            openWikiLinkFromEditorDom(editor, view, event, hit.href, hit.anchor)
-          }
           return true
         },
       },
-      handleClick(view, pos, event) {
-        if (event.button !== 0 || !view.editable) return false
-
+      handleClick(_view, _pos, event) {
+        if (event.button !== 0) return false
         let anchor: HTMLAnchorElement | null = null
         if (event.target instanceof HTMLAnchorElement) {
           anchor = event.target
         } else if (event.target instanceof Element) {
           anchor = event.target.closest('a')
-          if (anchor && !view.dom.contains(anchor)) anchor = null
         }
-
-        const hrefFromDom = (anchor?.getAttribute('href') || anchor?.href || '').trim()
-        const info = linkInfoAtPos(editor, pos)
-        const href = hrefFromDom || info?.href || ''
+        const href = (anchor?.getAttribute('href') || anchor?.href || '').trim()
         if (!href || !isWikiArchiveHref(href)) return false
-
-        const modClick = event.ctrlKey || event.metaKey
-        if (modClick) {
-          event.preventDefault()
-          void openWikiArchiveLinkFromEditor(editor, {
-            href,
-            label: info?.label || (anchor?.textContent || '').replace(/\s+/g, ' ').trim() || href,
-            newTab: true,
-            pos,
-          })
-          return true
-        }
-
         return true
       },
     },

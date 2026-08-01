@@ -2,10 +2,11 @@ import type { Editor } from '@halo-dev/richtext-editor'
 import { ExtensionLink } from '@halo-dev/richtext-editor'
 import type { Transaction } from '@tiptap/pm/state'
 import { checkLinkTarget } from '@/lib/wiki-redlink-open'
+import { EDITOR_WIKI_REDLINK_TITLE } from '@/lib/wiki-editor-nav-policy'
 import { reloadWikiIndex } from '@/lib/wiki-index'
 import { archivesHref, isWikiArchiveHref, normalizeTarget } from '@/lib/wiki-utils'
 
-const REDLINK_TITLE = '尚未发布 · Ctrl+点击在新标签页打开并发布'
+const REDLINK_TITLE = EDITOR_WIKI_REDLINK_TITLE
 const POLL_MS = 45_000
 const SYNC_META_KEY = 'rsWikiLinkClassSync'
 

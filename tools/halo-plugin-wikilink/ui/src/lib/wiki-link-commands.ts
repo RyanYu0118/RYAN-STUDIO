@@ -7,6 +7,7 @@ import {
   normalizeExternalUrl,
   normalizeTarget,
 } from '@/lib/wiki-utils'
+import { EDITOR_WIKI_REDLINK_TITLE } from '@/lib/wiki-editor-nav-policy'
 import { getWikiIndexState } from '@/lib/wiki-index'
 
 export type ActiveWikiLinkInfo = {
@@ -223,7 +224,7 @@ export function refreshWikiLinkClasses(editor: Editor): void {
             href: archivesHref(target),
             class: 'rs-wiki-redlink',
             target: '_self',
-            title: '尚未发布 · Ctrl+点击在新标签页打开并发布',
+            title: EDITOR_WIKI_REDLINK_TITLE,
           },
         })
       }
@@ -319,7 +320,7 @@ export function applyWikiLink(
       href,
       class: published ? null : 'rs-wiki-redlink',
       target: '_self',
-      title: published ? null : '尚未发布 · Ctrl+点击在新标签页打开并发布',
+      title: published ? null : EDITOR_WIKI_REDLINK_TITLE,
     })
     .run()
 }
