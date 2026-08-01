@@ -16,6 +16,7 @@ type ListenerPair = {
   mousedown: (e: MouseEvent) => void
   click: (e: MouseEvent) => void
   editorLinkClick: (e: MouseEvent) => void
+  editorLinkNavBlock: (e: MouseEvent) => void
 }
 let docListeners: ListenerPair | null = null
 
@@ -142,6 +143,19 @@ function handleEditorWikiLinkMousedown(e: MouseEvent) {
   pendingCtrlWikiLink = null
 }
 
+/** 普通左键点 Wiki 内链：仅 preventDefault，避免极少数环境下 <a> 导航（不拦 mousedown 以保留拖选） */
+function handleEditorWikiLinkNavBlock(e: MouseEvent) {
+  if (!isEditorPage() || e.button !== 0) return
+  if (e.ctrlKey || e.metaKey) return
+
+  const anchor = wikiAnchorFromEvent(e)
+  if (!anchor) return
+  const href = (anchor.getAttribute('href') || '').trim()
+  if (!isWikiArchiveHref(href)) return
+
+  e.preventDefault()
+}
+
 /** 仅 Ctrl+左键：创建/打开并新标签页（配合 mousedown 阻断浏览器默认行为） */
 function handleEditorWikiLinkClick(e: MouseEvent) {
   if (!isEditorPage() || e.button !== 0) return
@@ -218,11 +232,13 @@ function ensureDocumentListeners() {
   const mousedown = (e: MouseEvent) => handleOpenLinkMousedown(e)
   const click = (e: MouseEvent) => handleOpenLinkClick(e)
   const editorLinkClick = (e: MouseEvent) => handleEditorWikiLinkClick(e)
+  const editorLinkNavBlock = (e: MouseEvent) => handleEditorWikiLinkNavBlock(e)
 
   document.addEventListener('mousedown', mousedown, true)
   document.addEventListener('click', click, true)
   document.addEventListener('click', editorLinkClick, true)
-  docListeners = { mousedown, click, editorLinkClick }
+  document.addEventListener('click', editorLinkNavBlock, true)
+  docListeners = { mousedown, click, editorLinkClick, editorLinkNavBlock }
 }
 
 export function bindNativeOpenLinkBridge(editor: Editor) {
@@ -236,6 +252,7 @@ export function unbindNativeOpenLinkBridge() {
     document.removeEventListener('mousedown', docListeners.mousedown, true)
     document.removeEventListener('click', docListeners.click, true)
     document.removeEventListener('click', docListeners.editorLinkClick, true)
+    document.removeEventListener('click', docListeners.editorLinkNavBlock, true)
     docListeners = null
   }
   activeEditor = null
