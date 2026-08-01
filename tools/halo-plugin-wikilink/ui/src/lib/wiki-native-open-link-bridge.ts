@@ -145,10 +145,9 @@ function handleEditorWikiLinkMousedown(e: MouseEvent) {
   pendingCtrlWikiLink = null
 }
 
-/** 普通左键点 Wiki 内链：仅 preventDefault，避免极少数环境下 <a> 导航（不拦 mousedown 以保留拖选） */
+/** 编辑页 Wiki 内链：一律 preventDefault，阻断 target=_self 覆盖当前页（含 Ctrl+点击） */
 function handleEditorWikiLinkNavBlock(e: MouseEvent) {
   if (!isEditorPage() || e.button !== 0) return
-  if (e.ctrlKey || e.metaKey) return
 
   const anchor = wikiAnchorFromEvent(e)
   if (!anchor) return
@@ -156,33 +155,22 @@ function handleEditorWikiLinkNavBlock(e: MouseEvent) {
   if (!isWikiArchiveHref(href)) return
 
   e.preventDefault()
+  e.stopPropagation()
 }
 
-/** 仅 Ctrl+左键：创建/打开并新标签页（配合 mousedown 阻断浏览器默认行为） */
+/** Ctrl+左键兜底（主逻辑在 PM handleDOMEvents；此处仅阻断冒泡） */
 function handleEditorWikiLinkClick(e: MouseEvent) {
   if (!isEditorPage() || e.button !== 0) return
   if (!(e.ctrlKey || e.metaKey)) return
 
-  const pending = pendingCtrlWikiLink
-  pendingCtrlWikiLink = null
-
   const anchor = wikiAnchorFromEvent(e)
-  const href = (pending?.href || anchor?.getAttribute('href') || '').trim()
-  if (!href || !isWikiArchiveHref(href)) return
-
-  const ed = activeEditor
-  if (!ed) return
+  if (!anchor) return
+  const href = (anchor.getAttribute('href') || '').trim()
+  if (!isWikiArchiveHref(href)) return
 
   e.preventDefault()
   e.stopPropagation()
   e.stopImmediatePropagation()
-
-  const label =
-    pending?.label ||
-    (anchor?.textContent || '').replace(/\s+/g, ' ').trim() ||
-    href
-  const pos = posFromMouseEvent(ed, e)
-  void openWikiArchiveLinkFromEditor(ed, { href, label, newTab: true, pos })
 }
 
 /** Halo 文本气泡栏 / 链接面板里的原生「打开链接」按钮 */

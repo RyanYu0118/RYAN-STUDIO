@@ -15,12 +15,12 @@ export function bindWikiEditorWindowOpenGuard() {
 
   window.open = function (url?: string | URL, target?: string, features?: string) {
     const href = String(url ?? '')
-    if (
-      isEditorPage() &&
-      isWikiArchiveHref(href) &&
-      (!target || target === '_self' || target === 'self')
-    ) {
-      return null
+    if (isEditorPage() && isWikiArchiveHref(href)) {
+      const t = (target || '_self').toLowerCase()
+      if (t === '_self' || t === 'self' || t === '') {
+        console.warn('[RS_WikiLink] blocked window.open in editor:', href)
+        return null
+      }
     }
     return nativeOpen!(url, target, features)
   }

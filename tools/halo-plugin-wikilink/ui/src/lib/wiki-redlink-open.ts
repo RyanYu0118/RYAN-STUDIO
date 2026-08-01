@@ -248,6 +248,10 @@ function openPendingArchiveTab(label: string): Window | null {
   return tab
 }
 
+function isEditorPage() {
+  return location.pathname.indexOf('/console/posts/editor') >= 0
+}
+
 async function navigateArchiveWhenReady(
   slug: string,
   newTab: boolean,
@@ -258,7 +262,9 @@ async function navigateArchiveWhenReady(
   if (!ready) {
     console.warn('[RS_WikiLink] archive page not confirmed ready before open:', slug)
   }
-  if (newTab) {
+
+  const mustNewTab = newTab || isEditorPage()
+  if (mustNewTab) {
     const tab = existingTab ?? window.open('about:blank', '_blank')
     if (!tab) {
       alert('请允许弹出窗口，或按住 Ctrl 再试')
@@ -395,6 +401,10 @@ export async function openWikiArchiveLinkFromEditor(
 
   const anchor = { pos: options?.pos, href }
   const explicitHref = !!(options?.href || '').trim()
+  const newTab = options?.newTab !== false
+
+  // 同步：立刻占位新标签，避免 Halo Link / target=_self 在 await 前覆盖编辑页
+  const pendingTab = newTab ? openPendingArchiveTab('正在打开…') : null
 
   let info
   if (explicitHref) {
@@ -405,23 +415,30 @@ export async function openWikiArchiveLinkFromEditor(
   }
   if (options?.label) info.label = options.label
 
-  const newTab = options?.newTab !== false
-
   try {
     await reloadWikiIndex()
-    await refreshWikiLinkClassesFromApi(editor)
+    void refreshWikiLinkClassesFromApi(editor)
 
     const status = await checkLinkTarget(info.target)
     if (status.ready && status.postSlug) {
-      openArchive(status.postSlug, newTab)
       if (info.isRed) {
         applyWikiLink(editor, status.postSlug, info.label, anchor)
       }
+      await navigateArchiveWhenReady(status.postSlug, newTab, pendingTab)
       return true
     }
 
+    if (pendingTab) {
+      try {
+        pendingTab.document.title = '正在发布文章…'
+        pendingTab.document.body.innerHTML =
+          `<p style="font-family:system-ui,sans-serif;padding:2rem;color:#374151">正在发布文章…</p>`
+      } catch {
+        /* ignore */
+      }
+    }
+
     const sourcePost = await fetchCurrentEditorPost()
-    const pendingTab = newTab ? openPendingArchiveTab('正在发布文章…') : null
     const result = await createAndPublishRedlink(
       info.target,
       info.label || info.target,
