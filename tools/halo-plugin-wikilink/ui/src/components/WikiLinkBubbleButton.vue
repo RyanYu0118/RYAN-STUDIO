@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import WikiLinkPanel from '@/components/WikiLinkPanel.vue'
-import { VDropdown } from '@halo-dev/components'
+import { VDropdown, vTooltip } from '@halo-dev/components'
 import type { WikiBubbleItemProps } from '@/lib/editor-types'
 import { onMounted, onUnmounted, ref } from 'vue'
 
@@ -42,10 +42,10 @@ onUnmounted(() => {
     :distance="10"
   >
     <button
+      v-tooltip="WIKI_TOOLTIP"
       type="button"
       class="rs-wiki-bubble-btn"
       :class="{ 'rs-wiki-bubble-btn--active': isActive?.({ editor }) }"
-      :title="WIKI_TOOLTIP"
       :aria-label="WIKI_TOOLTIP"
     >
       <svg
