@@ -15,7 +15,8 @@ alwaysApply: true
 - 单行简写（不区分大小写）：
   - `y` / `yes` / `提交并推送` → 提交并推送（与默认行为相同）
   - `c` / `commit` / `只提交` → 仅 `git commit`
-  - `n` / `no` / `跳过` → 跳过
+  - `n` / `no` / `跳过` → 跳过提交
+  - **`r` / `release` / `发版` / `GitHub Release` → 隐含 `y`：先提交并推送（若有未提交改动），再打 GitHub Release**
 
 ## 暂存范围
 
@@ -73,22 +74,23 @@ alwaysApply: true
 
 完成一轮**插件版本发布**（已 commit + push，且 `gradle.properties` / `plugin.yaml` 版本号已 bump）后，**必须用 AskQuestion** 询问是否打 GitHub Release（与提交询问同级，不要静默打 tag）。
 
-**说明：** Cursor 聊天无法提供常驻自定义按钮；AskQuestion 选项卡即「可点击按钮」。用户随时发 `r` 即可触发 Release，无需打完整句子。
+**说明：** Cursor 聊天无法提供常驻自定义按钮；AskQuestion 选项卡即「可点击按钮」。用户随时发 `r` 即可触发 **提交推送 + Release**（`r` 默认含 `y`），无需打完整句子。
 
 ### 何时询问
 
-- `tools/halo-plugin-wikilink/` 版本号升级并完成 push 后
+- `tools/halo-plugin-wikilink/` 版本号升级后（开发完成、尚未 push 或尚未打 tag 时）
 - 用户明确要求「发版 / release / 打 tag」时可直接执行，仍可在执行前简短确认
 
 ### 用户简写（不区分大小写）
 
-- **`r` / `release` / `发版` / `GitHub Release`** → 打 tag 并 push，触发 Actions 发布
-- **`n` / `no` / `跳过` / `暂不发布`** → 跳过 Release
+- **`r` / `release` / `发版` / `GitHub Release`** → **先 `y`（commit + push，若有未提交改动）**，再 build、打 tag 并 push tag，触发 Actions 发布
+- **`n` / `no` / `跳过` / `暂不发布`** → 跳过 Release（不影响是否已单独执行过 `y`）
 
 ### Release 流程（RS_WikiLink）
 
-1. 确认 `tools/halo-plugin-wikilink/gradle.properties` 版本与本次改动一致
-2. 运行 `tools/halo-plugin-wikilink/release.ps1`（build + `RS_WikiLink-v<version>` tag + push tag）
-3. 告知用户 Release 页：`https://github.com/RyanYu0118/RYAN-STUDIO/releases/tag/RS_WikiLink-v<version>`
+1. **若工作区有改动**：按上文「推荐流程」完成 `git add` → commit → push（等同 `y`）
+2. 确认 `tools/halo-plugin-wikilink/gradle.properties` 版本与本次改动一致
+3. 运行 `tools/halo-plugin-wikilink/release.ps1`（build + `RS_WikiLink-v<version>` tag + push tag）
+4. 告知用户 Release 页：`https://github.com/RyanYu0118/RYAN-STUDIO/releases/tag/RS_WikiLink-v<version>`
 
 **禁止**在用户未同意（未点选项、未发 `r`）时自行 push release tag。
