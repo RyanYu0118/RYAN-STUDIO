@@ -8,7 +8,7 @@ import {
 } from '@/editor/block-context-menu-utils'
 import { NodeSelection } from '@tiptap/pm/state'
 
-const RS_BLOCK_CTX_VER = '1.1.12'
+const RS_BLOCK_CTX_VER = '1.1.13'
 
 type BlockHit = {
   node: NonNullable<ReturnType<Editor['state']['doc']['nodeAt']>>

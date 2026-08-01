@@ -3,12 +3,19 @@ import { collectDragMenuItems } from '@/editor/block-drag-menu-items'
 import { EditorDragMenu, type Editor } from '@halo-dev/richtext-editor'
 import type { Node as PmNode } from '@tiptap/pm/model'
 import type { Selection } from '@tiptap/pm/state'
-import { computed, onMounted, onUnmounted, ref, shallowRef } from 'vue'
+import { computed, nextTick, onMounted, onUnmounted, ref, shallowRef, watch } from 'vue'
+
+const MENU_VIEWPORT_PAD = 8
+/** 底部额外留白，避免 Windows 任务栏 / 浏览器底栏遮挡 */
+const MENU_VIEWPORT_PAD_BOTTOM = 48
 
 const visible = ref(false)
 const x = ref(0)
 const y = ref(0)
+const anchorX = ref(0)
+const anchorY = ref(0)
 const menuKey = ref(0)
+const menuRef = ref<HTMLElement | null>(null)
 const editor = shallowRef<Editor | null>(null)
 const node = shallowRef<PmNode | null>(null)
 const pos = ref(0)
@@ -16,6 +23,62 @@ const savedSelection = shallowRef<Selection | null>(null)
 const savedScroll = { x: 0, y: 0 }
 
 const items = computed(() => (editor.value ? collectDragMenuItems(editor.value) : []))
+
+let safeAreaBottomCache: number | null = null
+
+function readSafeAreaBottom() {
+  if (safeAreaBottomCache != null) return safeAreaBottomCache
+  const probe = document.createElement('div')
+  probe.style.cssText =
+    'position:fixed;visibility:hidden;pointer-events:none;padding-bottom:env(safe-area-inset-bottom,0px)'
+  document.body.appendChild(probe)
+  safeAreaBottomCache = parseFloat(getComputedStyle(probe).paddingBottom) || 0
+  probe.remove()
+  return safeAreaBottomCache
+}
+
+function clampMenuPosition(clientX: number, clientY: number, menuWidth: number, menuHeight: number) {
+  const vv = window.visualViewport
+  const viewportLeft = vv?.offsetLeft ?? 0
+  const viewportTop = vv?.offsetTop ?? 0
+  const viewportWidth = vv?.width ?? window.innerWidth
+  const viewportHeight = vv?.height ?? window.innerHeight
+  const padBottom = Math.max(MENU_VIEWPORT_PAD_BOTTOM, readSafeAreaBottom() + 12)
+
+  let left = clientX
+  let top = clientY
+
+  if (top + menuHeight + padBottom > viewportTop + viewportHeight) {
+    top = clientY - menuHeight
+  }
+
+  const minLeft = viewportLeft + MENU_VIEWPORT_PAD
+  const minTop = viewportTop + MENU_VIEWPORT_PAD
+  const maxLeft = viewportLeft + viewportWidth - menuWidth - MENU_VIEWPORT_PAD
+  const maxTop = viewportTop + viewportHeight - menuHeight - padBottom
+
+  left = Math.min(Math.max(left, minLeft), Math.max(minLeft, maxLeft))
+  top = Math.min(Math.max(top, minTop), Math.max(minTop, maxTop))
+
+  return { left, top }
+}
+
+function applySafePosition() {
+  const el = menuRef.value
+  if (!el) return
+  const { width, height } = el.getBoundingClientRect()
+  if (width <= 0 || height <= 0) return
+  const pos = clampMenuPosition(anchorX.value, anchorY.value, width, height)
+  x.value = pos.left
+  y.value = pos.top
+}
+
+function scheduleSafePosition() {
+  nextTick(() => {
+    applySafePosition()
+    requestAnimationFrame(applySafePosition)
+  })
+}
 
 function restoreEditorState() {
   const ed = editor.value
@@ -72,11 +135,14 @@ function onOpen(ev: Event) {
   editor.value = detail.editor
   node.value = detail.node
   pos.value = detail.pos
+  anchorX.value = detail.x
+  anchorY.value = detail.y
   x.value = detail.x
   y.value = detail.y
 
   if (isReposition) menuKey.value += 1
   visible.value = true
+  scheduleSafePosition()
 }
 
 function onDocPointer(ev: MouseEvent) {
@@ -97,16 +163,30 @@ function onKeydown(ev: KeyboardEvent) {
   if (ev.key === 'Escape' && visible.value) close()
 }
 
+function onViewportChange() {
+  if (visible.value) applySafePosition()
+}
+
+watch(menuKey, () => {
+  if (visible.value) scheduleSafePosition()
+})
+
 onMounted(() => {
   window.addEventListener('rs-block-contextmenu-open', onOpen)
   document.addEventListener('mousedown', onDocPointer, true)
   document.addEventListener('keydown', onKeydown, true)
+  window.visualViewport?.addEventListener('resize', onViewportChange)
+  window.visualViewport?.addEventListener('scroll', onViewportChange)
+  window.addEventListener('resize', onViewportChange)
 })
 
 onUnmounted(() => {
   window.removeEventListener('rs-block-contextmenu-open', onOpen)
   document.removeEventListener('mousedown', onDocPointer, true)
   document.removeEventListener('keydown', onKeydown, true)
+  window.visualViewport?.removeEventListener('resize', onViewportChange)
+  window.visualViewport?.removeEventListener('scroll', onViewportChange)
+  window.removeEventListener('resize', onViewportChange)
 })
 </script>
 
@@ -118,6 +198,7 @@ onUnmounted(() => {
     <Transition name="rs-block-menu" appear>
       <div
         v-if="visible && editor && node"
+        ref="menuRef"
         :key="menuKey"
         class="rs-block-context-menu"
         :style="{ left: `${x}px`, top: `${y}px` }"
