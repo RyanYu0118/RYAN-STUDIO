@@ -69,7 +69,7 @@ window.RSConfig = {
         showSelectionBubble: false
     },
 
-    // 📦 hybrid-edit-block：HTML 编辑块（见 RS_WikiLink 插件 v1.1+；注入版可关闭）
+    // 📦 hybrid-edit-block：HTML 编辑块（RS_WikiLink 插件 v1.1.4+ 内置；enabled:false 仅关闭注入脚本）
     htmlBlockCompact: {
         enabled: false,
         labelRe: null,

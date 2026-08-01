@@ -1,5 +1,6 @@
 import type { Editor } from '@tiptap/core'
 
+import './plugin-mode'
 import './compact.runtime.js'
 
 const DEFAULT_HTML_BLOCK_CFG = {
@@ -39,8 +40,11 @@ let repairTimer: ReturnType<typeof setTimeout> | null = null
 
 function ensureConfig() {
   window.RSConfig = window.RSConfig || {}
-  if (!window.RSConfig.htmlBlockCompact) {
-    window.RSConfig.htmlBlockCompact = { ...DEFAULT_HTML_BLOCK_CFG }
+  const fromSite = window.RSConfig.htmlBlockCompact || {}
+  window.RSConfig.htmlBlockCompact = {
+    ...DEFAULT_HTML_BLOCK_CFG,
+    ...fromSite,
+    enabled: true,
   }
 }
 
@@ -56,7 +60,7 @@ export function bootHtmlBlockCompact(editor: Editor) {
   window.__rsHtmlBlockEditor = editor
   ensureConfig()
 
-  if (window.RSConfig?.htmlBlockCompact?.enabled === false) return
+  if (window.RSConfig?.htmlBlockCompact?.enabled === false && !window.__rsHtmlBlockPluginMode) return
 
   clearBootTimers()
   window.RSHtmlBlockCompact?.init?.()

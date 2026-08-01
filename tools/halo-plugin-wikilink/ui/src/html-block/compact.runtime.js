@@ -19,7 +19,16 @@
   window.RSHtmlBlockCompact.__ver = RS_HTML_BLOCK_VER;
 
   var cfg = (window.RSConfig && window.RSConfig.htmlBlockCompact) || {};
-  if (cfg.enabled === false) return;
+
+  function isCompactActive() {
+    if (window.__rsHtmlBlockPluginMode) return true;
+    var live = (window.RSConfig && window.RSConfig.htmlBlockCompact) || cfg;
+    return live.enabled !== false;
+  }
+
+  function liveCfg() {
+    return (window.RSConfig && window.RSConfig.htmlBlockCompact) || cfg;
+  }
 
   var BLOCK_LABEL_RE = cfg.labelRe || /HTML\s*编辑块/;
   var sourceCache = new WeakMap();
@@ -1838,6 +1847,7 @@
   }
 
   function boot() {
+    if (!isCompactActive()) return false;
     var pm = getPm();
     if (!pm) return false;
     ensurePreviewAssets();
@@ -1858,9 +1868,11 @@
   window.RSHtmlBlockCompact.init = boot;
 
   if (!window.__rsHtmlBlockPluginMode) {
-    [0, 50, 150, 350, 700, 1200, 2500, 5000, 8000, 12000, 20000].forEach(function (ms) {
-      setTimeout(boot, ms);
-    });
+    if (isCompactActive()) {
+      [0, 50, 150, 350, 700, 1200, 2500, 5000, 8000, 12000, 20000].forEach(function (ms) {
+        setTimeout(boot, ms);
+      });
+    }
   }
 
   console.log(
