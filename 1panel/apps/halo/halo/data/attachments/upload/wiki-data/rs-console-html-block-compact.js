@@ -1,13 +1,13 @@
 /* =======================================================
-   RS Console — HTML 编辑块全屏编辑 v3.4
-   全屏编辑按预览点击/滚动位置定位源码
+   RS Console — HTML 编辑块全屏编辑 v3.4.3
+   全屏编辑按预览点击/滚动位置定位源码；修复自动恢复重试
    ======================================================= */
 (function () {
   "use strict";
 
   if (location.pathname.indexOf("/console/posts/editor") < 0) return;
 
-  var RS_HTML_BLOCK_VER = "3.4.2";
+  var RS_HTML_BLOCK_VER = "3.4.3";
   if (window.RSHtmlBlockCompact && window.RSHtmlBlockCompact.__ver === RS_HTML_BLOCK_VER) {
     return;
   }
@@ -30,6 +30,8 @@
   var serverBlocksCache = null;
   var serverRepairDone = false;
   var repairScheduled = false;
+  var repairAttemptCount = 0;
+  var REPAIR_MAX_ATTEMPTS = 10;
 
   function isOurPreviewNode(n) {
     if (!n || n.nodeType !== 1) return false;
@@ -832,14 +834,15 @@
         text.indexOf("id='wanderCard'") >= 0 ||
         text.indexOf("wander-smart-container") >= 0;
       var hasScript = text.indexOf("</script>") >= 0;
-      return !hasCardDom || !hasScript;
+      if (!hasCardDom || !hasScript) return true;
+      if (text.length < 5500) return true;
+      return false;
     }
     if (sig === "nav-quote-box") {
       return text.length < 600;
     }
-    if (sig === "wd-smart-card" && text.length >= 5500) {
-      return false;
-    }
+    if (text.indexOf("<script") >= 0 && text.indexOf("</script>") < 0) return true;
+    if (text.indexOf("<style") >= 0 && text.indexOf("</style>") < 0) return true;
     return false;
   }
 
@@ -1044,18 +1047,27 @@
     });
   }
 
-  function scheduleRepairWhenReady() {
-    if (serverRepairDone || cfg.autoRepairFromServer === false) return;
+  function scheduleRepairWhenReady(force) {
+    if (!force && serverRepairDone) return;
+    if (cfg.autoRepairFromServer === false) return;
     if (repairScheduled) return;
     var roots = findBlockRoots();
     if (!roots.length) return;
     if (!getPmView()) return;
     repairScheduled = true;
-    console.log("[rs-html-block-compact] 块已就绪，开始服务器修复…");
-    repairAllFromServer(function (n) {
-      if (findBlockRoots().length) serverRepairDone = true;
+    repairAttemptCount++;
+    if (repairAttemptCount > 1) serverBlocksCache = null;
+    console.log(
+      "[rs-html-block-compact] 块已就绪，开始服务器修复 (" +
+        repairAttemptCount +
+        "/" +
+        REPAIR_MAX_ATTEMPTS +
+        ")…"
+    );
+    repairAllFromServer(function (n, blocks, err) {
       repairScheduled = false;
       if (n > 0) prepareAllBlocks();
+      finalizeRepairAttempt(n, blocks, err);
     });
   }
 
@@ -1211,6 +1223,11 @@
         tag: "post",
         extract: rawFromPostJson,
       },
+      {
+        url: "/apis/api.content.halo.run/v1alpha1/posts/" + enc,
+        tag: "post-public",
+        extract: rawFromPostJson,
+      },
     ];
     var raws = [];
     var tags = [];
@@ -1275,14 +1292,80 @@
   }
 
   function needsRepair(pmText, serverText) {
-    if (!serverText) return false;
+    if (!serverText) return isTruncatedBlock(pmText);
     pmText = pmText || "";
+    if (isTruncatedBlock(pmText) && !isTruncatedBlock(serverText)) return true;
     var minDiff = repairMinDiff();
     if (serverText.length <= pmText.length + minDiff) return false;
     if (!pmText.length) return true;
     if (serverText.indexOf(pmText) === 0) return true;
     if (pmText.length < serverText.length * 0.85) return true;
     return false;
+  }
+
+  function countBlocksStillTruncated(blocks) {
+    var roots = findBlockRoots();
+    if (!roots.length) return 0;
+    var bySig = blocks ? indexBlocksBySignature(blocks) : {};
+    var pending = 0;
+    roots.forEach(function (root, i) {
+      var pmText = readSourceFromPm(root) || "";
+      if (isTruncatedBlock(pmText)) {
+        pending++;
+        return;
+      }
+      if (!blocks || !blocks.length) return;
+      var serverText = bestServerBlockFor(pmText, i, blocks, bySig);
+      if (serverText && needsRepair(pmText, serverText)) pending++;
+    });
+    return pending;
+  }
+
+  function finalizeRepairAttempt(repaired, blocks, err) {
+    var still = countBlocksStillTruncated(blocks);
+    if (repaired > 0) {
+      console.log(
+        "[rs-html-block-compact] 已修复 " +
+          repaired +
+          " 个块" +
+          (still > 0 ? "，仍有 " + still + " 个待检查" : "")
+      );
+    }
+    if (still === 0) {
+      serverRepairDone = true;
+      if (repaired === 0 && repairAttemptCount === 1) {
+        console.log("[rs-html-block-compact] 所有 HTML 块长度正常");
+      }
+      return;
+    }
+    if (repairAttemptCount >= REPAIR_MAX_ATTEMPTS) {
+      serverRepairDone = true;
+      console.warn(
+        "[rs-html-block-compact] 已达最大修复次数 (" +
+          REPAIR_MAX_ATTEMPTS +
+          ")，仍有 " +
+          still +
+          " 个块可能截断；可点「从服务器恢复」或执行 RSHtmlBlockCompact.repairNow()"
+      );
+      if (err) console.warn("[rs-html-block-compact] 末次服务器读取:", err);
+      return;
+    }
+    serverRepairDone = false;
+    var delay = Math.min(600 + repairAttemptCount * 500, 6000);
+    console.log(
+      "[rs-html-block-compact] " +
+        still +
+        " 个块仍可能截断，" +
+        delay +
+        "ms 后重试 (" +
+        repairAttemptCount +
+        "/" +
+        REPAIR_MAX_ATTEMPTS +
+        ")…"
+    );
+    setTimeout(function () {
+      scheduleRepairWhenReady(true);
+    }, delay);
   }
 
   function repairBlockFromServer(root, serverText, cb) {
@@ -1296,11 +1379,11 @@
 
   function repairAllFromServer(cb) {
     if (cfg.autoRepairFromServer === false) {
-      if (cb) cb(0);
+      if (cb) cb(0, null, null);
       return;
     }
     if (!getPmView()) {
-      if (cb) cb(0);
+      if (cb) cb(0, null, "no-pm-view");
       return;
     }
     fetchServerHtmlBlocks(function (blocks, err) {
@@ -1308,7 +1391,7 @@
       assignBlockIndices(roots);
       if (!roots.length) {
         repairScheduled = false;
-        if (cb) cb(0);
+        if (cb) cb(0, blocks, err);
         return;
       }
       if (!blocks || !blocks.length) {
@@ -1328,7 +1411,7 @@
                   "[rs-html-block-compact] 已从备份片段修复 " + onlyRepaired + " 个 HTML 块"
                 );
               }
-              if (cb) cb(onlyRepaired);
+              if (cb) cb(onlyRepaired, serverBlocksCache, err);
             }
           });
         });
@@ -1365,26 +1448,26 @@
           trySnippetRepair(root, pmText, function (ok) {
             if (ok) repaired++;
             pending--;
-            if (pending === 0) finishRepair(repaired, cb);
+            if (pending === 0) finishRepair(repaired, cb, serverBlocksCache, err);
           });
           return;
         }
         repairBlockFromServer(root, serverText, function (ok) {
           if (ok) repaired++;
           pending--;
-          if (pending === 0) finishRepair(repaired, cb);
+          if (pending === 0) finishRepair(repaired, cb, serverBlocksCache, err);
         });
       });
     });
   }
 
-  function finishRepair(repaired, cb) {
+  function finishRepair(repaired, cb, blocks, err) {
     if (repaired > 0) {
       console.log("[rs-html-block-compact] 已自动修复 " + repaired + " 个截断 HTML 块");
-    } else {
+    } else if (repairAttemptCount >= REPAIR_MAX_ATTEMPTS) {
       console.log("[rs-html-block-compact] 未发现可修复的截断块（draft 与 PM 可能均已损坏）");
     }
-    if (cb) cb(repaired);
+    if (cb) cb(repaired, blocks, err);
   }
 
   function injectRepairButton(root) {
@@ -1775,17 +1858,17 @@
   console.log(
     "[rs-html-block-compact] v" +
       RS_HTML_BLOCK_VER +
-      " 已就绪：全屏编辑过渡动画 + 预览位置定位源码"
+      " 已就绪：自动修复重试 + 预览定位源码"
   );
 
   window.RSHtmlBlockCompact.repairNow = function () {
     serverBlocksCache = null;
     serverRepairDone = false;
     repairScheduled = false;
-    repairAllFromServer(function (n) {
-      if (findBlockRoots().length) serverRepairDone = true;
-      repairScheduled = false;
+    repairAttemptCount = 0;
+    repairAllFromServer(function (n, blocks, err) {
       if (n > 0) prepareAllBlocks();
+      finalizeRepairAttempt(n, blocks, err);
     });
   };
 

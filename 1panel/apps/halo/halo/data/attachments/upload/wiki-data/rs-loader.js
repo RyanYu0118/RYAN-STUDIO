@@ -29,7 +29,7 @@
                 }
             }
             var WIKI_VER = "3.1";
-            var HTML_VER = "3.4.2";
+            var HTML_VER = "3.4.3";
             var EDIT_SCROLL_VER = "1.3.0";
             var PUBLISH_VER = "1.3";
             var ARCHIVE_SCROLL_VER = "1.2.0";
@@ -52,7 +52,7 @@
             loadConsoleScript("/upload/wiki-data/rs-config.js?v=3", function () {
                 loadConsoleScript("/upload/wiki-data/rs-console-publish-redirect.js?v=1.3");
                 loadConsoleScript("/upload/wiki-data/rs-console-edit-scroll.js?v=1.3.0");
-                loadConsoleScript("/upload/wiki-data/rs-console-html-block-compact.js?v=3.4.2");
+                loadConsoleScript("/upload/wiki-data/rs-console-html-block-compact.js?v=3.4.3");
                 loadConsoleScript("/upload/wiki-data/rs-console-wikilink.js?v=" + WIKI_VER, afterWiki);
             });
         }
