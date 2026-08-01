@@ -1,5 +1,5 @@
 import { WIKI_SLUG_INDEX } from './wiki-config'
-import { defaultLabel, normalizeTarget, type WikiPage } from './wiki-utils'
+import { defaultLabel, isRedlinkSlugAlias, normalizeTarget, type WikiPage } from './wiki-utils'
 
 let pageIndex: WikiPage[] = []
 let suggestPaths: string[] = []
@@ -32,7 +32,9 @@ async function loadPosts(page = 1): Promise<void> {
     if (lt) {
       const n = normalizeTarget(lt)
       publishedSlugs[n] = pub
-      pageIndex.push({ slug: n, title, published: pub, label: lt })
+      if (!isRedlinkSlugAlias(slug, lt)) {
+        pageIndex.push({ slug: n, title, published: pub, label: lt })
+      }
     }
   })
   if (data.hasNext && page < 10) await loadPosts(page + 1)

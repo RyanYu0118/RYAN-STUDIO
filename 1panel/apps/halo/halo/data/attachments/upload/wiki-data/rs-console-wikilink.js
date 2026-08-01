@@ -61,6 +61,20 @@
     return path.replace(/^\/+|\/+$/g, "");
   }
 
+  function isRedlinkSlugAlias(postSlug, linkTarget) {
+    var slug = normalizeTarget(postSlug);
+    var target = normalizeTarget(linkTarget);
+    if (!target || target === slug) return true;
+    var prefixes = ["rs_", "mcwws_"];
+    for (var i = 0; i < prefixes.length; i++) {
+      var prefix = prefixes[i];
+      if (slug === prefix + target) return true;
+      var underscored = target.replace(/\//g, "_").toLowerCase();
+      if (slug === prefix + underscored) return true;
+    }
+    return false;
+  }
+
   function defaultLabel(target) {
     var parts = normalizeTarget(target).split("/");
     var last = parts[parts.length - 1] || target;
@@ -1226,7 +1240,9 @@
             var lt = post.metadata && post.metadata.annotations && post.metadata.annotations["rs.wiki/redlink-target-slug"];
             if (lt) {
               publishedSlugs[normalizeTarget(lt)] = pub;
-              pageIndex.push({ slug: normalizeTarget(lt), title: title, published: pub, label: lt });
+              if (!isRedlinkSlugAlias(slug, lt)) {
+                pageIndex.push({ slug: normalizeTarget(lt), title: title, published: pub, label: lt });
+              }
             }
           });
           if (data.hasNext && page < 10) return loadPosts(page + 1);

@@ -24,6 +24,21 @@ export function normalizeTarget(raw: string): string {
   return path.replace(/^\/+|\/+$/g, '')
 }
 
+const REDLINK_SLUG_PREFIXES = ['rs_', 'mcwws_'] as const
+
+/** 红链注解目标与 spec.slug 是否同一篇文章（仅用于搜索列表去重） */
+export function isRedlinkSlugAlias(postSlug: string, linkTarget: string): boolean {
+  const slug = normalizeTarget(postSlug)
+  const target = normalizeTarget(linkTarget)
+  if (!target || target === slug) return true
+  for (const prefix of REDLINK_SLUG_PREFIXES) {
+    if (slug === prefix + target) return true
+    const underscored = target.replace(/\//g, '_').toLowerCase()
+    if (slug === prefix + underscored) return true
+  }
+  return false
+}
+
 export function defaultLabel(target: string): string {
   const parts = normalizeTarget(target).split('/')
   const last = parts[parts.length - 1] || target
