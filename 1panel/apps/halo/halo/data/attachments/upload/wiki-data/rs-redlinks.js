@@ -8,7 +8,7 @@
   var SLUG_INDEX = cfg.slugIndex || "/upload/wiki-data/wiki-slugs.json";
   var PATH_PREFIX = cfg.pathPrefix || "/archives/";
   var WIKI_CATEGORY = cfg.defaultCategory || "category-f8bm8yzr";
-  var MINIGAME_CATEGORY = cfg.minecraftCategory || "category-1g9f80go";
+  var DEFAULT_TAGS = cfg.defaultTags || ["tag-sqmsuywx"];
   var POST_OWNER = cfg.postOwner || "ryanyu";
   var SLUG_PREFIX = cfg.slugPrefix != null ? cfg.slugPrefix : "";
 
@@ -206,36 +206,17 @@
     return spec.publish === true && status.phase === "PUBLISHED";
   }
 
-  /** 链接目标 → spec.slug（英文路径转下划线，中文标题保留） */
-  function slugFromRedlink(linkSlug, title) {
-    function cleanSegment(raw) {
-      return String(raw || "")
-        .replace(/\\/g, "/")
-        .replace(/^\/+|\/+$/g, "")
-        .replace(/\//g, "_")
-        .replace(/[\s\u00a0·•，,。！？!?：:；;\/\\|（）()\[\]【】《》「」『』"'""''\-]+/g, "_")
-        .replace(/_+/g, "_")
-        .replace(/^_|_$/g, "");
-    }
-    var base = cleanSegment(linkSlug);
-    if (base && base !== "index") {
-      if (/^[\x00-\x7f_]+$/.test(base)) base = base.toLowerCase();
-      var out = SLUG_PREFIX + base;
-      if (out.length > 180) out = out.slice(0, 180).replace(/_+$/, "");
-      return out;
-    }
-    var fromTitle = cleanSegment(title);
-    if (fromTitle && fromTitle !== "index") {
-      if (/^[\x00-\x7f_]+$/.test(fromTitle)) fromTitle = fromTitle.toLowerCase();
-      var out2 = SLUG_PREFIX + fromTitle;
-      if (out2.length > 180) out2 = out2.slice(0, 180).replace(/_+$/, "");
-      return out2;
-    }
-    return SLUG_PREFIX + "untitled";
+  /** 标题 → spec.slug（trim；路径斜杠 → 下划线；其余与标题一致） */
+  function slugFromTitleExact(title) {
+    var s = String(title || "").trim();
+    if (!s || s.toLowerCase() === "index") return SLUG_PREFIX + "untitled";
+    s = s.replace(/\\/g, "/").replace(/^\/+|\/+$/g, "").replace(/\//g, "_");
+    if (s.length > 180) s = s.slice(0, 180);
+    return SLUG_PREFIX + s;
   }
 
   function slugFromTitle(title) {
-    return slugFromRedlink("", title);
+    return slugFromTitleExact(title);
   }
 
   function ensureUniquePublishSlug(candidate, postName, attempt) {
@@ -250,11 +231,11 @@
     });
   }
 
-  /** 红链新建 slug：默认与链接目标一致；slugFromPostName 时用 UUID */
+  /** 红链新建 slug：默认与标题一致；slugFromPostName 时用 UUID */
   function resolvePublishSlug(linkSlug, postName, title) {
     if (cfg.slugFromTitle !== false) {
       return {
-        publishSlug: slugFromRedlink(linkSlug, title),
+        publishSlug: slugFromTitleExact(title || linkSlug),
         linkTarget: linkSlug || "",
         usedPostId: false,
         fromTitle: true,
@@ -367,9 +348,7 @@
         cover = spec.cover;
       }
     } else {
-      if (location.pathname.indexOf("player/") >= 0 || location.pathname.indexOf("wwswiki") >= 0) {
-        categories.push(MINIGAME_CATEGORY);
-      }
+      tags = DEFAULT_TAGS.slice();
     }
     return { categories: categories, tags: tags, cover: cover };
   }

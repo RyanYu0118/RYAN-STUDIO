@@ -33,11 +33,12 @@ window.RSConfig = {
         editorTopPadding: 12
     },
 
-    // 📖 Wiki 页（rs-loader 根据 urlIncludes 加载 rs-wiki.js）
+    // 📖 Wiki 侧边栏（rs-loader：文章含 sidebarTags 任一标签时加载 rs-wiki.js）
     wiki: {
         // 顶栏全屏背景视频（/upload/1000b.mp4）；false = 用文章/主题自带封面图
         enableBannerVideo: false,
-        urlIncludes: ["wwswiki", "mcwws"]
+        /** Halo 标签 metadata.name；displayName = Minecraft服务器 */
+        sidebarTags: ["tag-sqmsuywx"]
     },
 
     // 🔴 MediaWiki 风格红链（见 rs-redlinks.js）
@@ -50,12 +51,14 @@ window.RSConfig = {
         /** true = 普通点击也不弹确认；Shift+点击 始终跳过确认 */
         skipConfirm: false,
         publishFirst: true,
-        /** 红链新建 spec.slug = 链接目标（player/rules → player_rules；提出 → 提出） */
+        /** 红链新建 spec.slug = 文章标题（trim；/ → _） */
         slugPrefix: "",
         slugFromTitle: true,
         slugFromPostName: false,
         defaultCategory: "category-f8bm8yzr",
         minecraftCategory: "category-1g9f80go",
+        /** 无来源页可继承时，红链新建默认标签（Minecraft服务器） */
+        defaultTags: ["tag-sqmsuywx"],
         postOwner: "ryanyu"
     },
 

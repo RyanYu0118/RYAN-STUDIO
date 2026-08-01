@@ -352,11 +352,51 @@
         setTimeout(() => btn.classList.add('show'), 100);
     }
 
+    function archiveSlugFromPath() {
+        var prefix = "/archives/";
+        if (location.pathname.indexOf(prefix) !== 0) return "";
+        var slug = decodeURIComponent(
+            location.pathname.slice(prefix.length).replace(/\/$/, "")
+        );
+        return slug && slug.indexOf("..") < 0 ? slug : "";
+    }
+
+    function postHasWikiSidebarTag(post) {
+        var wikiCfg = (window.RSConfig && window.RSConfig.wiki) || {};
+        var want = wikiCfg.sidebarTags || [];
+        if (!want.length || !post || !post.spec) return false;
+        var have = post.spec.tags || [];
+        return want.some(function (id) {
+            return id && have.indexOf(id) >= 0;
+        });
+    }
+
+    function tryLoadWikiSidebarByTag() {
+        var slug = archiveSlugFromPath();
+        if (!slug) return;
+        fetch(
+            "/apis/api.content.halo.run/v1alpha1/posts?fieldSelector=" +
+                encodeURIComponent("spec.slug=" + slug) +
+                "&size=1",
+            { credentials: "same-origin" }
+        )
+            .then(function (r) {
+                return r.json();
+            })
+            .then(function (data) {
+                var post = (data.items && data.items[0]) || null;
+                if (!postHasWikiSidebarTag(post)) return;
+                document.body.classList.add("my-wiki-page");
+                loadScript(SCRIPTS.wiki);
+            })
+            .catch(function () {
+                /* ignore */
+            });
+    }
+
     loadScript(SCRIPTS.config, function() {
         var path = location.pathname;
         var isHomePage = path === '/' || path === '/index.html' || /^\/page\/\d+/.test(path);
-        var wikiPatterns = (window.RSConfig.wiki && window.RSConfig.wiki.urlIncludes) || ['wwswiki'];
-        var isWikiPage = wikiPatterns.some(function (p) { return p && path.indexOf(p) > -1; });
 
         // 全站：统一目录 / 锚点跳转偏移（必须在 config 之后）
         loadScript(SCRIPTS.anchor);
@@ -371,6 +411,7 @@
                 initQuickEdit();
             });
             loadScript("/upload/wiki-data/rs-archive-scroll.js?v=1.3.0");
+            tryLoadWikiSidebarByTag();
         } else {
             initQuickEdit();
         }
@@ -378,10 +419,6 @@
         if (isHomePage) {
             document.body.classList.add('layout-home-minimal'); 
             loadScript(SCRIPTS.home);
-        } 
-        else if (isWikiPage) {
-            document.body.classList.add('my-wiki-page'); 
-            loadScript(SCRIPTS.wiki);
         }
     });
 })();
