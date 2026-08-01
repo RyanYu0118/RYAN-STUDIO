@@ -61,7 +61,7 @@ window.RSConfig = {
 
     // ✏️ 后台编辑器 Wiki 内链（见 rs-console-wikilink.js）
     wikilink: {
-        enabled: true,
+        enabled: false,
         slugIndex: "/upload/wiki-data/wiki-slugs.json",
         pathPrefix: "/archives/",
         // 悬浮 UI：false = 仅用 Ctrl+K / 工具栏链环
@@ -69,9 +69,9 @@ window.RSConfig = {
         showSelectionBubble: false
     },
 
-    // 📦 hybrid-edit-block：HTML 编辑块全屏编辑（见 rs-console-html-block-compact.js）
+    // 📦 hybrid-edit-block：HTML 编辑块（见 RS_WikiLink 插件 v1.1+；注入版可关闭）
     htmlBlockCompact: {
-        enabled: true,
+        enabled: false,
         labelRe: null,
         types: ["html_edited"],
         // 后台预览注入与前台相同的字体/工具类（fronts.css）

@@ -6,7 +6,7 @@ metadata:
   name: RS_WikiLink
 spec:
   enabled: true
-  version: 1.0.3
+  version: 1.1.0
   requires: ">=2.25.0"
   author:
     name: Ryan Studio
@@ -15,8 +15,8 @@ spec:
   homepage: https://github.com/RyanYu0118/RYAN-STUDIO
   repo: https://github.com/RyanYu0118/RYAN-STUDIO
   issues: https://github.com/RyanYu0118/RYAN-STUDIO/issues
-  displayName: "RS Wiki 链接"
-  description: "后台编辑器：选中文字 → 气泡栏 Wiki 链接（slug 搜索、红链）· 与 Halo 原生链环并存"
+  displayName: "RS 编辑器增强"
+  description: "Wiki 内链（气泡栏 slug/红链）+ HTML 编辑块紧凑预览/全屏编辑/截断自动修复"
   license:
     - name: "GPL-3.0"
       url: "https://github.com/RyanYu0118/RYAN-STUDIO/blob/main/tools/halo-plugin-wikilink/LICENSE"

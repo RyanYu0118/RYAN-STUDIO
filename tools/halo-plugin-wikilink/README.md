@@ -1,8 +1,11 @@
-# RS Wiki 链接 — Halo 2 编辑器插件
+# RS 编辑器增强 — Halo 2 编辑器插件
 
-在 Halo **默认富文本编辑器**中提供 MediaWiki 风格的 Wiki 内链：选中文字 → 气泡栏 **Wiki 链接**（书本图标）→ 搜索 slug / 红链 → 写入 `/archives/{slug}`。
+在 Halo **默认富文本编辑器**中提供：
 
-与 Halo **原生链环**（普通链接 / 取消 / 打开）**并存**，不再依赖 `rs-console-wikilink.js` 的 DOM 注入。
+- **Wiki 内链**：选中文字 → 气泡栏书本图标 → slug 搜索 / 红链
+- **HTML 编辑块**：iframe 紧凑预览、全屏编辑、从服务器/片段自动修复截断（v4.0 插件模式）
+
+与 Halo **原生链环**并存；不再依赖 `rs-console-wikilink.js` / `rs-console-html-block-compact.js` 注入。
 
 ## 功能
 
@@ -25,7 +28,7 @@ cd tools/halo-plugin-wikilink
 .\build.ps1
 ```
 
-产物：`build/libs/plugin-RS_WikiLink-<version>.jar`（当前 1.0.3）
+产物：`build/libs/plugin-RS_WikiLink-<version>.jar`（当前 1.1.0）
 
 或手动：
 
@@ -44,13 +47,14 @@ cd tools/halo-plugin-wikilink
 
 ## 启用插件后
 
-建议在 `rs-config.js` 关闭注入版 Wiki 链接，避免重复：
+在 `rs-config.js` 关闭注入版（避免与插件重复）：
 
 ```javascript
 wikilink: { enabled: false }
+htmlBlockCompact: { enabled: false }
 ```
 
-并可在 `rs-loader.js` 中注释掉 `rs-console-wikilink.js` 的加载。
+并可在 `rs-loader.js` 中注释掉 `rs-console-wikilink.js` / `rs-console-html-block-compact.js`。
 
 **仍保留**（与插件配合）：
 

@@ -1,45 +1,35 @@
-# RS_WikiLink v1.0.3
+# RS_WikiLink v1.1.0 — RS 编辑器增强
 
-Halo 2 编辑器 **Wiki 内链**插件：选中文字 → 气泡栏书本图标 → slug 搜索 / 红链 → 写入 `/archives/{slug}`。
+## 新功能
 
-## 要求
-
-- Halo **>= 2.25.0**
+- **HTML 编辑块**（插件模式 v4.0）：iframe 紧凑预览、全屏编辑、截断自动修复（最多 15 次重试）
+- 通过 TipTap Extension 直接绑定 `editor.view`，不再依赖 jar patch 加载注入脚本
+- Wiki 内链（v1.0.x 功能保留）
 
 ## 安装
 
-1. 下载下方 **`plugin-RS_WikiLink-1.0.3.jar`**
-2. Halo 控制台 → **插件** → **安装** → 上传 JAR
-3. **启用**插件，硬刷新文章编辑页 `/console/posts/editor`
+1. 下载 **`plugin-RS_WikiLink-1.1.0.jar`**
+2. Halo 控制台 → 插件 → 安装/升级 → 启用
+3. 硬刷新 `/console/posts/editor`
 
-> 若曾安装旧版 `mcwws-wikilink`，请先卸载再安装 `RS_WikiLink`。
+## 启用插件后
 
-## 使用
-
-| 操作 | 说明 |
-|------|------|
-| 选中文字 | 气泡栏出现 **Wiki 链接**（书本图标，紧邻原生链环） |
-| 点击条目 | 直接插入链接并关闭面板 |
-| **Ctrl+Shift+K** | 打开 Wiki 面板（不与 Halo 全局 Ctrl+K 冲突） |
-| 外部 URL | 输入 `https://…` 可插入普通外链 |
-
-## 与 Wiki 站点配合
-
-启用插件后建议在 `rs-config.js` 关闭注入版：
+在 `rs-config.js` 关闭注入版：
 
 ```javascript
 wikilink: { enabled: false }
+htmlBlockCompact: { enabled: false }
 ```
 
-前台红链、slug 索引（`wiki-slugs.json`）等仍由现有 RS 脚本提供。
+## 调试
 
-## 本版本变更
+控制台应出现：
 
-- **1.0.3** — 更新插件图标
-- **1.0.2** — 插件 ID 重命名为 `RS_WikiLink`
-- **1.0.1** — 点击条目即确认、副标题字号、气泡按钮图标修复
-- **1.0.0** — 初始发布（替代 `rs-console-wikilink.js` 注入方案）
+- `[rs-html-block-compact] v4.0.0 插件模式 已就绪`
+- Wiki 链接书本图标
 
-## 源码
+手动修复截断：
 
-仓库路径：`tools/halo-plugin-wikilink/`
+```javascript
+RSHtmlBlockCompact.repairNow()
+```
