@@ -1,7 +1,8 @@
 import type { Editor } from '@halo-dev/richtext-editor'
-import { hrefAtEditorSelection, labelAtEditorSelection } from '@/lib/wiki-link-commands'
+import { hrefAtEditorSelection } from '@/lib/wiki-link-commands'
 import { openWikiArchiveLinkFromEditor } from '@/lib/wiki-redlink-open'
-import { isWikiArchiveHref } from '@/lib/wiki-utils'
+import { findPageByQuery, isWikiArchiveHref, normalizeTarget } from '@/lib/wiki-utils'
+import { getWikiIndexState } from '@/lib/wiki-index'
 
 const OPEN_LINK_LABEL = /^(打开链接|open link)$/i
 /** Halo 文本气泡「打开链接」图标 mingcute-share-3-line */
@@ -12,7 +13,11 @@ let cachedHref = ''
 let cachedLabel = ''
 let cachedAt = 0
 
-type ListenerPair = { mousedown: (e: MouseEvent) => void; click: (e: MouseEvent) => void }
+type ListenerPair = {
+  mousedown: (e: MouseEvent) => void
+  click: (e: MouseEvent) => void
+  editorLinkClick: (e: MouseEvent) => void
+}
 let docListeners: ListenerPair | null = null
 
 export function setWikiLinkEditor(editor: Editor | null) {
@@ -94,10 +99,50 @@ function resolveWikiHref(ed: Editor): string {
 }
 
 function resolveWikiLabel(ed: Editor, href: string): string {
-  const fromSel = labelAtEditorSelection(ed, '')
-  if (fromSel) return fromSel
+  const { from, to } = ed.state.selection
+  if (to > from) {
+    const text = ed.state.doc.textBetween(from, to, ' ').replace(/\s+/g, ' ').trim()
+    if (text) return text
+  }
   if (cachedHref === href && cachedLabel) return cachedLabel
   return href
+}
+
+function isUnpublishedWikiArchiveHref(href: string): boolean {
+  const target = normalizeTarget(href)
+  if (!target) return false
+  const { pageIndex, publishedSlugs } = getWikiIndexState()
+  const hit = findPageByQuery(target, pageIndex, publishedSlugs)
+  return !(hit?.published || publishedSlugs[target])
+}
+
+/** 编辑器正文内：红链左键 / 已发布链 Ctrl+左键 → 拦截 Halo 原生 window.open */
+function shouldInterceptEditorWikiLinkClick(anchor: HTMLAnchorElement, href: string, e: MouseEvent): boolean {
+  if (anchor.classList.contains('rs-wiki-redlink')) return true
+  if (isUnpublishedWikiArchiveHref(href)) return true
+  return e.ctrlKey || e.metaKey
+}
+
+function handleEditorWikiLinkClick(e: MouseEvent) {
+  if (!isEditorPage() || e.button !== 0) return
+  if (!(e.target instanceof Element)) return
+
+  const anchor = e.target.closest('.ProseMirror a[href]')
+  if (!anchor || !(anchor instanceof HTMLAnchorElement)) return
+
+  const href = (anchor.getAttribute('href') || '').trim()
+  if (!isWikiArchiveHref(href)) return
+  if (!shouldInterceptEditorWikiLinkClick(anchor, href, e)) return
+
+  const ed = activeEditor
+  if (!ed) return
+
+  e.preventDefault()
+  e.stopPropagation()
+  e.stopImmediatePropagation()
+
+  const label = (anchor.textContent || '').replace(/\s+/g, ' ').trim()
+  void openWikiArchiveLinkFromEditor(ed, { href, label, newTab: true })
 }
 
 /** Halo 文本气泡栏 / 链接面板里的原生「打开链接」按钮（v-tooltip 常不写 title） */
@@ -148,10 +193,12 @@ function ensureDocumentListeners() {
 
   const mousedown = (e: MouseEvent) => handleOpenLinkMousedown(e)
   const click = (e: MouseEvent) => handleOpenLinkClick(e)
+  const editorLinkClick = (e: MouseEvent) => handleEditorWikiLinkClick(e)
 
   document.addEventListener('mousedown', mousedown, true)
   document.addEventListener('click', click, true)
-  docListeners = { mousedown, click }
+  document.addEventListener('click', editorLinkClick, true)
+  docListeners = { mousedown, click, editorLinkClick }
 }
 
 export function bindNativeOpenLinkBridge(editor: Editor) {
@@ -164,6 +211,7 @@ export function unbindNativeOpenLinkBridge() {
   if (docListeners) {
     document.removeEventListener('mousedown', docListeners.mousedown, true)
     document.removeEventListener('click', docListeners.click, true)
+    document.removeEventListener('click', docListeners.editorLinkClick, true)
     docListeners = null
   }
   activeEditor = null

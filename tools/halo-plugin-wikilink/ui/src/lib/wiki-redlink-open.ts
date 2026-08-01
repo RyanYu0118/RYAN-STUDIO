@@ -325,14 +325,14 @@ export async function openWikiArchiveLinkFromEditor(
 
   editor.commands.extendMarkRange(ExtensionLink.name)
 
-  await reloadWikiIndex()
-
   const info =
     getActiveWikiLinkInfo(editor) ||
     getWikiLinkInfoFromHref(editor, href)
   if (options?.label) info.label = options.label
 
   const newTab = options?.newTab !== false
+
+  await reloadWikiIndex()
 
   const status = await checkLinkTarget(info.target)
   if (status.ready && status.postSlug) {
