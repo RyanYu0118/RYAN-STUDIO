@@ -202,10 +202,76 @@ async function repairPostOnce(name: string, headers: Record<string, string>) {
 }
 
 async function waitUntilPublished(slug: string, attempt = 0): Promise<boolean> {
-  if (attempt > 20) return false
+  if (attempt > 40) return false
   if (await slugPublishedViaApi(slug)) return true
   await wait(250)
   return waitUntilPublished(slug, attempt + 1)
+}
+
+function buildArchiveUrl(slug: string): string {
+  return WIKI_PATH_PREFIX + encodeURIComponent(slug).replace(/%2F/g, '/')
+}
+
+/** 前台路由可能比 API「已发布」晚几秒，用实际页面响应确认可访问 */
+async function archivePageReachable(slug: string): Promise<boolean> {
+  const url = buildArchiveUrl(slug)
+  try {
+    let res = await fetch(url, { credentials: 'same-origin', method: 'HEAD', cache: 'no-store' })
+    if (res.ok) return true
+    if (res.status === 404 || res.status === 405 || res.status === 501) {
+      res = await fetch(url, { credentials: 'same-origin', method: 'GET', cache: 'no-store' })
+      return res.ok
+    }
+    return false
+  } catch {
+    return false
+  }
+}
+
+async function waitUntilArchivePageReady(slug: string, attempt = 0): Promise<boolean> {
+  if (attempt > 48) return false
+  if (await archivePageReachable(slug)) return true
+  await wait(250)
+  return waitUntilArchivePageReady(slug, attempt + 1)
+}
+
+function openPendingArchiveTab(label: string): Window | null {
+  const tab = window.open('about:blank', '_blank')
+  if (!tab) return null
+  try {
+    tab.document.title = label
+    tab.document.body.innerHTML =
+      `<p style="font-family:system-ui,sans-serif;padding:2rem;color:#374151">${label}</p>`
+  } catch {
+    /* ignore */
+  }
+  return tab
+}
+
+async function navigateArchiveWhenReady(
+  slug: string,
+  newTab: boolean,
+  existingTab?: Window | null
+) {
+  const url = buildArchiveUrl(slug)
+  const ready = await waitUntilArchivePageReady(slug)
+  if (!ready) {
+    console.warn('[RS_WikiLink] archive page not confirmed ready before open:', slug)
+  }
+  if (newTab) {
+    const tab = existingTab ?? window.open('about:blank', '_blank')
+    if (!tab) {
+      alert('请允许弹出窗口，或按住 Ctrl 再试')
+      return
+    }
+    tab.location.href = url
+  } else {
+    window.location.href = url
+  }
+}
+
+function openArchive(slug: string, newTab: boolean) {
+  void navigateArchiveWhenReady(slug, newTab)
 }
 
 async function createAndPublishRedlink(
@@ -309,12 +375,6 @@ async function createAndPublishRedlink(
   return { ok: true, slug: resolved.publishSlug, linkTarget: resolved.linkTarget }
 }
 
-function openArchive(slug: string, newTab: boolean) {
-  const url = WIKI_PATH_PREFIX + encodeURIComponent(slug).replace(/%2F/g, '/')
-  if (newTab) window.open(url, '_blank')
-  else window.location.href = url
-}
-
 /** 编辑器/后台：已发布或红链均直接创建发布；默认新标签打开（Ctrl+点击同） */
 let openingKey = ''
 let openingAt = 0
@@ -361,6 +421,7 @@ export async function openWikiArchiveLinkFromEditor(
     }
 
     const sourcePost = await fetchCurrentEditorPost()
+    const pendingTab = newTab ? openPendingArchiveTab('正在发布文章…') : null
     const result = await createAndPublishRedlink(
       info.target,
       info.label || info.target,
@@ -368,6 +429,7 @@ export async function openWikiArchiveLinkFromEditor(
     )
 
     if (!result.ok) {
+      pendingTab?.close()
       alert('发布失败：' + (result.error || '未知错误'))
       return true
     }
@@ -375,8 +437,8 @@ export async function openWikiArchiveLinkFromEditor(
     await reloadWikiIndex()
     const finalSlug = result.slug || info.target
     applyWikiLink(editor, finalSlug, info.label, anchor)
-    await refreshWikiLinkClassesFromApi(editor)
-    openArchive(finalSlug, newTab)
+    void refreshWikiLinkClassesFromApi(editor)
+    await navigateArchiveWhenReady(finalSlug, newTab, pendingTab)
     return true
   } finally {
     if (openingKey === dedupeKey) openingKey = ''
