@@ -2,7 +2,7 @@
 import { collectDragMenuItems } from '@/editor/block-drag-menu-items'
 import { EditorDragMenu, type Editor } from '@halo-dev/richtext-editor'
 import type { Node as PmNode } from '@tiptap/pm/model'
-import { TextSelection } from '@tiptap/pm/state'
+import { NodeSelection, TextSelection } from '@tiptap/pm/state'
 import { computed, onMounted, onUnmounted, ref, shallowRef } from 'vue'
 
 const visible = ref(false)
@@ -19,9 +19,13 @@ function unlockDragHandle() {
   if (!ed) return
   const { tr, selection } = ed.state
   tr.setMeta('lockDragHandle', false)
-  if (!selection.empty) {
-    const $to = tr.doc.resolve(selection.to)
-    tr.setSelection(TextSelection.near($to))
+  const size = tr.doc.content.size
+  if (selection instanceof NodeSelection) {
+    const inner = Math.min(selection.from + 1, Math.max(0, size - 1))
+    tr.setSelection(TextSelection.near(tr.doc.resolve(inner), -1))
+  } else if (!selection.empty) {
+    const anchor = Math.min(selection.to, Math.max(0, size - 1))
+    tr.setSelection(TextSelection.near(tr.doc.resolve(anchor), -1))
   }
   ed.view.dispatch(tr)
 }

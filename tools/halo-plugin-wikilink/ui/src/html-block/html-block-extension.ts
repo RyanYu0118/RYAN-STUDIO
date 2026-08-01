@@ -1,4 +1,5 @@
 import { bootHtmlBlockCompact, scheduleRepairDebounced, teardownHtmlBlockCompact } from '@/html-block/init'
+import { teardownBlockContextMenu } from '@/editor/block-context-menu-bridge'
 import { Extension } from '@halo-dev/richtext-editor'
 
 const HtmlBlockCompactExtension = Extension.create({
@@ -14,6 +15,7 @@ const HtmlBlockCompactExtension = Extension.create({
 
   onDestroy() {
     teardownHtmlBlockCompact()
+    teardownBlockContextMenu()
   },
 })
 

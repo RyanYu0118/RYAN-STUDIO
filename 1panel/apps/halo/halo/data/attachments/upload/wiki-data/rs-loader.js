@@ -38,10 +38,30 @@
             var htmlVer = window.RSHtmlBlockCompact && window.RSHtmlBlockCompact.__ver;
             var editScrollVer = window.RSEditScroll && window.RSEditScroll.__ver;
             var publishVer = window.RSPublishRedirect && window.RSPublishRedirect.__ver;
+            function wikiLinkSatisfied() {
+                if (
+                    window.RSConfig &&
+                    window.RSConfig.wikilink &&
+                    window.RSConfig.wikilink.enabled === false
+                ) {
+                    return true;
+                }
+                return wikiVer === WIKI_VER;
+            }
+            function htmlBlockSatisfied() {
+                if (
+                    window.RSConfig &&
+                    window.RSConfig.htmlBlockCompact &&
+                    window.RSConfig.htmlBlockCompact.enabled === false
+                ) {
+                    return true;
+                }
+                return htmlVer === HTML_VER;
+            }
             if (
                 scriptsLoaded &&
-                wikiVer === WIKI_VER &&
-                htmlVer === HTML_VER &&
+                wikiLinkSatisfied() &&
+                htmlBlockSatisfied() &&
                 editScrollVer === EDIT_SCROLL_VER &&
                 publishVer === PUBLISH_VER
             ) {
@@ -55,20 +75,35 @@
                     window.RSConfig.wikilink &&
                     window.RSConfig.wikilink.enabled === false
                 );
+                var htmlEnabled = !(
+                    window.RSConfig &&
+                    window.RSConfig.htmlBlockCompact &&
+                    window.RSConfig.htmlBlockCompact.enabled === false
+                );
                 loadConsoleScript("/upload/wiki-data/rs-console-edit-scroll.js?v=1.4.0");
                 loadConsoleScript("/upload/wiki-data/rs-console-publish-redirect.js?v=1.4");
-                loadConsoleScript("/upload/wiki-data/rs-console-html-block-compact.js?v=3.4.3");
-                function afterOptionalWiki() {
-                    afterWiki();
+                function afterOptionalHtml() {
+                    function afterOptionalWiki() {
+                        afterWiki();
+                    }
+                    if (wikiEnabled) {
+                        loadConsoleScript(
+                            "/upload/wiki-data/rs-console-wikilink.js?v=" + WIKI_VER,
+                            afterOptionalWiki
+                        );
+                    } else {
+                        console.log("[rs-loader] wikilink 注入已关闭（使用 RS_WikiLink 插件）");
+                        afterOptionalWiki();
+                    }
                 }
-                if (wikiEnabled) {
+                if (htmlEnabled) {
                     loadConsoleScript(
-                        "/upload/wiki-data/rs-console-wikilink.js?v=" + WIKI_VER,
-                        afterOptionalWiki
+                        "/upload/wiki-data/rs-console-html-block-compact.js?v=" + HTML_VER,
+                        afterOptionalHtml
                     );
                 } else {
-                    console.log("[rs-loader] wikilink 注入已关闭（使用 RS_WikiLink 插件）");
-                    afterOptionalWiki();
+                    console.log("[rs-loader] html-block-compact 注入已关闭（使用 RS_WikiLink 插件）");
+                    afterOptionalHtml();
                 }
             });
         }

@@ -1,4 +1,5 @@
 import type { Editor } from '@tiptap/core'
+import { initBlockContextMenu } from '@/editor/block-context-menu-bridge'
 
 import './plugin-mode'
 import './compact.runtime.js'
@@ -59,6 +60,7 @@ export function bootHtmlBlockCompact(editor: Editor) {
   window.__rsHtmlBlockPluginMode = true
   window.__rsHtmlBlockEditor = editor
   ensureConfig()
+  initBlockContextMenu(editor)
 
   if (window.RSConfig?.htmlBlockCompact?.enabled === false && !window.__rsHtmlBlockPluginMode) return
 
