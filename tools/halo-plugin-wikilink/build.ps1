@@ -8,7 +8,7 @@ Write-Host "==> Gradle build (skip tests)..." -ForegroundColor Cyan
 & "$Root\gradlew.bat" build -x test
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
-$jar = Get-ChildItem -Path "$Root\build\libs" -Filter "plugin-RS_WikiLink-*.jar" |
+$jar = Get-ChildItem -Path "$Root\build\libs" -Filter "RS_WikiLink-*.jar" |
   Where-Object { $_.Name -notmatch 'plain' } |
   Sort-Object LastWriteTime -Descending |
   Select-Object -First 1

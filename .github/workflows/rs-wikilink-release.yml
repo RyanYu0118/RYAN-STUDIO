@@ -40,7 +40,7 @@ jobs:
           tag_name: ${{ github.ref_name }}
           name: RS_WikiLink ${{ github.ref_name }}
           body_path: tools/halo-plugin-wikilink/RELEASE.md
-          files: tools/halo-plugin-wikilink/build/libs/plugin-RS_WikiLink-*.jar
+          files: tools/halo-plugin-wikilink/build/libs/RS_WikiLink-*.jar
           draft: false
           prerelease: false
         env:

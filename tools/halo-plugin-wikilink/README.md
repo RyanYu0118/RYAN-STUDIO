@@ -28,7 +28,7 @@ cd tools/halo-plugin-wikilink
 .\build.ps1
 ```
 
-产物：`build/libs/plugin-RS_WikiLink-<version>.jar`（当前 1.1.0）
+产物：`build/libs/RS_WikiLink-<version>.jar`（当前 1.1.0）
 
 或手动：
 
@@ -41,7 +41,7 @@ cd tools/halo-plugin-wikilink
 > 若曾安装旧版 `mcwws-wikilink`，请先卸载再安装 `RS_WikiLink`（插件 ID 已变更）。
 
 1. Halo 控制台 → **插件** → **安装**
-2. 上传 `build/libs/plugin-RS_WikiLink-*.jar`
+2. 上传 `build/libs/RS_WikiLink-*.jar`
 3. **启用**插件
 4. 硬刷新文章编辑页 `/console/posts/editor`
 

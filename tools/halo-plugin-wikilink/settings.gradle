@@ -4,5 +4,5 @@ pluginManagement {
     }
 }
 
-rootProject.name = 'plugin-RS_WikiLink'
+rootProject.name = 'RS_WikiLink'
 include 'ui'

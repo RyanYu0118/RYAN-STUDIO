@@ -8,7 +8,7 @@
 
 ## 安装
 
-1. 下载 **`plugin-RS_WikiLink-1.1.0.jar`**
+1. 下载 **`RS_WikiLink-1.1.0.jar`**
 2. Halo 控制台 → 插件 → 安装/升级 → 启用
 3. 硬刷新 `/console/posts/editor`
 
