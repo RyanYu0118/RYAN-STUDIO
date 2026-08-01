@@ -10,8 +10,8 @@ import {
   getActiveWikiLinkInfo,
   getWikiLinkInfoFromHref,
   hrefAtEditorSelection,
-  refreshWikiLinkClasses,
 } from '@/lib/wiki-link-commands'
+import { refreshWikiLinkClassesFromApi } from '@/lib/wiki-link-class-sync'
 
 const REDLINK_TARGET_ANN = 'rs.wiki/redlink-target-slug'
 
@@ -349,14 +349,13 @@ export async function openWikiArchiveLinkFromEditor(
 
   try {
     await reloadWikiIndex()
-    refreshWikiLinkClasses(editor)
+    await refreshWikiLinkClassesFromApi(editor)
 
     const status = await checkLinkTarget(info.target)
     if (status.ready && status.postSlug) {
       openArchive(status.postSlug, newTab)
       if (info.isRed) {
         applyWikiLink(editor, status.postSlug, info.label, anchor)
-        refreshWikiLinkClasses(editor)
       }
       return true
     }
@@ -374,10 +373,9 @@ export async function openWikiArchiveLinkFromEditor(
     }
 
     await reloadWikiIndex()
-    refreshWikiLinkClasses(editor)
     const finalSlug = result.slug || info.target
     applyWikiLink(editor, finalSlug, info.label, anchor)
-    refreshWikiLinkClasses(editor)
+    await refreshWikiLinkClassesFromApi(editor)
     openArchive(finalSlug, newTab)
     return true
   } finally {

@@ -197,8 +197,9 @@ export function refreshWikiLinkClasses(editor: Editor): void {
       if (!path.startsWith('/archives/') && !path.includes('/archives/')) continue
 
       const target = normalizeTarget(href)
-      const hit = findPageByQuery(target, pageIndex, publishedSlugs)
-      const published = !!(hit?.published || publishedSlugs[target])
+      const hit = findPageByQuery(target, pageIndex, {})
+      // 仅用 UC/文章 API 索引，不用 git slug 缓存（删文后仍可能残留）
+      const published = hit?.published === true
       const hasRed = String(mark.attrs.class || '').includes('rs-wiki-redlink')
 
       if (published && hasRed) {
@@ -235,7 +236,15 @@ export function refreshWikiLinkClasses(editor: Editor): void {
     tr = tr.removeMark(u.from, u.to, linkType)
     tr = tr.addMark(u.from, u.to, linkType.create(u.attrs))
   }
+  tr = tr.setMeta('addToHistory', false).setMeta('rsWikiLinkClassSync', true)
+  const scrollEl = editor.view.dom.parentElement ?? editor.view.dom
+  const scrollTop = scrollEl.scrollTop
+  const scrollLeft = scrollEl.scrollLeft
   editor.view.dispatch(tr)
+  requestAnimationFrame(() => {
+    scrollEl.scrollTop = scrollTop
+    scrollEl.scrollLeft = scrollLeft
+  })
 }
 
 /** 选区是否在 Wiki 内链（/archives/…）上；普通文本或外部链接返回 false */
