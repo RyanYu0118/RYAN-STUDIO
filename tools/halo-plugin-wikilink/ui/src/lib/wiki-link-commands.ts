@@ -17,6 +17,15 @@ export function getSelectedText(editor: Editor): string {
   return editor.state.doc.textBetween(from, to, ' ').replace(/\s+/g, ' ').trim()
 }
 
+/** 选区是否在 Wiki 内链（/archives/…）上；普通文本或外部链接返回 false */
+export function isSelectionOnWikiArchiveLink(editor: Editor): boolean {
+  if (!editor.isActive(ExtensionLink.name)) return false
+  const href = String(editor.getAttributes(ExtensionLink.name).href || '').trim()
+  if (!href || isExternalUrl(href)) return false
+  const path = href.replace(/^https?:\/\/[^/]+/i, '')
+  return path.startsWith('/archives/') || path.includes('/archives/')
+}
+
 export function applyWikiLink(editor: Editor, rawTarget: string, label?: string): boolean {
   const text = getSelectedText(editor)
   label = (label || text || '').trim()

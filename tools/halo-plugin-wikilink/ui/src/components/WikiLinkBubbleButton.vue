@@ -1,6 +1,7 @@
 <script setup lang="ts">
+import { isSelectionOnWikiArchiveLink } from '@/lib/wiki-link-commands'
 import type { WikiBubbleItemProps } from '@/lib/editor-types'
-import { onMounted, onUnmounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
 
 const WIKI_TOOLTIP = 'Wiki 链接 (Ctrl+Shift+K)'
 
@@ -11,6 +12,8 @@ const props = withDefaults(defineProps<WikiBubbleItemProps>(), {
 })
 
 const panelOpen = ref(false)
+
+const wikiLinkActive = computed(() => isSelectionOnWikiArchiveLink(props.editor))
 
 function openPanel() {
   if (!props.visible?.({ editor: props.editor })) return
@@ -44,7 +47,7 @@ onUnmounted(() => {
     v-tooltip="WIKI_TOOLTIP"
     type="button"
     class="rs-wiki-bubble-btn"
-    :class="{ 'rs-wiki-bubble-btn--active': panelOpen || isActive?.({ editor }) }"
+    :class="{ 'rs-wiki-bubble-btn--active': panelOpen || wikiLinkActive }"
     :aria-label="WIKI_TOOLTIP"
     @click="openPanel"
   >

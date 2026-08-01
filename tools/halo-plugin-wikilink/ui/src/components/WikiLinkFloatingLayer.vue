@@ -49,6 +49,18 @@ function onClose() {
   editor.value = null
 }
 
+function requestClose() {
+  window.dispatchEvent(new CustomEvent('rs-wikilink-close'))
+}
+
+function onKeydown(event: KeyboardEvent) {
+  if (!visible.value) return
+  if (event.key !== 'Escape') return
+  event.preventDefault()
+  event.stopPropagation()
+  requestClose()
+}
+
 function onViewportChange() {
   if (visible.value) schedulePosition()
 }
@@ -56,6 +68,7 @@ function onViewportChange() {
 onMounted(() => {
   window.addEventListener('rs-wikilink-open', onOpen)
   window.addEventListener('rs-wikilink-close', onClose)
+  window.addEventListener('keydown', onKeydown, true)
   window.visualViewport?.addEventListener('resize', onViewportChange)
   window.visualViewport?.addEventListener('scroll', onViewportChange)
   window.addEventListener('resize', onViewportChange)
@@ -64,6 +77,7 @@ onMounted(() => {
 onUnmounted(() => {
   window.removeEventListener('rs-wikilink-open', onOpen)
   window.removeEventListener('rs-wikilink-close', onClose)
+  window.removeEventListener('keydown', onKeydown, true)
   window.visualViewport?.removeEventListener('resize', onViewportChange)
   window.visualViewport?.removeEventListener('scroll', onViewportChange)
   window.removeEventListener('resize', onViewportChange)
@@ -73,7 +87,7 @@ onUnmounted(() => {
 <template>
   <Teleport to="body">
     <div v-if="visible && editor" class="rs-wiki-float">
-      <div class="rs-wiki-float__backdrop" @mousedown="onClose" />
+      <div class="rs-wiki-float__backdrop" @mousedown="requestClose" />
       <div
         ref="panelRef"
         class="rs-wiki-float__panel"
