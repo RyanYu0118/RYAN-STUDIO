@@ -93,4 +93,12 @@ alwaysApply: true
 3. 运行 `tools/halo-plugin-wikilink/release.ps1`（build + `RS_WikiLink-v<version>` tag + push tag）
 4. 告知用户 Release 页：`https://github.com/RyanYu0118/RYAN-STUDIO/releases/tag/RS_WikiLink-v<version>`
 
+### Release 正文（只写相对上一版的变更）
+
+- GitHub Release **仅说明本版相比上一 tag 改了什么**（2–5 条 bullet 即可）
+- **禁止**每版重复：安装步骤、功能总表、`rs-config` 示例、验证命令（除非本版专门改了这些）
+- CI 会从 `tools/halo-plugin-wikilink/` 的 git log **自动提取**中文 commit 标题生成 Release 正文
+- 对话里向用户说明发版内容时，用**同样口径**（相对上一版的 delta），不要复读完整 README
+- 写 commit 时用清晰的中文标题，便于 Release 自动文案准确
+
 **禁止**在用户未同意（未点选项、未发 `r`）时自行 push release tag。

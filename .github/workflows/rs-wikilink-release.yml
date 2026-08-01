@@ -34,12 +34,17 @@ jobs:
           chmod +x gradlew
           ./gradlew build -x test
 
+      - name: Generate release notes (delta vs previous tag)
+        run: |
+          chmod +x tools/halo-plugin-wikilink/scripts/gen-release-notes.sh
+          tools/halo-plugin-wikilink/scripts/gen-release-notes.sh "${{ github.ref_name }}" release-body.md
+
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.ref_name }}
           name: ${{ github.ref_name }}
-          body_path: tools/halo-plugin-wikilink/RELEASE.md
+          body_path: release-body.md
           files: tools/halo-plugin-wikilink/build/libs/RS_WikiLink-*.jar
           draft: false
           prerelease: false
