@@ -17,11 +17,6 @@ let docListeners: ListenerPair | null = null
 
 export function setWikiLinkEditor(editor: Editor | null) {
   activeEditor = editor
-  if (editor) cacheLinkFromEditor(editor)
-}
-
-export function rememberWikiLinkFromEditor(editor: Editor) {
-  cacheLinkFromEditor(editor)
 }
 
 function isEditorPage() {
@@ -59,7 +54,10 @@ function cacheLinkFromEditor(ed: Editor) {
   const href = hrefAtEditorSelection(ed)
   if (!href || !isWikiArchiveHref(href)) return
   cachedHref = href
-  cachedLabel = labelAtEditorSelection(ed, href)
+  const { from, to } = ed.state.selection
+  if (to > from) {
+    cachedLabel = ed.state.doc.textBetween(from, to, ' ').replace(/\s+/g, ' ').trim()
+  }
   cachedAt = Date.now()
 }
 

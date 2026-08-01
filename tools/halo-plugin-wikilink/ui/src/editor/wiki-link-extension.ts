@@ -5,7 +5,6 @@ import {
 } from '@/editor/wiki-link-floating-host'
 import {
   bindNativeOpenLinkBridge,
-  rememberWikiLinkFromEditor,
   setWikiLinkEditor,
   unbindNativeOpenLinkBridge,
 } from '@/lib/wiki-native-open-link-bridge'
@@ -29,7 +28,6 @@ const WikiLinkExtension = Extension.create({
 
   onSelectionUpdate() {
     setWikiLinkEditor(this.editor)
-    rememberWikiLinkFromEditor(this.editor)
   },
 
   addOptions() {
