@@ -6,8 +6,9 @@ export default definePlugin({
   routes: [],
   extensionPoints: {
     'default:editor:extension:create': async () => {
-      const { WikiLinkExtension, HtmlBlockCompactExtension } = await import('./editor')
-      return [WikiLinkExtension, HtmlBlockCompactExtension]
+      const { WikiLinkExtension, HtmlBlockCompactExtension, BlockContextMenuExtension } =
+        await import('./editor')
+      return [WikiLinkExtension, HtmlBlockCompactExtension, BlockContextMenuExtension]
     },
   },
 })
