@@ -1,7 +1,4 @@
-import {
-  ExtensionLink,
-  type Editor,
-} from '@halo-dev/richtext-editor'
+import { ExtensionLink, type Editor } from '@halo-dev/richtext-editor'
 import {
   archivesHref,
   findPageByQuery,

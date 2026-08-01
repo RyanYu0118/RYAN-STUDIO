@@ -4,11 +4,10 @@ import {
   unmountWikiLinkFloatingHost,
 } from '@/editor/wiki-link-floating-host'
 import {
-  bindEditorRedlinkOpenBridge,
-  openWikiArchiveLinkFromEditor,
-  unbindEditorRedlinkOpenBridge,
-} from '@/lib/wiki-redlink-open'
-import { isSelectionOnWikiArchiveLink } from '@/lib/wiki-link-commands'
+  bindNativeOpenLinkBridge,
+  setWikiLinkEditor,
+  unbindNativeOpenLinkBridge,
+} from '@/lib/wiki-native-open-link-bridge'
 import { Extension, TEXT_BUBBLE_MENU_KEY, type Editor } from '@halo-dev/richtext-editor'
 import { markRaw } from 'vue'
 
@@ -17,12 +16,18 @@ const WikiLinkExtension = Extension.create({
 
   onCreate() {
     mountWikiLinkFloatingHost()
-    bindEditorRedlinkOpenBridge(this.editor)
+    setWikiLinkEditor(this.editor)
+    bindNativeOpenLinkBridge(this.editor)
   },
 
   onDestroy() {
     unmountWikiLinkFloatingHost()
-    unbindEditorRedlinkOpenBridge()
+    unbindNativeOpenLinkBridge()
+    setWikiLinkEditor(null)
+  },
+
+  onSelectionUpdate() {
+    setWikiLinkEditor(this.editor)
   },
 
   addOptions() {
@@ -49,10 +54,6 @@ const WikiLinkExtension = Extension.create({
     return {
       'Mod-Shift-k': () => {
         if (this.editor.state.selection.empty) return false
-        if (isSelectionOnWikiArchiveLink(this.editor)) {
-          void openWikiArchiveLinkFromEditor(this.editor)
-          return true
-        }
         window.dispatchEvent(
           new CustomEvent('rs-wikilink-open', { detail: { editor: this.editor } })
         )

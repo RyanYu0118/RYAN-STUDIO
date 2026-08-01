@@ -1,13 +1,20 @@
 import type { Editor } from '@halo-dev/richtext-editor'
+import { ExtensionLink } from '@halo-dev/richtext-editor'
 import { reloadWikiIndex } from '@/lib/wiki-index'
 import { getRedlinkConfig } from '@/lib/wiki-redlink-config'
-import { isPostPublished, normalizeTarget } from '@/lib/wiki-utils'
+import { isExternalUrl, isPostPublished, normalizeTarget } from '@/lib/wiki-utils'
 import { WIKI_PATH_PREFIX } from '@/lib/wiki-config'
 import {
   applyWikiLink,
   getActiveWikiLinkInfo,
   isSelectionOnWikiArchiveLink,
 } from '@/lib/wiki-link-commands'
+
+function isWikiArchiveHref(href: string): boolean {
+  if (!href || isExternalUrl(href)) return false
+  const path = href.replace(/^https?:\/\/[^/]+/i, '')
+  return path.startsWith('/archives/') || path.includes('/archives/')
+}
 
 const REDLINK_TARGET_ANN = 'rs.wiki/redlink-target-slug'
 
@@ -322,16 +329,32 @@ function openArchiveInBrowser(slug: string) {
   window.open(WIKI_PATH_PREFIX + encodeURIComponent(slug).replace(/%2F/g, '/'), '_blank')
 }
 
-/** 与前台 rs-redlinks 一致：已发布则打开；红链则确认后创建并发布再打开 */
+/** 与前台 rs-redlinks 一致：已发布则新标签打开；红链则确认后创建并发布再新标签打开 */
 export async function openWikiArchiveLinkFromEditor(
   editor: Editor,
-  options?: { shiftKey?: boolean }
+  options?: { shiftKey?: boolean; href?: string }
 ): Promise<boolean> {
-  if (!isSelectionOnWikiArchiveLink(editor)) return false
+  let href = (options?.href || '').trim()
+  if (!href && editor.isActive(ExtensionLink.name)) {
+    href = String(editor.getAttributes(ExtensionLink.name).href || '').trim()
+  }
+  if (!href && isSelectionOnWikiArchiveLink(editor)) {
+    href = String(editor.getAttributes(ExtensionLink.name).href || '').trim()
+  }
+  if (!href || !isWikiArchiveHref(href)) return false
+
+  if (!editor.isActive(ExtensionLink.name)) {
+    editor.commands.extendMarkRange(ExtensionLink.name)
+  }
 
   await reloadWikiIndex()
-  const info = getActiveWikiLinkInfo(editor)
-  if (!info) return false
+  const info = getActiveWikiLinkInfo(editor) || {
+    href,
+    target: normalizeTarget(href),
+    label: normalizeTarget(href),
+    isRed: true,
+    postSlug: null,
+  }
 
   const status = await checkLinkTarget(info.target)
   if (status.ready && status.postSlug) {
@@ -361,49 +384,4 @@ export async function openWikiArchiveLinkFromEditor(
   applyWikiLink(editor, finalSlug, info.label)
   openArchiveInBrowser(finalSlug)
   return true
-}
-
-export function isNativeOpenLinkControl(target: EventTarget | null): boolean {
-  if (!(target instanceof Element)) return false
-  const btn = target.closest('button, a[role="button"]')
-  if (!btn) return false
-  const label = (
-    btn.textContent ||
-    btn.getAttribute('title') ||
-    btn.getAttribute('aria-label') ||
-    ''
-  )
-    .replace(/\s+/g, ' ')
-    .trim()
-    .toLowerCase()
-  return /打开链接|open link/.test(label)
-}
-
-let boundEditor: Editor | null = null
-let openLinkHandler: ((e: MouseEvent) => void) | null = null
-
-export function bindEditorRedlinkOpenBridge(editor: Editor) {
-  boundEditor = editor
-  if (openLinkHandler) return
-
-  openLinkHandler = (e: MouseEvent) => {
-    if (!boundEditor || !isNativeOpenLinkControl(e.target)) return
-    if (!isSelectionOnWikiArchiveLink(boundEditor)) return
-    const info = getActiveWikiLinkInfo(boundEditor)
-    if (!info) return
-    e.preventDefault()
-    e.stopPropagation()
-    e.stopImmediatePropagation()
-    void openWikiArchiveLinkFromEditor(boundEditor, { shiftKey: e.shiftKey })
-  }
-
-  document.addEventListener('click', openLinkHandler, true)
-}
-
-export function unbindEditorRedlinkOpenBridge() {
-  if (openLinkHandler) {
-    document.removeEventListener('click', openLinkHandler, true)
-    openLinkHandler = null
-  }
-  boundEditor = null
 }
