@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { applyWikiLink, getSelectedText } from '@/lib/wiki-link-commands'
-import { loadWikiIndex, getWikiIndexState } from '@/lib/wiki-index'
+import { reloadWikiIndex, getWikiIndexState } from '@/lib/wiki-index'
 import {
-  exactPage,
+  findPageByQuery,
   isExternalUrl,
   normalizeExternalUrl,
   normalizeTarget,
@@ -41,7 +41,7 @@ const results = computed(() => {
     ]
   }
   const list = searchPages(q, pageIndex, suggestPaths, publishedSlugs)
-  if (q && !exactPage(q, pageIndex, publishedSlugs) && !isExternalUrl(q)) {
+  if (q && !findPageByQuery(q, pageIndex, publishedSlugs) && !isExternalUrl(q)) {
     return [
       {
         slug: q,
@@ -60,7 +60,7 @@ onMounted(async () => {
   loading.value = true
   query.value = initialText.value
   activeSlug.value = query.value
-  await loadWikiIndex()
+  await reloadWikiIndex()
   loading.value = false
 })
 
@@ -81,7 +81,7 @@ function finish() {
 function rowMeta(row: WikiPage) {
   if (row.meta) return row.meta
   if (row.external) return row.slug
-  if (!row.published) return `${row.slug} · 红链`
+  if (!row.published) return `${row.slug} · 草稿`
   return row.slug
 }
 
@@ -115,10 +115,10 @@ function onKeydown(e: KeyboardEvent) {
         :key="row.slug + row.title"
         type="button"
         class="rs-wiki-panel__row"
-        :class="{ red: row.red || (!row.published && !row.external) }"
+        :class="{ red: row.red }"
         @click="pick(row)"
       >
-        <span class="icon">{{ row.external ? '↗' : row.published ? '✓' : '?' }}</span>
+        <span class="icon">{{ row.external ? '↗' : row.red ? '?' : row.published ? '✓' : '◦' }}</span>
         <span class="body">
           <span class="label">{{ row.title }}</span>
           <span class="meta">{{ rowMeta(row) }}</span>

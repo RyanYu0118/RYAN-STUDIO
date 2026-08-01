@@ -39,6 +39,46 @@ export function isRedlinkSlugAlias(postSlug: string, linkTarget: string): boolea
   return false
 }
 
+export function isPostPublished(post: {
+  spec?: { deleted?: boolean; publish?: boolean }
+  metadata?: { labels?: Record<string, string> }
+  status?: { phase?: string }
+}): boolean {
+  const labels = post.metadata?.labels || {}
+  if (labels['content.halo.run/deleted'] === 'true') return false
+  if (labels['content.halo.run/published'] === 'true') return true
+  const spec = post.spec || {}
+  if (spec.deleted === true) return false
+  const status = post.status || {}
+  return spec.publish === true && status.phase === 'PUBLISHED'
+}
+
+/** 按 slug / 标题 / 红链别名解析已有页面（含草稿） */
+export function findPageByQuery(
+  query: string,
+  pageIndex: WikiPage[],
+  publishedSlugs: Record<string, boolean>
+): WikiPage | null {
+  const q = normalizeTarget(query)
+  if (!q) return null
+  for (const p of pageIndex) {
+    if (p.slug === q || p.title === q) return p
+    const label = p.label ? normalizeTarget(p.label) : ''
+    if (label === q) return p
+    if (isRedlinkSlugAlias(p.slug, q)) return p
+  }
+  if (publishedSlugs[q]) {
+    return { slug: q, title: defaultLabel(q), published: true }
+  }
+  for (const prefix of REDLINK_SLUG_PREFIXES) {
+    const underscored = q.replace(/\//g, '_').toLowerCase()
+    for (const p of pageIndex) {
+      if (p.slug === prefix + q || p.slug === prefix + underscored) return p
+    }
+  }
+  return null
+}
+
 export function defaultLabel(target: string): string {
   const parts = normalizeTarget(target).split('/')
   const last = parts[parts.length - 1] || target
@@ -92,13 +132,5 @@ export function exactPage(
   pageIndex: WikiPage[],
   publishedSlugs: Record<string, boolean>
 ): WikiPage | null {
-  const q = normalizeTarget(query)
-  if (!q) return null
-  for (const p of pageIndex) {
-    if (p.slug === q || p.title === q) return p
-  }
-  if (publishedSlugs[q]) {
-    return { slug: q, title: defaultLabel(q), published: true }
-  }
-  return null
+  return findPageByQuery(query, pageIndex, publishedSlugs)
 }

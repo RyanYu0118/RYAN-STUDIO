@@ -75,6 +75,40 @@
     return false;
   }
 
+  function isPostPublished(post) {
+    if (!post) return false;
+    var labels = (post.metadata && post.metadata.labels) || {};
+    if (labels["content.halo.run/deleted"] === "true") return false;
+    if (labels["content.halo.run/published"] === "true") return true;
+    var spec = post.spec || {};
+    if (spec.deleted === true) return false;
+    var status = post.status || {};
+    return spec.publish === true && status.phase === "PUBLISHED";
+  }
+
+  function findPageByQuery(query) {
+    query = normalizeTarget(query);
+    if (!query) return null;
+    for (var i = 0; i < pageIndex.length; i++) {
+      var p = pageIndex[i];
+      if (p.slug === query || p.title === query) return p;
+      var label = p.label ? normalizeTarget(p.label) : "";
+      if (label === query) return p;
+      if (isRedlinkSlugAlias(p.slug, query)) return p;
+    }
+    if (isPublishedSlug(query)) return { slug: query, title: defaultLabel(query), published: true };
+    var prefixes = ["rs_", "mcwws_"];
+    for (var pi = 0; pi < prefixes.length; pi++) {
+      var prefix = prefixes[pi];
+      var underscored = query.replace(/\//g, "_").toLowerCase();
+      for (var j = 0; j < pageIndex.length; j++) {
+        var pp = pageIndex[j];
+        if (pp.slug === prefix + query || pp.slug === prefix + underscored) return pp;
+      }
+    }
+    return null;
+  }
+
   function defaultLabel(target) {
     var parts = normalizeTarget(target).split("/");
     var last = parts[parts.length - 1] || target;
@@ -650,14 +684,7 @@
   }
 
   function exactPage(query) {
-    query = normalizeTarget(query);
-    if (!query) return null;
-    for (var i = 0; i < pageIndex.length; i++) {
-      var p = pageIndex[i];
-      if (p.slug === query || p.title === query) return p;
-    }
-    if (isPublishedSlug(query)) return { slug: query, title: defaultLabel(query), published: true };
-    return null;
+    return findPageByQuery(query);
   }
 
   function injectStyles() {
@@ -781,7 +808,7 @@
         '" data-target="' + escapeHtml(p.slug) + '" data-label="' + escapeHtml(p.title) + '">' +
         '<div class="icon">' + (p.published ? "✓" : "?") + '</div><div><div class="label">' +
         escapeHtml(p.title) + '</div><div class="meta">' + escapeHtml(p.slug) +
-        (p.published ? "" : " · 红链") + "</div></div></div>";
+        (p.published ? "" : " · 草稿") + "</div></div></div>";
     });
     if (!html) html = '<div class="hint" style="border:0">输入页面名称，或从列表中选择</div>';
     listEl.innerHTML = html;
@@ -912,10 +939,12 @@
     var results = popover.querySelector(".results");
     var picked = { target: initial, label: initial };
     input.value = initial;
-    renderPopoverResults(initial, results, function (target, label) {
-      picked.target = target;
-      picked.label = label;
-      input.value = target;
+    loadIndex().then(function () {
+      renderPopoverResults(initial, results, function (target, label) {
+        picked.target = target;
+        picked.label = label;
+        input.value = target;
+      });
     });
     input.addEventListener("input", function () {
       renderPopoverResults(input.value, results, function (target, label) {
@@ -1224,17 +1253,28 @@
       })
       .catch(function () { suggestPaths = []; });
 
-    var postsP = (function loadPosts(page) {
+    var postsP = (function loadPosts(page, api) {
       page = page || 1;
-      return fetch("/apis/api.content.halo.run/v1alpha1/posts?page=" + page + "&size=100", { credentials: "same-origin" })
-        .then(function (r) { return r.json(); })
+      api = api || "uc";
+      var base =
+        api === "uc"
+          ? "/apis/uc.api.content.halo.run/v1alpha1/posts"
+          : "/apis/api.content.halo.run/v1alpha1/posts";
+      return fetch(base + "?page=" + page + "&size=100", { credentials: "same-origin" })
+        .then(function (r) {
+          if (!r.ok) {
+            if (api === "uc") return loadPosts(1, "public");
+            return null;
+          }
+          return r.json();
+        })
         .then(function (data) {
+          if (!data) return;
           (data.items || []).forEach(function (post) {
             var slug = post.spec && post.spec.slug;
             var title = (post.spec && post.spec.title) || slug;
             if (!slug) return;
-            var labels = (post.metadata && post.metadata.labels) || {};
-            var pub = labels["content.halo.run/published"] === "true";
+            var pub = isPostPublished(post);
             pageIndex.push({ slug: slug, title: title, published: pub });
             if (pub) publishedSlugs[slug] = true;
             var lt = post.metadata && post.metadata.annotations && post.metadata.annotations["rs.wiki/redlink-target-slug"];
@@ -1245,7 +1285,7 @@
               }
             }
           });
-          if (data.hasNext && page < 10) return loadPosts(page + 1);
+          if (data.hasNext && page < 10) return loadPosts(page + 1, api);
         });
     })();
     return Promise.all([slugP, postsP]);
