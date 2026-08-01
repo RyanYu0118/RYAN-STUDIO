@@ -54,11 +54,16 @@ function onOpen(ev: Event) {
   visible.value = true
 }
 
-function onDocPointer(ev: Event) {
-  if (!visible.value) return
+function onDocPointer(ev: MouseEvent) {
+  if (!visible.value || ev.button !== 0) return
   const t = ev.target as Element | null
-  if (t?.closest('.rs-block-context-menu')) return
+  if (isInsideMenuUi(t)) return
   close()
+}
+
+function isInsideMenuUi(target: Element | null) {
+  if (!target) return false
+  return !!target.closest('.rs-block-context-menu, .v-popper, [data-tippy-root], .dropdown')
 }
 
 function onKeydown(ev: KeyboardEvent) {
@@ -81,9 +86,16 @@ onUnmounted(() => {
 <template>
   <Teleport to="body">
     <div
+      v-if="visible"
+      class="rs-block-context-menu-backdrop"
+      @mousedown.left="close"
+      @contextmenu.prevent
+    />
+    <div
       v-if="visible && editor && node"
       class="rs-block-context-menu"
       :style="{ left: `${x}px`, top: `${y}px` }"
+      @mousedown.stop
       @contextmenu.prevent
     >
       <!-- TipTap Editor 与 Halo 包装类型在编译期不完全一致，运行时同源 -->
@@ -93,6 +105,13 @@ onUnmounted(() => {
 </template>
 
 <style scoped>
+.rs-block-context-menu-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 10069;
+  background: transparent;
+}
+
 .rs-block-context-menu {
   position: fixed;
   z-index: 10070;
