@@ -96,6 +96,12 @@ export function isExternalUrl(raw: string): boolean {
   return /^(https?:\/\/|mailto:|tel:|\/\/)/i.test(s) || /^www\./i.test(s)
 }
 
+export function isWikiArchiveHref(href: string): boolean {
+  if (!href || isExternalUrl(href)) return false
+  const path = href.replace(/^https?:\/\/[^/]+/i, '')
+  return path.startsWith('/archives/') || path.includes('/archives/')
+}
+
 export function normalizeExternalUrl(raw: string): string {
   const s = String(raw || '').trim()
   if (/^www\./i.test(s)) return `https://${s}`

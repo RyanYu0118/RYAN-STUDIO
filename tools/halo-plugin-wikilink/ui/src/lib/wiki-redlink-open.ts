@@ -2,19 +2,14 @@ import type { Editor } from '@halo-dev/richtext-editor'
 import { ExtensionLink } from '@halo-dev/richtext-editor'
 import { reloadWikiIndex } from '@/lib/wiki-index'
 import { getRedlinkConfig } from '@/lib/wiki-redlink-config'
-import { isExternalUrl, isPostPublished, normalizeTarget } from '@/lib/wiki-utils'
+import { isExternalUrl, isPostPublished, isWikiArchiveHref, normalizeTarget } from '@/lib/wiki-utils'
 import { WIKI_PATH_PREFIX } from '@/lib/wiki-config'
 import {
   applyWikiLink,
   getActiveWikiLinkInfo,
-  isSelectionOnWikiArchiveLink,
+  getWikiLinkInfoFromHref,
+  hrefAtEditorSelection,
 } from '@/lib/wiki-link-commands'
-
-function isWikiArchiveHref(href: string): boolean {
-  if (!href || isExternalUrl(href)) return false
-  const path = href.replace(/^https?:\/\/[^/]+/i, '')
-  return path.startsWith('/archives/') || path.includes('/archives/')
-}
 
 const REDLINK_TARGET_ANN = 'rs.wiki/redlink-target-slug'
 
@@ -332,29 +327,21 @@ function openArchiveInBrowser(slug: string) {
 /** 与前台 rs-redlinks 一致：已发布则新标签打开；红链则确认后创建并发布再新标签打开 */
 export async function openWikiArchiveLinkFromEditor(
   editor: Editor,
-  options?: { shiftKey?: boolean; href?: string }
+  options?: { shiftKey?: boolean; href?: string; label?: string }
 ): Promise<boolean> {
   let href = (options?.href || '').trim()
-  if (!href && editor.isActive(ExtensionLink.name)) {
-    href = String(editor.getAttributes(ExtensionLink.name).href || '').trim()
-  }
-  if (!href && isSelectionOnWikiArchiveLink(editor)) {
-    href = String(editor.getAttributes(ExtensionLink.name).href || '').trim()
-  }
+  if (!href) href = hrefAtEditorSelection(editor)
+  if (!href) href = String(editor.getAttributes(ExtensionLink.name).href || '').trim()
   if (!href || !isWikiArchiveHref(href)) return false
 
-  if (!editor.isActive(ExtensionLink.name)) {
-    editor.commands.extendMarkRange(ExtensionLink.name)
-  }
+  editor.commands.extendMarkRange(ExtensionLink.name)
 
   await reloadWikiIndex()
-  const info = getActiveWikiLinkInfo(editor) || {
-    href,
-    target: normalizeTarget(href),
-    label: normalizeTarget(href),
-    isRed: true,
-    postSlug: null,
-  }
+
+  const info =
+    getActiveWikiLinkInfo(editor) ||
+    getWikiLinkInfoFromHref(editor, href)
+  if (options?.label) info.label = options.label
 
   const status = await checkLinkTarget(info.target)
   if (status.ready && status.postSlug) {

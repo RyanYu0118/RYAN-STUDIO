@@ -34,6 +34,68 @@ function readActiveLinkLabel(editor: Editor): string {
   return label
 }
 
+/** 从 ProseMirror 选区读取 link href（不依赖 editor.isActive / 焦点） */
+export function hrefAtEditorSelection(editor: Editor): string {
+  const { from, to } = editor.state.selection
+  const $from = editor.state.doc.resolve(from)
+  const $to = editor.state.doc.resolve(to)
+
+  for (const mark of $from.marks()) {
+    if (mark.type.name === ExtensionLink.name && mark.attrs.href) {
+      return String(mark.attrs.href).trim()
+    }
+  }
+  if (to > from) {
+    let found = ''
+    editor.state.doc.nodesBetween(from, to, (node) => {
+      if (found || !node.isText) return
+      const mark = node.marks.find((m) => m.type.name === ExtensionLink.name)
+      if (mark?.attrs?.href) found = String(mark.attrs.href).trim()
+    })
+    if (found) return found
+  }
+  const before = $from.nodeBefore
+  if (before?.isText) {
+    const mark = before.marks.find((m) => m.type.name === ExtensionLink.name)
+    if (mark?.attrs?.href) return String(mark.attrs.href).trim()
+  }
+  const after = $to.nodeAfter
+  if (after?.isText) {
+    const mark = after.marks.find((m) => m.type.name === ExtensionLink.name)
+    if (mark?.attrs?.href) return String(mark.attrs.href).trim()
+  }
+  return ''
+}
+
+export function labelAtEditorSelection(editor: Editor, fallback = ''): string {
+  if (editor.isActive(ExtensionLink.name)) {
+    return readActiveLinkLabel(editor) || fallback
+  }
+  const { from, to } = editor.state.selection
+  if (to > from) {
+    return editor.state.doc.textBetween(from, to, ' ').replace(/\s+/g, ' ').trim() || fallback
+  }
+  return fallback
+}
+
+export function getWikiLinkInfoFromHref(editor: Editor, href: string): ActiveWikiLinkInfo {
+  const target = normalizeTarget(href)
+  const { pageIndex, publishedSlugs } = getWikiIndexState()
+  const hit = findPageByQuery(target, pageIndex, publishedSlugs)
+  const published = !!(hit?.published || publishedSlugs[target])
+  const attrs = editor.getAttributes(ExtensionLink.name)
+  const linkClass = String(attrs.class || '')
+  const isRed = linkClass.includes('rs-wiki-redlink') || !published
+  const label = labelAtEditorSelection(editor, hit?.title || target)
+  return {
+    href,
+    target,
+    label,
+    isRed,
+    postSlug: hit?.published ? hit.slug : null,
+  }
+}
+
 /** 选区是否在 Wiki 内链（/archives/…）上；普通文本或外部链接返回 false */
 export function isSelectionOnWikiArchiveLink(editor: Editor): boolean {
   if (!editor.isActive(ExtensionLink.name)) return false
