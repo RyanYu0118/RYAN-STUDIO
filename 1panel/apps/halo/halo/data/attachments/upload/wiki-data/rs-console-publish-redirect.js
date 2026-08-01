@@ -6,7 +6,7 @@
 
   if (location.pathname.indexOf("/console") !== 0) return;
 
-  var RS_PUBLISH_REDIRECT_VER = "1.3";
+  var RS_PUBLISH_REDIRECT_VER = "1.4";
   if (window.RSPublishRedirect && window.RSPublishRedirect.__ver === RS_PUBLISH_REDIRECT_VER) {
     return;
   }
@@ -49,6 +49,16 @@
 
   function archivesPathFromSlug(slug) {
     return PATH_PREFIX + encodeURIComponent(String(slug)).replace(/%2F/g, "/");
+  }
+
+  function armPublishContext(postName) {
+    if (!postName) return;
+    if (window.RSEditScroll && window.RSEditScroll.refreshReturnContextCache) {
+      window.RSEditScroll.refreshReturnContextCache();
+    }
+    if (window.RSEditScroll && window.RSEditScroll.saveReturnContext) {
+      window.RSEditScroll.saveReturnContext(postName, null);
+    }
   }
 
   function goToArchivesSlug(slug) {
@@ -182,6 +192,7 @@
       var url = typeof input === "string" ? input : input && input.url;
       var method = (init && init.method) || "GET";
       var postName = extractPublishPostName(url, method);
+      if (postName) armPublishContext(postName);
       return nativeFetch.apply(this, arguments).then(function (res) {
         if (postName && res && res.ok) {
           res.clone()
@@ -211,6 +222,7 @@
     XMLHttpRequest.prototype.send = function () {
       var xhr = this;
       var postName = extractPublishPostName(xhr.__rsUrl, xhr.__rsMethod);
+      if (postName) armPublishContext(postName);
       xhr.addEventListener("load", function () {
         if (!postName || xhr.status < 200 || xhr.status >= 300) return;
         handlePublishResponse(postName, xhr.responseText || null);

@@ -7,7 +7,7 @@
 
   if (location.pathname.indexOf("/console/posts/editor") < 0) return;
 
-  var RS_EDIT_SCROLL_VER = "1.3.0";
+  var RS_EDIT_SCROLL_VER = "1.4.0";
   if (window.RSEditScroll && window.RSEditScroll.__ver === RS_EDIT_SCROLL_VER) return;
 
   var STORAGE_KEY = "rs-edit-scroll-context";
@@ -18,6 +18,8 @@
     ? cfg.retryMs
     : [0, 200, 500, 1000, 1800, 3000, 5000, 8000, 12000];
   var MAX_AGE_MS = typeof cfg.maxAgeMs === "number" ? cfg.maxAgeMs : 600000;
+  var lastReturnCache = null;
+  var lastReturnCacheAt = 0;
 
   function getEditorTopPadding() {
     return typeof cfg.editorTopPadding === "number" ? cfg.editorTopPadding : 12;
@@ -95,7 +97,11 @@
 
   function saveReturnContext(postName, slug) {
     var postId = postName || editorPostName();
-    var ctx = captureEditorReturnContext();
+    var ctx = null;
+    if (lastReturnCache && Date.now() - lastReturnCacheAt < 120000) {
+      ctx = JSON.parse(JSON.stringify(lastReturnCache));
+    }
+    if (!ctx) ctx = captureEditorReturnContext();
     if (!ctx) return;
     var frozen = readEntryFrozen(postId);
     if (frozen && frozen.ctx && frozen.ctx.path) ctx.path = frozen.ctx.path;
@@ -105,6 +111,15 @@
       ctx: ctx,
       ts: Date.now(),
     });
+    if (cfg.debug) console.log("[rs-edit-scroll] saved return context", ctx);
+  }
+
+  function refreshReturnContextCache() {
+    var ctx = captureEditorReturnContext();
+    if (!ctx) return null;
+    lastReturnCache = ctx;
+    lastReturnCacheAt = Date.now();
+    return ctx;
   }
 
   function findNearestPmHeading(pm, anchorY) {
@@ -122,6 +137,76 @@
     return best;
   }
 
+  function getSelectionAnchorEl(pm) {
+    var sel = window.getSelection();
+    if (sel && sel.rangeCount) {
+      var node = sel.anchorNode;
+      if (node) {
+        var el = node.nodeType === 1 ? node : node.parentElement;
+        while (el && el !== pm && el !== document.body) {
+          if (pm.contains(el)) return el;
+          el = el.parentElement;
+        }
+      }
+    }
+    var active = document.activeElement;
+    if (active && pm.contains(active)) return active;
+    return null;
+  }
+
+  function getEditorScrollRatio(pm) {
+    var container = findScrollContainer(pm);
+    if (!container) return 0;
+    var max = container.scrollHeight - container.clientHeight;
+    if (max <= 8) return 0;
+    return container.scrollTop / max;
+  }
+
+  function readHtmlBlockOpenCtx(blockRoot) {
+    if (!blockRoot) return null;
+    if (blockRoot.__rsHtmlOpenCtx) return blockRoot.__rsHtmlOpenCtx;
+    var ratio = parseFloat(blockRoot.dataset.rsHtmlPreviewScrollRatio || "");
+    var needles = [];
+    try {
+      needles = JSON.parse(blockRoot.dataset.rsHtmlPreviewNeedles || "[]");
+    } catch (e0) {
+      needles = [];
+    }
+    if (!isNaN(ratio) || needles.length) {
+      return { ratio: isNaN(ratio) ? 0 : ratio, needles: needles, docY: 0 };
+    }
+    if (window.RSHtmlBlockCompact && window.RSHtmlBlockCompact.previewContext) {
+      return window.RSHtmlBlockCompact.previewContext(blockRoot);
+    }
+    return null;
+  }
+
+  function findFocusedHtmlBlockRoot(pm) {
+    var active = document.activeElement;
+    if (active && active.closest) {
+      var inRoot = active.closest(".rs-html-block-root");
+      if (inRoot && pm.contains(inRoot)) return inRoot;
+    }
+    var roots = findHtmlBlockRoots(pm);
+    var ri;
+    for (ri = 0; ri < roots.length; ri++) {
+      var iframe = roots[ri].querySelector("[data-rs-html-iframe]");
+      try {
+        if (
+          iframe &&
+          iframe.contentDocument &&
+          iframe.contentDocument.activeElement &&
+          iframe.contentDocument.activeElement !== iframe.contentDocument.body
+        ) {
+          return roots[ri];
+        }
+      } catch (e1) {
+        /* ignore */
+      }
+    }
+    return null;
+  }
+
   function captureEditorReturnContext() {
     var pm = document.querySelector(".ProseMirror");
     if (!pm) return null;
@@ -129,9 +214,12 @@
     var anchorY = pad + 16;
     var vw = window.innerWidth || 1200;
     var x = Math.max(0, Math.min(vw - 1, vw * 0.5));
-    var el = document.elementFromPoint(x, anchorY);
-    while (el && el !== pm && el !== document.body && !pm.contains(el)) {
-      el = el.parentElement;
+    var el = getSelectionAnchorEl(pm);
+    if (!el) {
+      el = document.elementFromPoint(x, anchorY);
+      while (el && el !== pm && el !== document.body && !pm.contains(el)) {
+        el = el.parentElement;
+      }
     }
     if (!el || !pm.contains(el)) el = pm;
 
@@ -158,10 +246,18 @@
     var needles = collectNeedlesFromEl(el, pm);
     var blockSig = "";
     var htmlEditedIdx = -1;
+    var blockRatio = 0;
     var blockRoots = findHtmlBlockRoots(pm);
-    var blockRoot = el.closest ? el.closest(".rs-html-block-root") : null;
+    var blockRoot = (el.closest && el.closest(".rs-html-block-root")) || findFocusedHtmlBlockRoot(pm);
     if (blockRoot) {
       htmlEditedIdx = blockRoots.indexOf(blockRoot);
+      var openCtx = readHtmlBlockOpenCtx(blockRoot);
+      if (openCtx) {
+        if (typeof openCtx.ratio === "number" && openCtx.ratio > 0) blockRatio = openCtx.ratio;
+        if (openCtx.needles && openCtx.needles.length) {
+          needles = openCtx.needles.concat(needles);
+        }
+      }
       var iframe = blockRoot.querySelector("[data-rs-html-iframe]");
       try {
         if (iframe && iframe.contentDocument && iframe.contentDocument.body) {
@@ -186,10 +282,28 @@
       headingText: headingText,
       htmlEditedIdx: htmlEditedIdx,
       blockSig: blockSig,
+      blockRatio: blockRatio,
+      ratio: getEditorScrollRatio(pm),
       path: location.pathname,
       ts: Date.now(),
       source: "editor",
     };
+  }
+
+  function bindReturnContextTracking() {
+    if (window.__rsEditScrollTrackBound) return;
+    window.__rsEditScrollTrackBound = true;
+    var debounceTimer = null;
+    function scheduleRefresh() {
+      clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(refreshReturnContextCache, 80);
+    }
+    document.addEventListener("selectionchange", scheduleRefresh, true);
+    document.addEventListener("mouseup", scheduleRefresh, true);
+    document.addEventListener("keyup", scheduleRefresh, true);
+    window.addEventListener("scroll", scheduleRefresh, true);
+    setInterval(refreshReturnContextCache, 2000);
+    scheduleRefresh();
   }
 
   function pushNeedle(list, seen, n) {
@@ -396,6 +510,9 @@
 
   window.RSEditScroll.tryApply = tryApply;
   window.RSEditScroll.saveReturnContext = saveReturnContext;
+  window.RSEditScroll.refreshReturnContextCache = refreshReturnContextCache;
+
+  bindReturnContextTracking();
 
   RETRY_MS.forEach(function (ms) {
     setTimeout(tryApply, ms);

@@ -30,8 +30,8 @@
             }
             var WIKI_VER = "3.2";
             var HTML_VER = "3.4.3";
-            var EDIT_SCROLL_VER = "1.3.0";
-            var PUBLISH_VER = "1.3";
+            var EDIT_SCROLL_VER = "1.4.0";
+            var PUBLISH_VER = "1.4";
             var ARCHIVE_SCROLL_VER = "1.2.0";
             var scriptsLoaded = window.__rsConsoleScriptsLoaded;
             var wikiVer = window.RSWikiLink && window.RSWikiLink.__ver;
@@ -55,8 +55,8 @@
                     window.RSConfig.wikilink &&
                     window.RSConfig.wikilink.enabled === false
                 );
-                loadConsoleScript("/upload/wiki-data/rs-console-publish-redirect.js?v=1.3");
-                loadConsoleScript("/upload/wiki-data/rs-console-edit-scroll.js?v=1.3.0");
+                loadConsoleScript("/upload/wiki-data/rs-console-edit-scroll.js?v=1.4.0");
+                loadConsoleScript("/upload/wiki-data/rs-console-publish-redirect.js?v=1.4");
                 loadConsoleScript("/upload/wiki-data/rs-console-html-block-compact.js?v=3.4.3");
                 function afterOptionalWiki() {
                     afterWiki();
@@ -335,7 +335,7 @@
             loadScript("/upload/wiki-data/rs-ensure-manual-id.js?v=1.0", function () {
                 initQuickEdit();
             });
-            loadScript("/upload/wiki-data/rs-archive-scroll.js?v=1.2.0");
+            loadScript("/upload/wiki-data/rs-archive-scroll.js?v=1.3.0");
         } else {
             initQuickEdit();
         }
