@@ -53,6 +53,7 @@ pat_id_rsa*
 **/_preview/
 **/*.dry-run.html
 .commit-msg-tmp.txt
+.tmp-*.txt
 wiki/.halo.env
 wiki/.halo-post-names.json
 **/__pycache__/
