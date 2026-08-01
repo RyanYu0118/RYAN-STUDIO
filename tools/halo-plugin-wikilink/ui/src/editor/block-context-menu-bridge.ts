@@ -6,9 +6,9 @@ import {
   RS_BLOCK_CONTEXTMENU_PREVIEW_EVENT,
   type BlockContextMenuPreviewDetail,
 } from '@/editor/block-context-menu-utils'
-import { NodeSelection, TextSelection } from '@tiptap/pm/state'
+import { NodeSelection } from '@tiptap/pm/state'
 
-const RS_BLOCK_CTX_VER = '1.1.11'
+const RS_BLOCK_CTX_VER = '1.1.12'
 
 type BlockHit = {
   node: NonNullable<ReturnType<Editor['state']['doc']['nodeAt']>>
@@ -162,30 +162,30 @@ function findBlockHit(editor: Editor, event: MouseEvent): BlockHit | null {
   return findBlockAtPointer(editor, x, y, event.target as Element | null)
 }
 
-function focusBlockAtPointer(editor: Editor, x: number, y: number) {
-  const clamped = clampPointerToEditor(editor.view, x, y)
-  const px = clamped?.x ?? x
-  const py = clamped?.y ?? y
-  const pos = resolvePosFromCoords(editor, px, py)
-  if (pos == null) return
-  try {
-    const tr = editor.state.tr
-    tr.setSelection(TextSelection.create(tr.doc, pos))
-    editor.view.dispatch(tr)
-  } catch {
-    /* ignore invalid pos */
-  }
-}
-
 function openBlockContextMenu(editor: Editor, block: BlockHit, x: number, y: number) {
+  const previousSelection = editor.state.selection
+  const scrollX = window.scrollX
+  const scrollY = window.scrollY
   const { tr, doc } = editor.state
   tr.setMeta('lockDragHandle', true)
   tr.setSelection(NodeSelection.create(doc, block.pos))
   editor.view.dispatch(tr)
+  requestAnimationFrame(() => {
+    window.scrollTo(scrollX, scrollY)
+  })
 
   window.dispatchEvent(
     new CustomEvent('rs-block-contextmenu-open', {
-      detail: { editor, node: block.node, pos: block.pos, x, y },
+      detail: {
+        editor,
+        node: block.node,
+        pos: block.pos,
+        x,
+        y,
+        previousSelection,
+        scrollX,
+        scrollY,
+      },
     }),
   )
 }
@@ -196,7 +196,6 @@ function openBlockContextMenuAt(editor: Editor, x: number, y: number, block?: Bl
     console.warn('[rs-block-contextmenu] 未能定位块，已拦截浏览器菜单')
     return
   }
-  focusBlockAtPointer(editor, x, y)
   openBlockContextMenu(editor, hit, x, y)
 }
 

@@ -2,37 +2,49 @@
 import { collectDragMenuItems } from '@/editor/block-drag-menu-items'
 import { EditorDragMenu, type Editor } from '@halo-dev/richtext-editor'
 import type { Node as PmNode } from '@tiptap/pm/model'
-import { NodeSelection, TextSelection } from '@tiptap/pm/state'
+import type { Selection } from '@tiptap/pm/state'
 import { computed, onMounted, onUnmounted, ref, shallowRef } from 'vue'
 
 const visible = ref(false)
 const x = ref(0)
 const y = ref(0)
+const menuKey = ref(0)
 const editor = shallowRef<Editor | null>(null)
 const node = shallowRef<PmNode | null>(null)
 const pos = ref(0)
+const savedSelection = shallowRef<Selection | null>(null)
+const savedScroll = { x: 0, y: 0 }
 
 const items = computed(() => (editor.value ? collectDragMenuItems(editor.value) : []))
 
-function unlockDragHandle() {
+function restoreEditorState() {
   const ed = editor.value
   if (!ed) return
-  const { tr, selection } = ed.state
+
+  const scrollX = savedScroll.x
+  const scrollY = savedScroll.y
+  const tr = ed.state.tr
   tr.setMeta('lockDragHandle', false)
-  const size = tr.doc.content.size
-  if (selection instanceof NodeSelection) {
-    const inner = Math.min(selection.from + 1, Math.max(0, size - 1))
-    tr.setSelection(TextSelection.near(tr.doc.resolve(inner), -1))
-  } else if (!selection.empty) {
-    const anchor = Math.min(selection.to, Math.max(0, size - 1))
-    tr.setSelection(TextSelection.near(tr.doc.resolve(anchor), -1))
+
+  const prev = savedSelection.value
+  if (prev) {
+    try {
+      tr.setSelection(prev)
+    } catch {
+      /* keep current selection if restore fails */
+    }
   }
+
   ed.view.dispatch(tr)
+  requestAnimationFrame(() => {
+    window.scrollTo(scrollX, scrollY)
+  })
 }
 
 function close() {
+  if (!visible.value) return
   visible.value = false
-  unlockDragHandle()
+  restoreEditorState()
 }
 
 type OpenDetail = {
@@ -41,16 +53,29 @@ type OpenDetail = {
   pos: number
   x: number
   y: number
+  previousSelection?: Selection
+  scrollX?: number
+  scrollY?: number
 }
 
 function onOpen(ev: Event) {
   const detail = (ev as CustomEvent<OpenDetail>).detail
   if (!detail?.editor || !detail.node) return
+
+  const isReposition = visible.value
+  if (!isReposition) {
+    savedSelection.value = detail.previousSelection ?? detail.editor.state.selection
+    savedScroll.x = detail.scrollX ?? window.scrollX
+    savedScroll.y = detail.scrollY ?? window.scrollY
+  }
+
   editor.value = detail.editor
   node.value = detail.node
   pos.value = detail.pos
   x.value = detail.x
   y.value = detail.y
+
+  if (isReposition) menuKey.value += 1
   visible.value = true
 }
 
@@ -58,6 +83,8 @@ function onDocPointer(ev: MouseEvent) {
   if (!visible.value || ev.button !== 0) return
   const t = ev.target as Element | null
   if (isInsideMenuUi(t)) return
+  ev.preventDefault()
+  ev.stopPropagation()
   close()
 }
 
@@ -85,22 +112,22 @@ onUnmounted(() => {
 
 <template>
   <Teleport to="body">
-    <div
-      v-if="visible"
-      class="rs-block-context-menu-backdrop"
-      @mousedown.left="close"
-      @contextmenu.prevent
-    />
-    <div
-      v-if="visible && editor && node"
-      class="rs-block-context-menu"
-      :style="{ left: `${x}px`, top: `${y}px` }"
-      @mousedown.stop
-      @contextmenu.prevent
-    >
-      <!-- TipTap Editor 与 Halo 包装类型在编译期不完全一致，运行时同源 -->
-      <EditorDragMenu :editor="editor as never" :node="node" :pos="pos" :items="items" @close="close" />
-    </div>
+    <Transition name="rs-block-menu-backdrop">
+      <div v-if="visible" class="rs-block-context-menu-backdrop" aria-hidden="true" />
+    </Transition>
+    <Transition name="rs-block-menu" appear>
+      <div
+        v-if="visible && editor && node"
+        :key="menuKey"
+        class="rs-block-context-menu"
+        :style="{ left: `${x}px`, top: `${y}px` }"
+        @mousedown.stop
+        @contextmenu.prevent
+      >
+        <!-- TipTap Editor 与 Halo 包装类型在编译期不完全一致，运行时同源 -->
+        <EditorDragMenu :editor="editor as never" :node="node" :pos="pos" :items="items" @close="close" />
+      </div>
+    </Transition>
   </Teleport>
 </template>
 
@@ -110,6 +137,7 @@ onUnmounted(() => {
   inset: 0;
   z-index: 10069;
   background: transparent;
+  pointer-events: none;
 }
 
 .rs-block-context-menu {
@@ -122,5 +150,29 @@ onUnmounted(() => {
     0 10px 40px rgba(0, 0, 0, 0.18),
     0 0 0 1px rgba(0, 0, 0, 0.06);
   overflow: hidden;
+  transform-origin: top left;
+}
+
+:global(.rs-block-menu-enter-active),
+:global(.rs-block-menu-leave-active) {
+  transition:
+    opacity 0.16s ease,
+    transform 0.16s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+:global(.rs-block-menu-enter-from),
+:global(.rs-block-menu-leave-to) {
+  opacity: 0;
+  transform: scale(0.96) translateY(-4px);
+}
+
+:global(.rs-block-menu-backdrop-enter-active),
+:global(.rs-block-menu-backdrop-leave-active) {
+  transition: opacity 0.16s ease;
+}
+
+:global(.rs-block-menu-backdrop-enter-from),
+:global(.rs-block-menu-backdrop-leave-to) {
+  opacity: 0;
 }
 </style>
