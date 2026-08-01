@@ -38,7 +38,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.ref_name }}
-          name: RS_WikiLink ${{ github.ref_name }}
+          name: ${{ github.ref_name }}
           body_path: tools/halo-plugin-wikilink/RELEASE.md
           files: tools/halo-plugin-wikilink/build/libs/RS_WikiLink-*.jar
           draft: false
