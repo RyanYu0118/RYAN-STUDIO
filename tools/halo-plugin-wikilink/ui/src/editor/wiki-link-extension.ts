@@ -12,7 +12,7 @@ import {
   bindWikiEditorCtrlCursor,
   unbindWikiEditorCtrlCursor,
 } from '@/lib/wiki-editor-ctrl-cursor'
-import { isEditorWikiLinkNavEnabled } from '@/lib/wiki-editor-nav-policy'
+import { isEditorPublishedLinkNavEnabled } from '@/lib/wiki-editor-nav-policy'
 import {
   bindWikiEditorWindowOpenGuard,
   unbindWikiEditorWindowOpenGuard,
@@ -32,7 +32,7 @@ const WikiLinkExtension = Extension.create({
     mountWikiLinkFloatingHost()
     setWikiLinkEditor(this.editor)
     bindNativeOpenLinkBridge(this.editor)
-    if (isEditorWikiLinkNavEnabled()) {
+    if (isEditorPublishedLinkNavEnabled()) {
       bindWikiEditorCtrlCursor()
     }
     bindWikiEditorWindowOpenGuard()

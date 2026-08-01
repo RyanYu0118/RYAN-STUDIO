@@ -1,8 +1,15 @@
 import type { Editor } from '@halo-dev/richtext-editor'
-import { hrefAtEditorSelection } from '@/lib/wiki-link-commands'
 import {
+  getActiveWikiLinkInfo,
+  getWikiLinkInfoFromHref,
+  hrefAtEditorSelection,
+} from '@/lib/wiki-link-commands'
+import {
+  canOpenWikiLinkFromEditor,
+  isDomRedlinkAnchor,
   isEditorConsolePage,
-  isEditorWikiLinkNavEnabled,
+  isEditorPublishedLinkNavEnabled,
+  shouldBlockEditorWikiLinkClick,
 } from '@/lib/wiki-editor-nav-policy'
 import { openWikiArchiveLinkFromEditor } from '@/lib/wiki-redlink-open'
 import { isWikiArchiveHref } from '@/lib/wiki-utils'
@@ -14,10 +21,12 @@ let activeEditor: Editor | null = null
 let cachedHref = ''
 let cachedLabel = ''
 let cachedAt = 0
+let pendingCtrlWikiLink: { href: string; label: string } | null = null
 
 type ListenerPair = {
   mousedown: (e: MouseEvent) => void
   click: (e: MouseEvent) => void
+  editorLinkClick: (e: MouseEvent) => void
   editorLinkNavBlock: (e: MouseEvent) => void
 }
 let docListeners: ListenerPair | null = null
@@ -57,6 +66,11 @@ function buttonHasOpenLinkIcon(btn: HTMLButtonElement): boolean {
   if (!svg) return false
   const inner = (svg.innerHTML || '') + (svg.outerHTML || '')
   return inner.includes(OPEN_LINK_ICON_MARK) || inner.includes('mingcute-share-3')
+}
+
+function posFromMouseEvent(ed: Editor, e: MouseEvent): number | undefined {
+  const hit = ed.view.posAtCoords({ left: e.clientX, top: e.clientY })
+  return hit?.pos
 }
 
 function cacheLinkFromAnchor(anchor: HTMLAnchorElement) {
@@ -109,7 +123,39 @@ function resolveWikiLabel(ed: Editor, href: string): string {
   return href
 }
 
-/** 编辑页 Wiki 内链：阻断一切导航（含 Ctrl+点击），仅保留文本编辑 */
+function wikiLinkIsRed(ed: Editor, href: string): boolean {
+  const info = getActiveWikiLinkInfo(ed) || getWikiLinkInfoFromHref(ed, href)
+  return info.isRed
+}
+
+function handleEditorWikiLinkMousedown(e: MouseEvent) {
+  if (!isEditorConsolePage() || e.button !== 0) return
+  const anchor = wikiAnchorFromEvent(e)
+  if (!anchor) {
+    pendingCtrlWikiLink = null
+    return
+  }
+
+  const href = (anchor.getAttribute('href') || '').trim()
+  if (!isWikiArchiveHref(href)) {
+    pendingCtrlWikiLink = null
+    return
+  }
+
+  const modClick = e.ctrlKey || e.metaKey
+  if (modClick) {
+    e.preventDefault()
+    e.stopPropagation()
+    pendingCtrlWikiLink = {
+      href,
+      label: (anchor.textContent || '').replace(/\s+/g, ' ').trim() || href,
+    }
+    return
+  }
+
+  pendingCtrlWikiLink = null
+}
+
 function handleEditorWikiLinkNavBlock(e: MouseEvent) {
   if (!isEditorConsolePage() || e.button !== 0) return
 
@@ -118,28 +164,44 @@ function handleEditorWikiLinkNavBlock(e: MouseEvent) {
   const href = (anchor.getAttribute('href') || '').trim()
   if (!isWikiArchiveHref(href)) return
 
+  const modClick = e.ctrlKey || e.metaKey
+  if (!shouldBlockEditorWikiLinkClick(anchor, modClick)) return
+
   e.preventDefault()
-  if (e.ctrlKey || e.metaKey) {
+  if (modClick && isDomRedlinkAnchor(anchor)) {
     e.stopPropagation()
     e.stopImmediatePropagation()
   }
 }
 
-function handleEditorWikiLinkMousedown(e: MouseEvent) {
+function handleEditorWikiLinkClick(e: MouseEvent) {
   if (!isEditorConsolePage() || e.button !== 0) return
+  if (!(e.ctrlKey || e.metaKey)) return
+  if (!isEditorPublishedLinkNavEnabled()) return
+
+  const pending = pendingCtrlWikiLink
+  pendingCtrlWikiLink = null
+
   const anchor = wikiAnchorFromEvent(e)
-  if (!anchor) return
+  const href = (pending?.href || anchor?.getAttribute('href') || '').trim()
+  if (!href || !isWikiArchiveHref(href)) return
+  if (anchor && isDomRedlinkAnchor(anchor)) return
 
-  const href = (anchor.getAttribute('href') || '').trim()
-  if (!isWikiArchiveHref(href)) return
+  const ed = activeEditor
+  if (!ed) return
 
-  if (e.ctrlKey || e.metaKey) {
-    e.preventDefault()
-    e.stopPropagation()
-  }
+  e.preventDefault()
+  e.stopPropagation()
+  e.stopImmediatePropagation()
+
+  const label =
+    pending?.label ||
+    (anchor?.textContent || '').replace(/\s+/g, ' ').trim() ||
+    href
+  const pos = posFromMouseEvent(ed, e)
+  void openWikiArchiveLinkFromEditor(ed, { href, label, newTab: true, pos })
 }
 
-/** Halo 气泡「打开链接」：Wiki 内链在编辑页暂禁，非 Wiki 链接仍走 Halo 默认行为 */
 export function isNativeOpenLinkButton(el: EventTarget | null): boolean {
   if (!(el instanceof Element)) return false
   const btn = el.closest('button')
@@ -167,7 +229,8 @@ function handleOpenLinkClick(e: MouseEvent) {
   e.stopPropagation()
   e.stopImmediatePropagation()
 
-  if (!isEditorWikiLinkNavEnabled()) return
+  if (!isEditorPublishedLinkNavEnabled()) return
+  if (!canOpenWikiLinkFromEditor(wikiLinkIsRed(ed, href))) return
 
   const label = resolveWikiLabel(ed, href)
   void openWikiArchiveLinkFromEditor(ed, {
@@ -212,12 +275,14 @@ function ensureDocumentListeners() {
 
   const mousedown = (e: MouseEvent) => handleOpenLinkMousedown(e)
   const click = (e: MouseEvent) => handleOpenLinkClick(e)
+  const editorLinkClick = (e: MouseEvent) => handleEditorWikiLinkClick(e)
   const editorLinkNavBlock = (e: MouseEvent) => handleEditorWikiLinkNavBlock(e)
 
   document.addEventListener('mousedown', mousedown, true)
+  document.addEventListener('click', editorLinkClick, true)
   document.addEventListener('click', editorLinkNavBlock, true)
   document.addEventListener('click', click, true)
-  docListeners = { mousedown, click, editorLinkNavBlock }
+  docListeners = { mousedown, click, editorLinkClick, editorLinkNavBlock }
 }
 
 export function bindNativeOpenLinkBridge(editor: Editor) {
@@ -233,6 +298,7 @@ export function bindNativeOpenLinkBridge(editor: Editor) {
 export function unbindNativeOpenLinkBridge() {
   if (docListeners) {
     document.removeEventListener('mousedown', docListeners.mousedown, true)
+    document.removeEventListener('click', docListeners.editorLinkClick, true)
     document.removeEventListener('click', docListeners.editorLinkNavBlock, true)
     document.removeEventListener('click', docListeners.click, true)
     docListeners = null
@@ -241,4 +307,5 @@ export function unbindNativeOpenLinkBridge() {
   cachedHref = ''
   cachedLabel = ''
   cachedAt = 0
+  pendingCtrlWikiLink = null
 }

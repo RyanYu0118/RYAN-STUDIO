@@ -13,8 +13,9 @@ import {
 } from '@/lib/wiki-link-commands'
 import { refreshWikiLinkClassesFromApi } from '@/lib/wiki-link-class-sync'
 import {
+  canOpenWikiLinkFromEditor,
   isEditorConsolePage,
-  isEditorWikiLinkNavEnabled,
+  isEditorRedlinkNavEnabled,
 } from '@/lib/wiki-editor-nav-policy'
 
 const REDLINK_TARGET_ANN = 'rs.wiki/redlink-target-slug'
@@ -393,10 +394,6 @@ export async function openWikiArchiveLinkFromEditor(
   editor: Editor,
   options?: { href?: string; label?: string; newTab?: boolean; pos?: number }
 ): Promise<boolean> {
-  if (isEditorConsolePage() && !isEditorWikiLinkNavEnabled()) {
-    return false
-  }
-
   let href = (options?.href || '').trim()
   if (!href) href = hrefAtEditorSelection(editor)
   if (!href) href = String(editor.getAttributes(ExtensionLink.name).href || '').trim()
@@ -411,9 +408,6 @@ export async function openWikiArchiveLinkFromEditor(
   const explicitHref = !!(options?.href || '').trim()
   const newTab = options?.newTab !== false
 
-  // 同步：立刻占位新标签，避免 Halo Link / target=_self 在 await 前覆盖编辑页
-  const pendingTab = newTab ? openPendingArchiveTab('正在打开…') : null
-
   let info
   if (explicitHref) {
     info = getWikiLinkInfoFromHref(editor, href, options?.label)
@@ -422,6 +416,15 @@ export async function openWikiArchiveLinkFromEditor(
     info = getActiveWikiLinkInfo(editor) || getWikiLinkInfoFromHref(editor, href, options?.label)
   }
   if (options?.label) info.label = options.label
+
+  if (!canOpenWikiLinkFromEditor(info.isRed)) {
+    return false
+  }
+
+  const pendingTab =
+    newTab && !(isEditorConsolePage() && info.isRed && !isEditorRedlinkNavEnabled())
+      ? openPendingArchiveTab('正在打开…')
+      : null
 
   try {
     await reloadWikiIndex()
@@ -434,6 +437,11 @@ export async function openWikiArchiveLinkFromEditor(
       }
       await navigateArchiveWhenReady(status.postSlug, newTab, pendingTab)
       return true
+    }
+
+    if (isEditorConsolePage() && !isEditorRedlinkNavEnabled()) {
+      pendingTab?.close()
+      return false
     }
 
     if (pendingTab) {

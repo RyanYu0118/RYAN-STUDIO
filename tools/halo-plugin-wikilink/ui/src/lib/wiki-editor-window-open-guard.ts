@@ -1,4 +1,3 @@
-import { isEditorWikiLinkNavEnabled } from '@/lib/wiki-editor-nav-policy'
 import { isWikiArchiveHref } from '@/lib/wiki-utils'
 
 let patched = false
@@ -16,14 +15,6 @@ export function bindWikiEditorWindowOpenGuard() {
 
   window.open = function (url?: string | URL, target?: string, features?: string) {
     const href = String(url ?? '')
-    if (
-      isEditorPage() &&
-      isWikiArchiveHref(href) &&
-      !isEditorWikiLinkNavEnabled()
-    ) {
-      console.warn('[RS_WikiLink] blocked archive navigation in editor:', href)
-      return null
-    }
     if (isEditorPage() && isWikiArchiveHref(href)) {
       const t = (target || '_self').toLowerCase()
       if (t === '_self' || t === 'self' || t === '') {
