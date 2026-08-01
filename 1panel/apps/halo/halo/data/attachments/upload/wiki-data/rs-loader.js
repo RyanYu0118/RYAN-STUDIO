@@ -123,7 +123,7 @@
         anchor: "/upload/wiki-data/rs-anchor-scroll.js?v=1.0",
         home:   "/upload/wiki-data/rs-home.js",
         wiki:   "/upload/wiki-data/rs-wiki.js",
-        redlinks: "/upload/wiki-data/rs-redlinks.js?v=3.5"
+        redlinks: "/upload/wiki-data/rs-redlinks.js?v=3.6"
     };
 
     function loadScript(url, callback) {

@@ -209,8 +209,7 @@ async function waitUntilPublished(slug: string, attempt = 0): Promise<boolean> {
 async function createAndPublishRedlink(
   linkSlug: string,
   title: string,
-  sourcePost: unknown,
-  shiftKey: boolean
+  sourcePost: unknown
 ): Promise<{ ok: boolean; slug?: string; linkTarget?: string; error?: string }> {
   const cfg = getRedlinkConfig()
   const postName = crypto.randomUUID()
@@ -218,18 +217,6 @@ async function createAndPublishRedlink(
   resolved = {
     ...resolved,
     publishSlug: await ensureUniquePublishSlug(resolved.publishSlug, postName),
-  }
-
-  if (!cfg.skipConfirm && !shiftKey) {
-    const ok = window.confirm(
-      '条目「' +
-        title +
-        '」尚未发布。\n\n将继承当前页的分类、标签与封面，' +
-        '新建文章并以 `' +
-        resolved.publishSlug +
-        '` 作为地址，发布后在浏览器打开？\n\n（按住 Shift 再点可跳过本确认）'
-    )
-    if (!ok) return { ok: false, error: 'cancelled' }
   }
 
   const draftContent = buildRedlinkDraftContent(postName)
@@ -320,14 +307,16 @@ async function createAndPublishRedlink(
   return { ok: true, slug: resolved.publishSlug, linkTarget: resolved.linkTarget }
 }
 
-function openArchiveInBrowser(slug: string) {
-  window.open(WIKI_PATH_PREFIX + encodeURIComponent(slug).replace(/%2F/g, '/'), '_blank')
+function openArchive(slug: string, newTab: boolean) {
+  const url = WIKI_PATH_PREFIX + encodeURIComponent(slug).replace(/%2F/g, '/')
+  if (newTab) window.open(url, '_blank')
+  else window.location.href = url
 }
 
-/** 与前台 rs-redlinks 一致：已发布则新标签打开；红链则确认后创建并发布再新标签打开 */
+/** 编辑器/后台：已发布或红链均直接创建发布；默认新标签打开（Ctrl+点击同） */
 export async function openWikiArchiveLinkFromEditor(
   editor: Editor,
-  options?: { shiftKey?: boolean; href?: string; label?: string }
+  options?: { href?: string; label?: string; newTab?: boolean }
 ): Promise<boolean> {
   let href = (options?.href || '').trim()
   if (!href) href = hrefAtEditorSelection(editor)
@@ -343,9 +332,11 @@ export async function openWikiArchiveLinkFromEditor(
     getWikiLinkInfoFromHref(editor, href)
   if (options?.label) info.label = options.label
 
+  const newTab = options?.newTab !== false
+
   const status = await checkLinkTarget(info.target)
   if (status.ready && status.postSlug) {
-    openArchiveInBrowser(status.postSlug)
+    openArchive(status.postSlug, newTab)
     if (info.isRed) {
       applyWikiLink(editor, status.postSlug, info.label)
     }
@@ -356,11 +347,9 @@ export async function openWikiArchiveLinkFromEditor(
   const result = await createAndPublishRedlink(
     info.target,
     info.label || info.target,
-    sourcePost,
-    options?.shiftKey === true
+    sourcePost
   )
 
-  if (result.error === 'cancelled') return true
   if (!result.ok) {
     alert('发布失败：' + (result.error || '未知错误'))
     return true
@@ -369,6 +358,6 @@ export async function openWikiArchiveLinkFromEditor(
   await reloadWikiIndex()
   const finalSlug = result.slug || info.target
   applyWikiLink(editor, finalSlug, info.label)
-  openArchiveInBrowser(finalSlug)
+  openArchive(finalSlug, newTab)
   return true
 }

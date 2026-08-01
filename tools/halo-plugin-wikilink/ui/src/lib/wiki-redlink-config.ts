@@ -12,7 +12,7 @@ const FALLBACK: RedlinkRuntimeConfig = {
   defaultTags: ['tag-sqmsuywx'],
   postOwner: 'ryanyu',
   slugPrefix: '',
-  skipConfirm: false,
+  skipConfirm: true,
 }
 
 export function getRedlinkConfig(): RedlinkRuntimeConfig {

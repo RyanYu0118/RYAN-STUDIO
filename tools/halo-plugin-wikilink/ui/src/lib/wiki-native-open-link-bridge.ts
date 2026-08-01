@@ -130,9 +130,9 @@ function handleOpenLinkClick(e: MouseEvent) {
 
   const label = resolveWikiLabel(ed, href)
   void openWikiArchiveLinkFromEditor(ed, {
-    shiftKey: e.shiftKey,
     href,
     label,
+    newTab: true,
   })
 }
 

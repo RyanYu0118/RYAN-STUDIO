@@ -48,8 +48,8 @@ window.RSConfig = {
         pathPrefix: "/archives/",
         cacheMs: 900000,
         createOnClick: true,
-        /** true = 普通点击也不弹确认；Shift+点击 始终跳过确认 */
-        skipConfirm: false,
+        /** true = 点击红链不弹确认，直接发布（默认开启） */
+        skipConfirm: true,
         publishFirst: true,
         /** 红链新建 spec.slug = 文章标题（trim；/ → _） */
         slugPrefix: "",
