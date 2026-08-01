@@ -15,7 +15,7 @@ import {
 import { linkInfoAtPos } from '@/lib/wiki-link-commands'
 import { openWikiArchiveLinkFromEditor } from '@/lib/wiki-redlink-open'
 import { isWikiArchiveHref } from '@/lib/wiki-utils'
-import { Extension, ExtensionLink, TEXT_BUBBLE_MENU_KEY, type Editor } from '@halo-dev/richtext-editor'
+import { Extension, TEXT_BUBBLE_MENU_KEY, type Editor } from '@halo-dev/richtext-editor'
 import { Plugin, PluginKey } from '@tiptap/pm/state'
 import { markRaw } from 'vue'
 
@@ -62,11 +62,6 @@ const WikiLinkExtension = Extension.create({
                 label: info.label,
                 newTab: true,
               })
-              return true
-            }
-
-            if (info.isRed) {
-              editor.commands.extendMarkRange(ExtensionLink.name)
               return true
             }
 

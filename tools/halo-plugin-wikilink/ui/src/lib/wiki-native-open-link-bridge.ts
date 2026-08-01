@@ -1,8 +1,7 @@
 import type { Editor } from '@halo-dev/richtext-editor'
 import { hrefAtEditorSelection } from '@/lib/wiki-link-commands'
 import { openWikiArchiveLinkFromEditor } from '@/lib/wiki-redlink-open'
-import { findPageByQuery, isWikiArchiveHref, normalizeTarget } from '@/lib/wiki-utils'
-import { getWikiIndexState } from '@/lib/wiki-index'
+import { isWikiArchiveHref } from '@/lib/wiki-utils'
 
 const OPEN_LINK_LABEL = /^(打开链接|open link)$/i
 const OPEN_LINK_ICON_MARK = 'zm10.513'
@@ -114,15 +113,7 @@ function resolveWikiLabel(ed: Editor, href: string): string {
   return href
 }
 
-function isUnpublishedWikiArchiveHref(href: string): boolean {
-  const target = normalizeTarget(href)
-  if (!target) return false
-  const { pageIndex, publishedSlugs } = getWikiIndexState()
-  const hit = findPageByQuery(target, pageIndex, publishedSlugs)
-  return !(hit?.published || publishedSlugs[target])
-}
-
-/** 阻止浏览器对 Ctrl+点击原生新开 404 标签；普通左键仅阻止红链误导航 */
+/** 阻止浏览器对 Ctrl+点击原生新开 404 标签 */
 function handleEditorWikiLinkMousedown(e: MouseEvent) {
   if (!isEditorPage() || e.button !== 0) return
   const anchor = wikiAnchorFromEvent(e)
@@ -149,9 +140,6 @@ function handleEditorWikiLinkMousedown(e: MouseEvent) {
   }
 
   pendingCtrlWikiLink = null
-  if (anchor.classList.contains('rs-wiki-redlink') || isUnpublishedWikiArchiveHref(href)) {
-    e.preventDefault()
-  }
 }
 
 /** 仅 Ctrl+左键：创建/打开并新标签页（配合 mousedown 阻断浏览器默认行为） */
