@@ -21,6 +21,12 @@ export function normalizeTarget(raw: string): string {
   }
   if (path.endsWith('.md')) path = path.slice(0, -3)
   if (path.endsWith('/index')) path = path.slice(0, -'/index'.length)
+  path = path.replace(/^\/+|\/+$/g, '')
+  try {
+    path = decodeURIComponent(path)
+  } catch {
+    /* keep raw segment if malformed escape */
+  }
   return path.replace(/^\/+|\/+$/g, '')
 }
 

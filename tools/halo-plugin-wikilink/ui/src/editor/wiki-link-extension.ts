@@ -16,6 +16,10 @@ import {
   bindWikiEditorWindowOpenGuard,
   unbindWikiEditorWindowOpenGuard,
 } from '@/lib/wiki-editor-window-open-guard'
+import {
+  initEditorWikiLinkClassSync,
+  teardownEditorWikiLinkClassSync,
+} from '@/lib/wiki-link-class-sync'
 import { Extension, TEXT_BUBBLE_MENU_KEY, type Editor } from '@halo-dev/richtext-editor'
 import { markRaw } from 'vue'
 
@@ -29,6 +33,7 @@ const WikiLinkExtension = Extension.create({
     bindNativeOpenLinkBridge(this.editor)
     bindWikiEditorCtrlCursor()
     bindWikiEditorWindowOpenGuard()
+    initEditorWikiLinkClassSync(this.editor)
   },
 
   onDestroy() {
@@ -36,6 +41,7 @@ const WikiLinkExtension = Extension.create({
     unbindNativeOpenLinkBridge()
     unbindWikiEditorCtrlCursor()
     unbindWikiEditorWindowOpenGuard()
+    teardownEditorWikiLinkClassSync()
     setWikiLinkEditor(null)
   },
 
