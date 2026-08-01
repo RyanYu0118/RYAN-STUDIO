@@ -5,13 +5,13 @@ import { findPageByQuery, isWikiArchiveHref, normalizeTarget } from '@/lib/wiki-
 import { getWikiIndexState } from '@/lib/wiki-index'
 
 const OPEN_LINK_LABEL = /^(打开链接|open link)$/i
-/** Halo 文本气泡「打开链接」图标 mingcute-share-3-line */
 const OPEN_LINK_ICON_MARK = 'zm10.513'
 
 let activeEditor: Editor | null = null
 let cachedHref = ''
 let cachedLabel = ''
 let cachedAt = 0
+let pendingCtrlWikiLink: { href: string; label: string } | null = null
 
 type ListenerPair = {
   mousedown: (e: MouseEvent) => void
@@ -26,6 +26,12 @@ export function setWikiLinkEditor(editor: Editor | null) {
 
 function isEditorPage() {
   return location.pathname.indexOf('/console/posts/editor') >= 0
+}
+
+function wikiAnchorFromEvent(e: MouseEvent): HTMLAnchorElement | null {
+  if (!(e.target instanceof Element)) return null
+  const anchor = e.target.closest('.ProseMirror a[href]')
+  return anchor instanceof HTMLAnchorElement ? anchor : null
 }
 
 function linkControlLabel(btn: HTMLButtonElement): string {
@@ -116,23 +122,49 @@ function isUnpublishedWikiArchiveHref(href: string): boolean {
   return !(hit?.published || publishedSlugs[target])
 }
 
-/** 编辑器正文内：红链左键 / 已发布链 Ctrl+左键 → 拦截 Halo 原生 window.open */
-function shouldInterceptEditorWikiLinkClick(anchor: HTMLAnchorElement, href: string, e: MouseEvent): boolean {
-  if (anchor.classList.contains('rs-wiki-redlink')) return true
-  if (isUnpublishedWikiArchiveHref(href)) return true
-  return e.ctrlKey || e.metaKey
-}
-
-function handleEditorWikiLinkClick(e: MouseEvent) {
+/** 阻止浏览器对 Ctrl+点击原生新开 404 标签；普通左键仅阻止红链误导航 */
+function handleEditorWikiLinkMousedown(e: MouseEvent) {
   if (!isEditorPage() || e.button !== 0) return
-  if (!(e.target instanceof Element)) return
-
-  const anchor = e.target.closest('.ProseMirror a[href]')
-  if (!anchor || !(anchor instanceof HTMLAnchorElement)) return
+  const anchor = wikiAnchorFromEvent(e)
+  if (!anchor) {
+    pendingCtrlWikiLink = null
+    return
+  }
 
   const href = (anchor.getAttribute('href') || '').trim()
-  if (!isWikiArchiveHref(href)) return
-  if (!shouldInterceptEditorWikiLinkClick(anchor, href, e)) return
+  if (!isWikiArchiveHref(href)) {
+    pendingCtrlWikiLink = null
+    return
+  }
+
+  const label = (anchor.textContent || '').replace(/\s+/g, ' ').trim()
+  const modClick = e.ctrlKey || e.metaKey
+
+  if (modClick) {
+    e.preventDefault()
+    e.stopPropagation()
+    e.stopImmediatePropagation()
+    pendingCtrlWikiLink = { href, label: label || href }
+    return
+  }
+
+  pendingCtrlWikiLink = null
+  if (anchor.classList.contains('rs-wiki-redlink') || isUnpublishedWikiArchiveHref(href)) {
+    e.preventDefault()
+  }
+}
+
+/** 仅 Ctrl+左键：创建/打开并新标签页（配合 mousedown 阻断浏览器默认行为） */
+function handleEditorWikiLinkClick(e: MouseEvent) {
+  if (!isEditorPage() || e.button !== 0) return
+  if (!(e.ctrlKey || e.metaKey)) return
+
+  const pending = pendingCtrlWikiLink
+  pendingCtrlWikiLink = null
+
+  const anchor = wikiAnchorFromEvent(e)
+  const href = (pending?.href || anchor?.getAttribute('href') || '').trim()
+  if (!href || !isWikiArchiveHref(href)) return
 
   const ed = activeEditor
   if (!ed) return
@@ -141,11 +173,14 @@ function handleEditorWikiLinkClick(e: MouseEvent) {
   e.stopPropagation()
   e.stopImmediatePropagation()
 
-  const label = (anchor.textContent || '').replace(/\s+/g, ' ').trim()
+  const label =
+    pending?.label ||
+    (anchor?.textContent || '').replace(/\s+/g, ' ').trim() ||
+    href
   void openWikiArchiveLinkFromEditor(ed, { href, label, newTab: true })
 }
 
-/** Halo 文本气泡栏 / 链接面板里的原生「打开链接」按钮（v-tooltip 常不写 title） */
+/** Halo 文本气泡栏 / 链接面板里的原生「打开链接」按钮 */
 export function isNativeOpenLinkButton(el: EventTarget | null): boolean {
   if (!(el instanceof Element)) return false
   const btn = el.closest('button')
@@ -186,6 +221,7 @@ function handleOpenLinkMousedown(e: MouseEvent) {
   if (e.target instanceof Element && e.target.closest('.bubble-menu, .v-popper__inner')) {
     if (activeEditor) cacheLinkFromEditor(activeEditor)
   }
+  handleEditorWikiLinkMousedown(e)
 }
 
 function ensureDocumentListeners() {
@@ -218,4 +254,5 @@ export function unbindNativeOpenLinkBridge() {
   cachedHref = ''
   cachedLabel = ''
   cachedAt = 0
+  pendingCtrlWikiLink = null
 }

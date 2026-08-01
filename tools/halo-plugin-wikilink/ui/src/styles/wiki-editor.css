@@ -2,6 +2,11 @@
   -webkit-touch-callout: none;
 }
 
+.ProseMirror a[href*="/archives/"],
+.ProseMirror a.rs-wiki-redlink {
+  cursor: pointer !important;
+}
+
 .ProseMirror a.rs-wiki-redlink {
   color: #c62828 !important;
   border-bottom: 1px dashed currentColor;

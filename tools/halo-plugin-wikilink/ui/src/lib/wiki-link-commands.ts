@@ -67,6 +67,49 @@ export function hrefAtEditorSelection(editor: Editor): string {
   return ''
 }
 
+export type LinkInfoAtPos = {
+  href: string
+  label: string
+  isRed: boolean
+}
+
+/** 点击位置处的 link mark（只读，不 mutate 选区） */
+export function linkInfoAtPos(editor: Editor, pos: number): LinkInfoAtPos | null {
+  const $pos = editor.state.doc.resolve(pos)
+  const pick = (mark: { type: { name: string }; attrs: Record<string, unknown> } | undefined) => {
+    if (!mark || mark.type.name !== ExtensionLink.name || !mark.attrs.href) return null
+    const href = String(mark.attrs.href).trim()
+    if (!href || isExternalUrl(href)) return null
+    const linkClass = String(mark.attrs.class || '')
+    const target = normalizeTarget(href)
+    const { pageIndex, publishedSlugs } = getWikiIndexState()
+    const hit = findPageByQuery(target, pageIndex, publishedSlugs)
+    const published = !!(hit?.published || publishedSlugs[target])
+    const isRed = linkClass.includes('rs-wiki-redlink') || !published
+    let label = ''
+    const before = $pos.nodeBefore
+    if (before?.isText) label = (before.text || '').trim()
+    if (!label) {
+      label = $pos.parent.textBetween(Math.max(0, $pos.parentOffset - 48), $pos.parentOffset, ' ').trim()
+    }
+    if (!label) label = target
+    return { href, label, isRed }
+  }
+
+  for (const mark of $pos.marks()) {
+    const hit = pick(mark)
+    if (hit) return hit
+  }
+  const before = $pos.nodeBefore
+  if (before?.isText) {
+    for (const mark of before.marks) {
+      const hit = pick(mark)
+      if (hit) return hit
+    }
+  }
+  return null
+}
+
 export function labelAtEditorSelection(editor: Editor, fallback = ''): string {
   if (editor.isActive(ExtensionLink.name)) {
     return readActiveLinkLabel(editor) || fallback
@@ -151,7 +194,7 @@ export function applyWikiLink(editor: Editor, rawTarget: string, label?: string)
       href,
       class: published ? null : 'rs-wiki-redlink',
       target: '_self',
-      title: published ? null : '尚未发布 · 前台将显示为红链',
+      title: published ? null : '尚未发布 · Ctrl+点击在新标签页打开并发布',
     })
     .run()
 }

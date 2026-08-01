@@ -8,11 +8,17 @@ import {
   setWikiLinkEditor,
   unbindNativeOpenLinkBridge,
 } from '@/lib/wiki-native-open-link-bridge'
-import { Extension, TEXT_BUBBLE_MENU_KEY, type Editor } from '@halo-dev/richtext-editor'
+import { linkInfoAtPos } from '@/lib/wiki-link-commands'
+import { openWikiArchiveLinkFromEditor } from '@/lib/wiki-redlink-open'
+import { isWikiArchiveHref } from '@/lib/wiki-utils'
+import { Extension, ExtensionLink, TEXT_BUBBLE_MENU_KEY, type Editor } from '@halo-dev/richtext-editor'
+import { Plugin, PluginKey } from '@tiptap/pm/state'
 import { markRaw } from 'vue'
 
 const WikiLinkExtension = Extension.create({
   name: 'rsWikiLink',
+  /** 高于 Link(1000)，handleClick 先于 Halo openOnClick 执行 */
+  priority: 1001,
 
   onCreate() {
     mountWikiLinkFloatingHost()
@@ -28,6 +34,41 @@ const WikiLinkExtension = Extension.create({
 
   onSelectionUpdate() {
     setWikiLinkEditor(this.editor)
+  },
+
+  addProseMirrorPlugins() {
+    const editor = this.editor
+    return [
+      new Plugin({
+        key: new PluginKey('rsWikiLinkEditorClick'),
+        props: {
+          handleClick(_view, pos, event) {
+            if (event.button !== 0) return false
+            const info = linkInfoAtPos(editor, pos)
+            if (!info || !isWikiArchiveHref(info.href)) return false
+
+            const modClick = event.ctrlKey || event.metaKey
+
+            if (modClick) {
+              event.preventDefault()
+              void openWikiArchiveLinkFromEditor(editor, {
+                href: info.href,
+                label: info.label,
+                newTab: true,
+              })
+              return true
+            }
+
+            if (info.isRed) {
+              editor.commands.extendMarkRange(ExtensionLink.name)
+              return true
+            }
+
+            return false
+          },
+        },
+      }),
+    ]
   },
 
   addOptions() {
