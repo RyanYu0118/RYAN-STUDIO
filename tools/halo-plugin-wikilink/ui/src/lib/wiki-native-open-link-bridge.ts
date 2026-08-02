@@ -168,10 +168,8 @@ function handleEditorWikiLinkNavBlock(e: MouseEvent) {
   if (!shouldBlockEditorWikiLinkClick(anchor, modClick)) return
 
   e.preventDefault()
-  if (modClick && isDomRedlinkAnchor(anchor)) {
-    e.stopPropagation()
-    e.stopImmediatePropagation()
-  }
+  e.stopPropagation()
+  e.stopImmediatePropagation()
 }
 
 function handleEditorWikiLinkClick(e: MouseEvent) {

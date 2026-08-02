@@ -30,13 +30,13 @@ export function isDomRedlinkAnchor(anchor: HTMLAnchorElement): boolean {
   return anchor.classList.contains('rs-wiki-redlink')
 }
 
-/** 是否应拦截 Wiki 内链点击（阻止浏览器/Halo 默认导航） */
+/** 是否应拦截 Wiki 内链点击（阻止误跳转）；普通单击不拦截，以便选中链接并显示气泡菜单 */
 export function shouldBlockEditorWikiLinkClick(
   anchor: HTMLAnchorElement,
   modClick: boolean
 ): boolean {
+  if (!modClick) return false
   if (isDomRedlinkAnchor(anchor)) return true
-  if (!modClick) return true
   return !isEditorPublishedLinkNavEnabled()
 }
 

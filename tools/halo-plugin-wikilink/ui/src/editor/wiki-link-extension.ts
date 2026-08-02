@@ -21,6 +21,7 @@ import {
   initEditorWikiLinkClassSync,
   teardownEditorWikiLinkClassSync,
 } from '@/lib/wiki-link-class-sync'
+import { isSelectionOnWikiArchiveLink } from '@/lib/wiki-link-commands'
 import { Extension, TEXT_BUBBLE_MENU_KEY, type Editor } from '@halo-dev/richtext-editor'
 import { markRaw } from 'vue'
 
@@ -63,7 +64,8 @@ const WikiLinkExtension = Extension.create({
               component: markRaw(WikiLinkBubbleButton),
               props: {
                 editor,
-                visible: ({ editor: ed }: { editor: Editor }) => !ed.state.selection.empty,
+                visible: ({ editor: ed }: { editor: Editor }) =>
+                  isSelectionOnWikiArchiveLink(ed) || !ed.state.selection.empty,
               },
             },
           ],

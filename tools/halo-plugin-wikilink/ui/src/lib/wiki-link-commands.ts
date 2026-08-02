@@ -248,6 +248,11 @@ export function refreshWikiLinkClasses(editor: Editor): void {
   })
 }
 
+/** 点击位置选中整段 Wiki 内链（用于一次点击弹出链接气泡） */
+export function selectWikiLinkAtPos(editor: Editor, pos: number): boolean {
+  return editor.chain().focus().setTextSelection(pos).extendMarkRange(ExtensionLink.name).run()
+}
+
 /** 选区是否在 Wiki 内链（/archives/…）上；普通文本或外部链接返回 false */
 export function isSelectionOnWikiArchiveLink(editor: Editor): boolean {
   if (!editor.isActive(ExtensionLink.name)) return false

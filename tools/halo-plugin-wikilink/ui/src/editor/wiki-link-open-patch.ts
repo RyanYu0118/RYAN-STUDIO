@@ -1,6 +1,6 @@
 import type { Editor } from '@halo-dev/richtext-editor'
 import { ExtensionLink } from '@halo-dev/richtext-editor'
-import { linkInfoAtPos } from '@/lib/wiki-link-commands'
+import { linkInfoAtPos, selectWikiLinkAtPos } from '@/lib/wiki-link-commands'
 import {
   isDomRedlinkAnchor,
   isEditorPublishedLinkNavEnabled,
@@ -54,7 +54,15 @@ function openPublishedWikiLinkFromEditorDom(
   })
 }
 
-/** 替换 Halo Link 的 handleClickLink：红链仅编辑；蓝链 Ctrl+点击可新标签打开 */
+function selectWikiLinkFromClick(editor: Editor, view: EditorView, event: MouseEvent) {
+  const coords = view.posAtCoords({ left: event.clientX, top: event.clientY })
+  if (coords?.pos == null) return
+  queueMicrotask(() => {
+    selectWikiLinkAtPos(editor, coords.pos)
+  })
+}
+
+/** 替换 Halo Link 的 handleClickLink：单击选中链接并显示气泡；Ctrl+点击蓝链新标签打开 */
 function createWikiSafeLinkClickPlugin(editor: Editor): Plugin {
   return new Plugin({
     key: HANDLE_CLICK_LINK,
@@ -75,18 +83,20 @@ function createWikiSafeLinkClickPlugin(editor: Editor): Plugin {
           const hit = wikiLinkFromDomEvent(view, event)
           if (!hit) return false
 
-          event.preventDefault()
-          event.stopPropagation()
-
           const modClick = event.ctrlKey || event.metaKey
           if (
             modClick &&
             !isDomRedlinkAnchor(hit.anchor) &&
             isEditorPublishedLinkNavEnabled()
           ) {
+            event.preventDefault()
+            event.stopPropagation()
             openPublishedWikiLinkFromEditorDom(editor, view, event, hit.href, hit.anchor)
+            return true
           }
-          return true
+
+          selectWikiLinkFromClick(editor, view, event)
+          return false
         },
       },
       handleClick(view, pos, event) {
@@ -122,7 +132,8 @@ function createWikiSafeLinkClickPlugin(editor: Editor): Plugin {
           return true
         }
 
-        return true
+        selectWikiLinkAtPos(editor, pos)
+        return false
       },
     },
   })
