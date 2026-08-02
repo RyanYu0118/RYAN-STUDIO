@@ -109,11 +109,20 @@
     lastPublishedPostName = postName;
     publishArmedUntil = Date.now() + 15000;
     startNavGuard();
+
+    function notifySlugIndex(slug) {
+      if (slug && window.RSWikiSlugIndex && window.RSWikiSlugIndex.onPublish) {
+        window.RSWikiSlugIndex.onPublish(slug);
+      }
+    }
+
     if (slugHint) {
+      notifySlugIndex(slugHint);
       goToArchivesSlug(slugHint);
       return;
     }
     fetchPostSlug(postName, function (slug) {
+      notifySlugIndex(slug);
       if (slug) goToArchivesSlug(slug);
       else redirecting = false;
     });

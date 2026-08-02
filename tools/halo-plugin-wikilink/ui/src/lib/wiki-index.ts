@@ -74,6 +74,12 @@ export async function loadWikiIndex(): Promise<void> {
     resetIndexCollections()
 
     try {
+      await loadPosts(1, 'uc')
+    } catch {
+      /* 无文章 API 权限时仍可用 slug 索引 */
+    }
+
+    try {
       const res = await fetch(WIKI_SLUG_INDEX, { credentials: 'same-origin', cache: 'no-cache' })
       const data = await res.json()
       const seen: Record<string, boolean> = {}
@@ -88,19 +94,25 @@ export async function loadWikiIndex(): Promise<void> {
           }
           seen[n] = true
           suggestPaths.push(n)
-          if (key === 'slugs') publishedSlugs[n] = true
+          if (key === 'slugs' && publishedSlugs[n]) {
+            /* API 已确认才保留；避免过期 JSON 误判 */
+          }
         })
       })
       suggestPaths.sort()
     } catch {
       suggestPaths = []
     }
-
-    try {
-      await loadPosts(1, 'uc')
-    } catch {
-      /* 无文章 API 权限时仍可用 slug 索引 */
-    }
   })()
   return loadPromise
 }
+
+function bindSlugIndexRefreshListener() {
+  if (typeof window === 'undefined') return
+  window.addEventListener('rs-wiki-slug-index-ready', () => {
+    loadPromise = null
+    void loadWikiIndex()
+  })
+}
+
+bindSlugIndexRefreshListener()

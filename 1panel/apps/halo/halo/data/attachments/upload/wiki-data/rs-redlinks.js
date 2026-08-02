@@ -177,6 +177,14 @@
     if (!force && slugSet && now - slugSetLoadedAt < CACHE_MS) {
       return Promise.resolve(slugSet);
     }
+    var idx = window.RSWikiSlugIndex;
+    if (idx && idx.refresh) {
+      return idx.refresh(!!force).then(function () {
+        slugSet = new Set(Object.keys(idx.getSlugs ? idx.getSlugs() : {}));
+        slugSetLoadedAt = now;
+        return slugSet;
+      });
+    }
     return fetch(SLUG_INDEX, { credentials: "same-origin", cache: "no-cache" })
       .then(function (r) {
         if (!r.ok) throw new Error("slug index " + r.status);
@@ -645,6 +653,9 @@
           var linkTarget = result.linkTarget || slug;
           registerRedlinkTarget(linkTarget, result.slug);
           applyPublishedLink(a, linkTarget, result.slug);
+          if (window.RSWikiSlugIndex && window.RSWikiSlugIndex.onPublish) {
+            window.RSWikiSlugIndex.onPublish(result.slug, linkTitle(a));
+          }
           navigateToPublishedArticle(result.slug);
         })
         .catch(function (err) {

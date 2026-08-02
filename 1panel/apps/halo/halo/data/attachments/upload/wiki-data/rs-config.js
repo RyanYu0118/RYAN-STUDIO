@@ -41,6 +41,17 @@ window.RSConfig = {
         sidebarTags: ["tag-sqmsuywx"]
     },
 
+    // 📇 Wiki slug 索引（见 rs-wiki-slug-index.js）
+    slugIndex: {
+        jsonUrl: "/upload/wiki-data/wiki-slugs.json",
+        apiTtlMs: 120000,
+        /** localhost 开发：配合 tools/mcwws-halo-preview/slug-index-rebuild-server.py 自动写 JSON */
+        rebuild: {
+            enabled: typeof location !== "undefined" && location.hostname === "localhost",
+            url: "http://127.0.0.1:8765/rebuild"
+        }
+    },
+
     // 🔴 MediaWiki 风格红链（见 rs-redlinks.js）
     redlinks: {
         enabled: true,

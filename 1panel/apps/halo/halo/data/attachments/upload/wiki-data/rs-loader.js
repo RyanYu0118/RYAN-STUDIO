@@ -69,7 +69,8 @@
                 return;
             }
             window.__rsConsoleScriptsLoaded = true;
-            loadConsoleScript("/upload/wiki-data/rs-config.js?v=4", function () {
+            loadConsoleScript("/upload/wiki-data/rs-config.js?v=5", function () {
+                loadConsoleScript("/upload/wiki-data/rs-wiki-slug-index.js?v=1.0", function () {
                 var wikiEnabled = !(
                     window.RSConfig &&
                     window.RSConfig.wikilink &&
@@ -105,6 +106,7 @@
                     console.log("[rs-loader] html-block-compact 注入已关闭（使用 RS_WikiLink 插件）");
                     afterOptionalHtml();
                 }
+                });
             });
         }
         bootConsoleWiki();
@@ -119,11 +121,12 @@
     }
 
     const SCRIPTS = {
-        config: "/upload/wiki-data/rs-config.js",
+        slugIndex: "/upload/wiki-data/rs-wiki-slug-index.js?v=1.0",
+        config: "/upload/wiki-data/rs-config.js?v=5",
         anchor: "/upload/wiki-data/rs-anchor-scroll.js?v=1.0",
         home:   "/upload/wiki-data/rs-home.js",
         wiki:   "/upload/wiki-data/rs-wiki.js",
-        redlinks: "/upload/wiki-data/rs-redlinks.js?v=3.7"
+        redlinks: "/upload/wiki-data/rs-redlinks.js?v=3.8"
     };
 
     function loadScript(url, callback) {
@@ -395,6 +398,7 @@
     }
 
     loadScript(SCRIPTS.config, function() {
+        loadScript(SCRIPTS.slugIndex, function() {
         var path = location.pathname;
         var isHomePage = path === '/' || path === '/index.html' || /^\/page\/\d+/.test(path);
 
@@ -420,5 +424,6 @@
             document.body.classList.add('layout-home-minimal'); 
             loadScript(SCRIPTS.home);
         }
+        });
     });
 })();
