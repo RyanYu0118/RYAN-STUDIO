@@ -280,10 +280,20 @@
     return fetchPostBySlug(slug).then(isPostPublished);
   }
 
+  /** 装饰性导航卡片：不走红链创建（Halo 可能剥外层 div，故以 a 自身 class/data 为准） */
+  function shouldSkipRedlinkAnchor(anchor) {
+    if (!anchor) return true;
+    if (anchor.closest(".rs-wiki-redlink-skip")) return true;
+    if (anchor.hasAttribute("data-wws-wb-card")) return true;
+    if (anchor.classList.contains("wws-wb-card")) return true;
+    if (anchor.classList.contains("wd-smart-card")) return true;
+    return false;
+  }
+
   function markLinks(root, set) {
     var links = root.querySelectorAll('a[href*="' + PATH_PREFIX + '"]');
     links.forEach(function (a) {
-      if (a.closest(".rs-wiki-redlink-skip")) return;
+      if (shouldSkipRedlinkAnchor(a)) return;
       var slug = parseArchivesSlug(a.getAttribute("href"));
       if (!slug) return;
       a.setAttribute("data-rs-wiki-slug", slug);
@@ -294,6 +304,13 @@
   }
 
   function linkTitle(anchor) {
+    var fromAttr = (anchor.getAttribute("data-rs-wiki-title") || "").trim();
+    if (fromAttr) return fromAttr;
+    var titleEl = anchor.querySelector(".wws-wb-title, .wd-title");
+    if (titleEl) {
+      var t = (titleEl.textContent || "").replace(/\s+/g, " ").trim();
+      if (t) return t;
+    }
     var text = (anchor.textContent || "").replace(/\s+/g, " ").trim();
     if (text) return text;
     var slug = anchor.getAttribute("data-rs-wiki-slug") || "";
@@ -364,7 +381,7 @@
     return { raw: html, content: html, rawType: "html" };
   }
 
-  function publishPostAndWait(name, headers) {
+  function publishPostAndWait(name, headers, publishSlug) {
     return fetch(
       "/apis/uc.api.content.halo.run/v1alpha1/posts/" + encodeURIComponent(name) + "/publish",
       {
@@ -376,8 +393,29 @@
     ).then(function (res) {
       if (res.ok) return res;
       return res.text().then(function (t) {
-        throw new Error("发布失败 HTTP " + res.status + (t ? ": " + t.slice(0, 200) : ""));
+        var err = new Error("发布失败 HTTP " + res.status + (t ? ": " + t.slice(0, 200) : ""));
+        err.httpStatus = res.status;
+        err.publishSlug = publishSlug || "";
+        throw err;
       });
+    });
+  }
+
+  /** slug 已被其他已发布文章占用时，不再弹错，直接视为可跳转 */
+  function recoverPublishConflict(publishSlug, draftName) {
+    if (!publishSlug) return Promise.resolve(null);
+    return fetchPostBySlug(publishSlug).then(function (existing) {
+      if (existing && isPostPublished(existing)) {
+        return {
+          ok: true,
+          name: (existing.metadata && existing.metadata.name) || draftName,
+          slug: publishSlug,
+          existed: true,
+          published: true,
+          conflictResolved: true,
+        };
+      }
+      return null;
     });
   }
 
@@ -487,7 +525,7 @@
                 if (isPostPublished(existing)) {
                   return { ok: true, name: en, slug: publishSlug, existed: true, published: true };
                 }
-                return publishPostAndWait(en, headers)
+                return publishPostAndWait(en, headers, publishSlug)
                   .then(function () {
                     return repairPostOnce(en, headers);
                   })
@@ -497,6 +535,12 @@
                     });
                   })
                   .catch(function (err) {
+                    if (err && err.httpStatus === 409) {
+                      return recoverPublishConflict(publishSlug, en).then(function (recovered) {
+                        if (recovered) return recovered;
+                        return { ok: false, error: String(err) };
+                      });
+                    }
                     return { ok: false, error: String(err) };
                   });
               }
@@ -506,7 +550,7 @@
         }
         return res.json().then(function (post) {
           var name = (post.metadata && post.metadata.name) || postName;
-          return publishPostAndWait(name, headers)
+          return publishPostAndWait(name, headers, publishSlug)
             .then(function () {
               return repairPostOnce(name, headers);
             })
@@ -531,6 +575,19 @@
                 usedPostId: resolved.usedPostId,
                 published: true,
               };
+            })
+            .catch(function (err) {
+              if (err && err.httpStatus === 409) {
+                return recoverPublishConflict(publishSlug, name).then(function (recovered) {
+                  if (recovered) {
+                    recovered.linkTarget = resolved.linkTarget;
+                    recovered.usedPostId = resolved.usedPostId;
+                    return recovered;
+                  }
+                  throw err;
+                });
+              }
+              throw err;
             });
         });
       })
